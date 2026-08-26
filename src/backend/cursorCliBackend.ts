@@ -1,5 +1,27 @@
 import { spawn } from "node:child_process";
+import { existsSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import type { AgentBackend, RoleConfig, StartResult } from "./agentBackend.js";
+
+// Windows installs cursor-agent as a .cmd->powershell shim; spawning that through a
+// shell mangles multiline prompts and is an injection risk. Resolve the real
+// node.exe + index.js it wraps and spawn those directly instead.
+function resolveLauncher(bin: string): { cmd: string; prefixArgs: string[]; shell: boolean } {
+  if (process.platform !== "win32") return { cmd: bin, prefixArgs: [], shell: false };
+  if (bin !== "cursor-agent") return { cmd: bin, prefixArgs: [], shell: bin.endsWith(".cmd") };
+  const root = join(process.env.LOCALAPPDATA ?? "", "cursor-agent", "versions");
+  try {
+    // ponytail: lexical sort works because versions are zero-padded YYYY.MM.DD
+    for (const v of readdirSync(root).sort().reverse()) {
+      const node = join(root, v, "node.exe");
+      const idx = join(root, v, "index.js");
+      if (existsSync(node) && existsSync(idx)) return { cmd: node, prefixArgs: [idx], shell: false };
+    }
+  } catch {
+    // fall through to shell shim
+  }
+  return { cmd: bin, prefixArgs: [], shell: true };
+}
 
 export interface CursorCliOptions {
   bin?: string;
@@ -26,21 +48,24 @@ export function parseAgentOutput(stdout: string): { reply: string; sessionId?: s
 
 export class CursorCliBackend implements AgentBackend {
   private bin: string;
+  private launcher: { cmd: string; prefixArgs: string[]; shell: boolean };
   private model?: string;
   private cwd: string;
 
   constructor(opts: CursorCliOptions = {}) {
     this.bin = opts.bin ?? process.env.CURSOR_AGENT_BIN ?? "cursor-agent";
+    this.launcher = resolveLauncher(this.bin);
     this.model = opts.model;
     this.cwd = opts.cwd ?? process.cwd();
   }
 
   private exec(args: string[]): Promise<string> {
     return new Promise((resolve, reject) => {
-      const child = spawn(this.bin, args, {
+      const child = spawn(this.launcher.cmd, [...this.launcher.prefixArgs, ...args], {
         cwd: this.cwd,
         windowsHide: true,
-        shell: process.platform === "win32",
+        shell: this.launcher.shell,
+        env: { ...process.env, CURSOR_INVOKED_AS: "cursor-agent" },
       });
       let stdout = "";
       let stderr = "";
