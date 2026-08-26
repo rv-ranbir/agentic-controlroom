@@ -4,6 +4,8 @@ import type { ChatLog } from "../chatroom/log.js";
 export interface OrchestratorOptions {
   maxRounds?: number;
   tailSize?: number;
+  /** Stream each agent's raw work lines into log.activity (for live activity panes). */
+  streamActivity?: boolean;
 }
 
 export type RoomResult = "approved" | "max-rounds";
@@ -20,6 +22,8 @@ export async function runRoom(
 ): Promise<RoomResult> {
   const maxRounds = opts.maxRounds ?? 3;
   const tailSize = opts.tailSize ?? 20;
+  const onLineFor = (agentId: string) =>
+    opts.streamActivity ? (line: string) => log.activity(agentId, line) : undefined;
   const chatroomTail = () =>
     log
       .tail(tailSize)
@@ -34,6 +38,7 @@ export async function runRoom(
   const devStart = await backend.start(
     dev,
     `Task:\n${task}\n\nWork on this task in the current repository. When done, summarize what you changed and end your message with "STATUS: READY_FOR_REVIEW".`,
+    onLineFor(dev.id),
   );
   log.post(dev.id, dev.name, devStart.reply);
 
@@ -45,11 +50,11 @@ export async function runRoom(
     log.agentState(qa.id, "working");
     let qaReply: string;
     if (qaSessionId === undefined) {
-      const r = await backend.start(qa, qaPrompt);
+      const r = await backend.start(qa, qaPrompt, onLineFor(qa.id));
       qaSessionId = r.sessionId;
       qaReply = r.reply;
     } else {
-      qaReply = (await backend.resume(qaSessionId, qaPrompt, qa)).reply;
+      qaReply = (await backend.resume(qaSessionId, qaPrompt, qa, onLineFor(qa.id))).reply;
     }
     log.post(qa.id, qa.name, qaReply);
 
@@ -69,6 +74,7 @@ export async function runRoom(
         devStart.sessionId,
         `Chatroom so far:\n${chatroomTail()}\n\nQA requested changes. Address the findings above in the repository, then end your message with "STATUS: READY_FOR_REVIEW".`,
         dev,
+        onLineFor(dev.id),
       )
     ).reply;
     log.post(dev.id, dev.name, devReply);

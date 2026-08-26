@@ -65,16 +65,19 @@
     }
   },
   "scripts": {
-    "build": "tsc && npm run build:ext",
+    "build": "tsc && npm run build:ext && npm run build:desktop",
     "build:ext": "esbuild src/extension.ts --bundle --platform=node --format=cjs --external:vscode --outfile=dist/extension.cjs",
+    "build:desktop": "esbuild src/desktop/main.ts --bundle --platform=node --format=cjs --external:electron --outfile=dist/desktop/main.cjs && esbuild src/desktop/preload.ts --bundle --platform=node --format=cjs --external:electron --outfile=dist/desktop/preload.cjs && esbuild src/desktop/renderer.ts --bundle --format=iife --outfile=dist/desktop/renderer.js && node -e \"require('fs').copyFileSync('src/desktop/index.html','dist/desktop/index.html')\"",
+    "app": "npm run build && electron dist/desktop/main.cjs",
     "test": "npm run build && node --test \"dist/**/*.test.js\"",
     "package": "npm run build && vsce package --allow-missing-repository"
   },
   "devDependencies": {
-    "typescript": "^5.6.0",
     "@types/node": "^22.0.0",
     "@types/vscode": "^1.85.0",
     "@vscode/vsce": "^3.0.0",
-    "esbuild": "^0.24.0"
+    "electron": "^44.0.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.6.0"
   }
 }

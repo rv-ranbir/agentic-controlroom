@@ -1,27 +1,7 @@
 import { spawn } from "node:child_process";
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import type { AgentBackend, RoleConfig, StartResult } from "./agentBackend.js";
-
-// Windows installs cursor-agent as a .cmd->powershell shim; spawning that through a
-// shell mangles multiline prompts and is an injection risk. Resolve the real
-// node.exe + index.js it wraps and spawn those directly instead.
-function resolveLauncher(bin: string): { cmd: string; prefixArgs: string[]; shell: boolean } {
-  if (process.platform !== "win32") return { cmd: bin, prefixArgs: [], shell: false };
-  if (bin !== "cursor-agent") return { cmd: bin, prefixArgs: [], shell: bin.endsWith(".cmd") };
-  const root = join(process.env.LOCALAPPDATA ?? "", "cursor-agent", "versions");
-  try {
-    // ponytail: lexical sort works because versions are zero-padded YYYY.MM.DD
-    for (const v of readdirSync(root).sort().reverse()) {
-      const node = join(root, v, "node.exe");
-      const idx = join(root, v, "index.js");
-      if (existsSync(node) && existsSync(idx)) return { cmd: node, prefixArgs: [idx], shell: false };
-    }
-  } catch {
-    // fall through to shell shim
-  }
-  return { cmd: bin, prefixArgs: [], shell: true };
-}
+import type { AgentBackend, OnLine, RoleConfig, StartResult } from "./agentBackend.js";
 
 export interface CursorCliOptions {
   bin?: string;
@@ -46,6 +26,46 @@ export function parseAgentOutput(stdout: string): { reply: string; sessionId?: s
   return { reply: stdout.trim() };
 }
 
+/** Collects stdout while forwarding each complete line to onLine as it arrives. */
+export function lineCollector(onLine?: OnLine): { push: (chunk: string) => void; done: () => string } {
+  let all = "";
+  let pending = "";
+  return {
+    push(chunk: string) {
+      all += chunk;
+      if (!onLine) return;
+      pending += chunk;
+      const lines = pending.split("\n");
+      pending = lines.pop() ?? "";
+      for (const l of lines) if (l.trim()) onLine(l);
+    },
+    done() {
+      if (onLine && pending.trim()) onLine(pending);
+      return all;
+    },
+  };
+}
+
+// Windows installs cursor-agent as a .cmd->powershell shim; spawning that through a
+// shell mangles multiline prompts and is an injection risk. Resolve the real
+// node.exe + index.js it wraps and spawn those directly instead.
+function resolveLauncher(bin: string): { cmd: string; prefixArgs: string[]; shell: boolean } {
+  if (process.platform !== "win32") return { cmd: bin, prefixArgs: [], shell: false };
+  if (bin !== "cursor-agent") return { cmd: bin, prefixArgs: [], shell: bin.endsWith(".cmd") };
+  const root = join(process.env.LOCALAPPDATA ?? "", "cursor-agent", "versions");
+  try {
+    // ponytail: lexical sort works because versions are zero-padded YYYY.MM.DD
+    for (const v of readdirSync(root).sort().reverse()) {
+      const node = join(root, v, "node.exe");
+      const idx = join(root, v, "index.js");
+      if (existsSync(node) && existsSync(idx)) return { cmd: node, prefixArgs: [idx], shell: false };
+    }
+  } catch {
+    // fall through to shell shim
+  }
+  return { cmd: bin, prefixArgs: [], shell: true };
+}
+
 export class CursorCliBackend implements AgentBackend {
   private bin: string;
   private launcher: { cmd: string; prefixArgs: string[]; shell: boolean };
@@ -59,7 +79,7 @@ export class CursorCliBackend implements AgentBackend {
     this.cwd = opts.cwd ?? process.cwd();
   }
 
-  private exec(args: string[]): Promise<string> {
+  private exec(args: string[], onLine?: OnLine): Promise<string> {
     return new Promise((resolve, reject) => {
       const child = spawn(this.launcher.cmd, [...this.launcher.prefixArgs, ...args], {
         cwd: this.cwd,
@@ -67,9 +87,9 @@ export class CursorCliBackend implements AgentBackend {
         shell: this.launcher.shell,
         env: { ...process.env, CURSOR_INVOKED_AS: "cursor-agent" },
       });
-      let stdout = "";
+      const out = lineCollector(onLine);
       let stderr = "";
-      child.stdout.on("data", (d) => (stdout += d));
+      child.stdout.on("data", (d) => out.push(String(d)));
       child.stderr.on("data", (d) => (stderr += d));
       child.on("error", (err) =>
         reject(
@@ -79,32 +99,32 @@ export class CursorCliBackend implements AgentBackend {
         ),
       );
       child.on("close", (code) => {
-        if (code === 0) resolve(stdout);
+        if (code === 0) resolve(out.done());
         else reject(new Error(`${this.bin} exited with code ${code}: ${stderr.trim().slice(0, 500)}`));
       });
     });
   }
 
-  private baseArgs(): string[] {
+  private baseArgs(streaming: boolean): string[] {
     // --trust: headless runs are always pointed at a directory the user chose
-    const args = ["-p", "--trust", "--output-format", "json"];
+    const args = ["-p", "--trust", "--output-format", streaming ? "stream-json" : "json"];
     if (this.model) args.push("--model", this.model);
     return args;
   }
 
-  async start(role: RoleConfig, prompt: string): Promise<StartResult> {
-    const out = await this.exec([...this.baseArgs(), `${role.systemPrompt}\n\n${prompt}`]);
+  async start(role: RoleConfig, prompt: string, onLine?: OnLine): Promise<StartResult> {
+    const out = await this.exec([...this.baseArgs(!!onLine), `${role.systemPrompt}\n\n${prompt}`], onLine);
     const { reply, sessionId } = parseAgentOutput(out);
     // ponytail: missing session id tolerated — orchestrator prompts always carry the
     // chatroom tail, so a stateless fallback still coordinates, just without CLI-side history.
     return { sessionId: sessionId ?? "", reply };
   }
 
-  async resume(sessionId: string, prompt: string, role: RoleConfig): Promise<{ reply: string }> {
+  async resume(sessionId: string, prompt: string, role: RoleConfig, onLine?: OnLine): Promise<{ reply: string }> {
     const args = sessionId
-      ? [...this.baseArgs(), "--resume", sessionId, prompt]
-      : [...this.baseArgs(), `${role.systemPrompt}\n\n${prompt}`];
-    const out = await this.exec(args);
+      ? [...this.baseArgs(!!onLine), "--resume", sessionId, prompt]
+      : [...this.baseArgs(!!onLine), `${role.systemPrompt}\n\n${prompt}`];
+    const out = await this.exec(args, onLine);
     return { reply: parseAgentOutput(out).reply };
   }
 }

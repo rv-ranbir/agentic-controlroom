@@ -1,0 +1,79 @@
+import { spawn } from "node:child_process";
+import type { AgentBackend, OnLine, RoleConfig, StartResult } from "./agentBackend.js";
+import { lineCollector, parseAgentOutput } from "./cursorCliBackend.js";
+
+export interface ClaudeCliOptions {
+  bin?: string;
+  model?: string;
+  cwd?: string;
+  /** Claude Code permission mode for headless runs. */
+  permissionMode?: string;
+}
+
+/**
+ * Backend for the Claude Code CLI (`claude`), using the user's existing
+ * Claude subscription/login. Prompt is written to stdin, so argv carries only
+ * static flags — safe to spawn through a shell shim on Windows.
+ */
+export class ClaudeCliBackend implements AgentBackend {
+  private bin: string;
+  private model?: string;
+  private cwd: string;
+  private permissionMode: string;
+
+  constructor(opts: ClaudeCliOptions = {}) {
+    this.bin = opts.bin ?? process.env.CLAUDE_BIN ?? "claude";
+    this.model = opts.model;
+    this.cwd = opts.cwd ?? process.cwd();
+    this.permissionMode = opts.permissionMode ?? "acceptEdits";
+  }
+
+  private exec(args: string[], stdin: string, onLine?: OnLine): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const child = spawn(this.bin, args, {
+        cwd: this.cwd,
+        windowsHide: true,
+        shell: process.platform === "win32",
+      });
+      const out = lineCollector(onLine);
+      let stderr = "";
+      child.stdout.on("data", (d) => out.push(String(d)));
+      child.stderr.on("data", (d) => (stderr += d));
+      child.on("error", (err) =>
+        reject(
+          new Error(
+            `Failed to launch "${this.bin}": ${err.message}. Install Claude Code or set CLAUDE_BIN to its full path.`,
+          ),
+        ),
+      );
+      child.on("close", (code) => {
+        if (code === 0) resolve(out.done());
+        else reject(new Error(`${this.bin} exited with code ${code}: ${stderr.trim().slice(0, 500)}`));
+      });
+      child.stdin.write(stdin);
+      child.stdin.end();
+    });
+  }
+
+  private baseArgs(streaming: boolean): string[] {
+    const args = ["-p", "--output-format", streaming ? "stream-json" : "json", "--permission-mode", this.permissionMode];
+    if (streaming) args.push("--verbose"); // claude requires --verbose with stream-json in -p mode
+    if (this.model) args.push("--model", this.model);
+    return args;
+  }
+
+  // role prompt goes through stdin with the task — argv stays static flags only
+  // (Windows shell shim would mangle multiline argv content)
+  async start(role: RoleConfig, prompt: string, onLine?: OnLine): Promise<StartResult> {
+    const out = await this.exec(this.baseArgs(!!onLine), `${role.systemPrompt}\n\n${prompt}`, onLine);
+    const { reply, sessionId } = parseAgentOutput(out);
+    return { sessionId: sessionId ?? "", reply };
+  }
+
+  async resume(sessionId: string, prompt: string, role: RoleConfig, onLine?: OnLine): Promise<{ reply: string }> {
+    const args = sessionId ? [...this.baseArgs(!!onLine), "--resume", sessionId] : this.baseArgs(!!onLine);
+    const stdin = sessionId ? prompt : `${role.systemPrompt}\n\n${prompt}`;
+    const out = await this.exec(args, stdin, onLine);
+    return { reply: parseAgentOutput(out).reply };
+  }
+}

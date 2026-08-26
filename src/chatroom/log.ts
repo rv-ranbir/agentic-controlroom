@@ -32,6 +32,11 @@ export class ChatLog extends EventEmitter {
     this.emit("agentState", { agentId, state });
   }
 
+  // ephemeral raw activity line (tool calls, stream events) from a working agent
+  activity(agentId: string, line: string): void {
+    this.emit("activity", { agentId, line });
+  }
+
   tail(n: number): ChatMessage[] {
     if (!existsSync(this.file)) return [];
     return readFileSync(this.file, "utf8")

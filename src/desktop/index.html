@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Agent Room</title>
+<style>
+  :root {
+    --bg: #16161e;
+    --bg2: #1c1c26;
+    --bg3: #23232f;
+    --border: #2c2c3a;
+    --fg: #c8c8d8;
+    --dim: #7c7c92;
+    --accent: #6c8cff;
+    --dev: #4fc1ff;
+    --qa: #e5c07b;
+    --green: #89d185;
+    --red: #e06c75;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: "Segoe UI", system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+    display: grid;
+    grid-template-columns: 230px minmax(380px, 1fr) minmax(320px, 1.1fr);
+    overflow: hidden;
+  }
+  h3 { margin: 0; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--dim); }
+
+  /* ── projects rail ── */
+  #rail { background: var(--bg2); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+  #rail header { padding: 0.9rem 0.9rem 0.5rem; display: flex; justify-content: space-between; align-items: center; }
+  #addProject {
+    background: var(--bg3); color: var(--fg); border: 1px solid var(--border);
+    border-radius: 5px; padding: 0.15rem 0.55rem; cursor: pointer; font-size: 0.9rem;
+  }
+  #addProject:hover { border-color: var(--accent); }
+  #projects { flex: 1; overflow-y: auto; padding: 0.3rem 0.5rem; }
+  .project {
+    padding: 0.5rem 0.6rem; border-radius: 6px; cursor: pointer;
+    display: flex; align-items: center; gap: 0.5rem; margin-bottom: 2px;
+  }
+  .project:hover { background: var(--bg3); }
+  .project.selected { background: var(--bg3); outline: 1px solid var(--border); }
+  .project .pName { flex: 1; font-size: 0.86rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .project .badge {
+    font-size: 0.66rem; color: var(--green); border: 1px solid var(--green);
+    border-radius: 8px; padding: 0 0.35rem; display: none;
+  }
+  .project.running .badge { display: inline; animation: fade 1.2s ease-in-out infinite alternate; }
+  @keyframes fade { from { opacity: 1; } to { opacity: 0.45; } }
+  #railEmpty { color: var(--dim); font-size: 0.8rem; padding: 0.8rem 0.9rem; font-style: italic; }
+
+  /* ── room ── */
+  #room { display: flex; flex-direction: column; border-right: 1px solid var(--border); min-width: 0; }
+  #roomHeader { padding: 0.8rem 1rem 0.6rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 0.8rem; }
+  #roomTitle { font-size: 0.95rem; font-weight: 600; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #backendSel {
+    background: var(--bg3); color: var(--fg); border: 1px solid var(--border);
+    border-radius: 5px; padding: 0.2rem 0.4rem; font-size: 0.78rem;
+  }
+  #roster { display: flex; gap: 0.5rem; padding: 0.6rem 1rem; border-bottom: 1px solid var(--border); }
+  .agent {
+    display: flex; align-items: center; gap: 0.5rem; flex: 1; max-width: 200px;
+    padding: 0.45rem 0.6rem; border-radius: 8px; background: var(--bg2); border: 1px solid var(--border);
+  }
+  .avatar {
+    width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center;
+    justify-content: center; font-weight: 700; font-size: 0.72rem; color: var(--bg); flex-shrink: 0;
+  }
+  .agent.Dev .avatar, .msg.Dev .mAvatar { background: var(--dev); }
+  .agent.QA .avatar, .msg.QA .mAvatar { background: var(--qa); }
+  .agent .name { font-weight: 600; font-size: 0.8rem; }
+  .agent .state { display: flex; align-items: center; gap: 0.3rem; font-size: 0.68rem; color: var(--dim); }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--dim); opacity: 0.5; }
+  .agent[data-state="working"] .dot { background: var(--green); opacity: 1; animation: pulse 1.1s ease-in-out infinite; }
+  .agent[data-state="working"] { border-color: var(--accent); }
+  .agent[data-state="done"] .dot { background: var(--green); opacity: 1; }
+  @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.6); opacity: 0.55; } }
+
+  #chat { flex: 1; overflow-y: auto; padding: 0.6rem 1rem; }
+  .msg { display: flex; gap: 0.55rem; margin: 0.7rem 0; }
+  .mAvatar {
+    width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center;
+    justify-content: center; font-weight: 700; font-size: 0.62rem; color: var(--bg); flex-shrink: 0; margin-top: 2px;
+  }
+  .msg.system .mAvatar { background: var(--dim); opacity: 0.6; }
+  .msg .content { flex: 1; min-width: 0; }
+  .who { font-weight: 600; font-size: 0.76rem; margin-bottom: 0.15rem; }
+  .msg.Dev .who { color: var(--dev); }
+  .msg.QA .who { color: var(--qa); }
+  .msg.system .who { color: var(--dim); }
+  .who .time { font-weight: 400; color: var(--dim); margin-left: 0.4em; font-size: 0.9em; }
+  .bubble {
+    white-space: pre-wrap; overflow-wrap: anywhere; background: var(--bg2);
+    border: 1px solid var(--border); border-left: 2px solid var(--dim);
+    border-radius: 0 6px 6px 6px; padding: 0.5rem 0.65rem; font-size: 0.83rem; line-height: 1.45;
+  }
+  .msg.Dev .bubble { border-left-color: var(--dev); }
+  .msg.QA .bubble { border-left-color: var(--qa); }
+  .msg.system .bubble { background: transparent; border: none; padding: 0.1rem 0; font-style: italic; color: var(--dim); }
+  #chatEmpty { color: var(--dim); font-style: italic; padding: 1rem 0; font-size: 0.85rem; }
+
+  #statusLine { color: var(--dim); font-style: italic; font-size: 0.78rem; padding: 0.25rem 1rem; min-height: 1.2em; }
+  #statusLine .dots::after { content: ''; animation: dots 1.2s steps(4, end) infinite; }
+  @keyframes dots { 25% { content: '.'; } 50% { content: '..'; } 75% { content: '...'; } }
+  #inputRow { display: flex; gap: 0.5rem; padding: 0.6rem 1rem 0.8rem; border-top: 1px solid var(--border); }
+  #task {
+    flex: 1; resize: none; font-family: inherit; font-size: 0.85rem; color: var(--fg);
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; padding: 0.5rem 0.6rem;
+  }
+  #task:focus { outline: 1px solid var(--accent); }
+  #send {
+    color: #fff; background: var(--accent); border: none; border-radius: 6px;
+    padding: 0 1.1rem; cursor: pointer; font-size: 0.85rem; font-weight: 600;
+  }
+  #send:disabled { opacity: 0.45; cursor: default; }
+
+  /* ── activity ── */
+  #activityPane { display: flex; flex-direction: column; min-width: 0; }
+  #activityPane header { padding: 0.8rem 1rem 0.6rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 0.6rem; }
+  #activityPane header h3 { flex: 1; }
+  .filterBtn {
+    background: var(--bg3); color: var(--dim); border: 1px solid var(--border);
+    border-radius: 10px; padding: 0.1rem 0.6rem; cursor: pointer; font-size: 0.7rem;
+  }
+  .filterBtn.active { color: var(--fg); border-color: var(--accent); }
+  #activity {
+    flex: 1; overflow-y: auto; padding: 0.5rem 0.8rem;
+    font-family: Consolas, "Courier New", monospace; font-size: 0.74rem; line-height: 1.5;
+  }
+  .act { display: flex; gap: 0.5rem; margin: 1px 0; }
+  .act .tag { flex-shrink: 0; width: 34px; font-weight: 700; }
+  .act.dev .tag { color: var(--dev); }
+  .act.qa .tag { color: var(--qa); }
+  .act .kind { flex-shrink: 0; color: var(--dim); width: 70px; overflow: hidden; text-overflow: ellipsis; }
+  .act .text { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--fg); min-width: 0; }
+  .act.tool .text { color: var(--green); }
+  .act.err .text { color: var(--red); }
+  #activityEmpty { color: var(--dim); font-style: italic; padding: 0.8rem 0.2rem; font-family: "Segoe UI", system-ui, sans-serif; font-size: 0.85rem; }
+</style>
+</head>
+<body>
+  <aside id="rail">
+    <header><h3>Projects</h3><button id="addProject" title="Add project">+</button></header>
+    <div id="projects"></div>
+  </aside>
+
+  <main id="room">
+    <div id="roomHeader">
+      <div id="roomTitle">No project selected</div>
+      <select id="backendSel" title="Backend">
+        <option value="cursor">Cursor</option>
+        <option value="claude">Claude Code</option>
+      </select>
+    </div>
+    <div id="roster">
+      <div class="agent Dev" id="agent-dev" data-state="idle">
+        <div class="avatar">D</div>
+        <div><div class="name">Dev</div><div class="state"><span class="dot"></span><span class="label">idle</span></div></div>
+      </div>
+      <div class="agent QA" id="agent-qa" data-state="idle">
+        <div class="avatar">Q</div>
+        <div><div class="name">QA</div><div class="state"><span class="dot"></span><span class="label">idle</span></div></div>
+      </div>
+    </div>
+    <div id="chat"><div id="chatEmpty">Pick a project, describe a task — Dev implements, QA verifies, live here.</div></div>
+    <div id="statusLine"></div>
+    <div id="inputRow">
+      <textarea id="task" rows="2" placeholder="e.g. add a /health endpoint with a test"></textarea>
+      <button id="send">Run</button>
+    </div>
+  </main>
+
+  <aside id="activityPane">
+    <header>
+      <h3>Live activity</h3>
+      <button class="filterBtn active" data-agent="">All</button>
+      <button class="filterBtn" data-agent="dev">Dev</button>
+      <button class="filterBtn" data-agent="qa">QA</button>
+    </header>
+    <div id="activity"><div id="activityEmpty">Agent tool calls and work stream here while a run is active.</div></div>
+  </aside>
+
+  <script src="./renderer.js"></script>
+</body>
+</html>

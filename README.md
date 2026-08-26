@@ -9,6 +9,16 @@ Default backend: **Cursor CLI** (`cursor-agent`) — uses your existing Cursor l
 - Node.js >= 20
 - [Cursor CLI](https://cursor.com/docs/cli/overview) installed and logged in (`cursor-agent --version` works). If the binary isn't on PATH under that name, set `CURSOR_AGENT_BIN` to its full path.
 
+## Usage — Desktop app (agentsroom-style)
+
+```bash
+npm install && npm run app
+```
+
+Three panes: **projects** rail (add any local folder, several projects run in parallel, running badge per project) | **room** (agent roster with live state dots, chatroom, task input, backend picker) | **live activity** (streaming tool calls / work lines from each agent as it edits code, filterable per agent).
+
+Backends per project: **Cursor** (default, your Cursor login via `cursor-agent`) or **Claude Code** (your Claude subscription via `claude` CLI). Both stream live activity via `--output-format stream-json`. Projects persist in the app's user-data dir; right-click a project to remove it.
+
 ## Usage — Cursor extension
 
 ```bash
