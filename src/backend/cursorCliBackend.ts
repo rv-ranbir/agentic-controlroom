@@ -86,7 +86,8 @@ export class CursorCliBackend implements AgentBackend {
   }
 
   private baseArgs(): string[] {
-    const args = ["-p", "--output-format", "json"];
+    // --trust: headless runs are always pointed at a directory the user chose
+    const args = ["-p", "--trust", "--output-format", "json"];
     if (this.model) args.push("--model", this.model);
     return args;
   }
