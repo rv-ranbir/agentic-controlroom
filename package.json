@@ -11,7 +11,8 @@
   },
   "files": [
     "dist",
-    "roles"
+    "roles",
+    "media"
   ],
   "engines": {
     "node": ">=20",
@@ -29,6 +30,24 @@
         "title": "Agent Room: Run Task"
       }
     ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "agentRoom",
+          "title": "Agent Room",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "agentRoom": [
+        {
+          "type": "webview",
+          "id": "agentRoom.chat",
+          "name": "Chatroom"
+        }
+      ]
+    },
     "configuration": {
       "title": "Agent Room",
       "properties": {

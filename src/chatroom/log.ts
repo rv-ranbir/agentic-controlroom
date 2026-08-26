@@ -22,6 +22,11 @@ export class ChatLog extends EventEmitter {
     return msg;
   }
 
+  // ephemeral "Dev is working…" style indicator — emitted, never persisted
+  status(text: string): void {
+    this.emit("status", text);
+  }
+
   tail(n: number): ChatMessage[] {
     if (!existsSync(this.file)) return [];
     return readFileSync(this.file, "utf8")
