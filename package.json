@@ -1,8 +1,11 @@
 {
   "name": "agent-room",
+  "displayName": "Agent Room",
   "version": "0.1.0",
   "description": "Multi-agent coding chatroom: specialized agents (Dev, QA, ...) coordinate on a task via a shared live log, powered by pluggable backends (Cursor CLI by default).",
+  "publisher": "agent-room",
   "type": "module",
+  "main": "./dist/extension.cjs",
   "bin": {
     "agent-room": "./dist/cli.js"
   },
@@ -11,14 +14,48 @@
     "roles"
   ],
   "engines": {
-    "node": ">=20"
+    "node": ">=20",
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "AI",
+    "Other"
+  ],
+  "activationEvents": [],
+  "contributes": {
+    "commands": [
+      {
+        "command": "agent-room.runTask",
+        "title": "Agent Room: Run Task"
+      }
+    ],
+    "configuration": {
+      "title": "Agent Room",
+      "properties": {
+        "agentRoom.model": {
+          "type": "string",
+          "default": "",
+          "description": "Model passed to cursor-agent as --model (empty = Cursor's default)."
+        },
+        "agentRoom.maxRounds": {
+          "type": "number",
+          "default": 3,
+          "description": "Maximum Dev/QA rounds before giving up."
+        }
+      }
+    }
   },
   "scripts": {
-    "build": "tsc",
-    "test": "npm run build && node --test \"dist/**/*.test.js\""
+    "build": "tsc && npm run build:ext",
+    "build:ext": "esbuild src/extension.ts --bundle --platform=node --format=cjs --external:vscode --outfile=dist/extension.cjs",
+    "test": "npm run build && node --test \"dist/**/*.test.js\"",
+    "package": "npm run build && vsce package --allow-missing-repository"
   },
   "devDependencies": {
     "typescript": "^5.6.0",
-    "@types/node": "^22.0.0"
+    "@types/node": "^22.0.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.0.0",
+    "esbuild": "^0.24.0"
   }
 }

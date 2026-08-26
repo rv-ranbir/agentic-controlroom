@@ -9,7 +9,18 @@ Default backend: **Cursor CLI** (`cursor-agent`) — uses your existing Cursor l
 - Node.js >= 20
 - [Cursor CLI](https://cursor.com/docs/cli/overview) installed and logged in (`cursor-agent --version` works). If the binary isn't on PATH under that name, set `CURSOR_AGENT_BIN` to its full path.
 
-## Usage
+## Usage — Cursor extension
+
+```bash
+npm install && npm run package
+cursor --install-extension agent-room-0.1.0.vsix
+```
+
+Then in Cursor: `Ctrl+Shift+P` → **Agent Room: Run Task** → type the task. A side panel opens showing the live chatroom (Dev and QA messages as they land); the agents work on the currently open workspace folder. Settings: `agentRoom.model`, `agentRoom.maxRounds`.
+
+The extension still drives models through the `cursor-agent` CLI — Cursor exposes no public extension API for its models, so the CLI (same login, same subscription) is the programmatic path. The extension is the UI surface.
+
+## Usage — CLI
 
 ```bash
 cd your-repo
@@ -42,6 +53,7 @@ src/backend/cursorCliBackend.ts← only file that knows about cursor-agent
 src/chatroom/log.ts            ← shared memory: JSONL append/tail + events
 src/orchestrator/orchestrator.ts ← turn-based Dev↔QA state machine
 src/cli.ts                     ← terminal live view + wiring
+src/extension.ts               ← Cursor/VSCode extension: command + webview chatroom
 roles/*.md                     ← role system prompts (add roles = add files)
 ```
 
