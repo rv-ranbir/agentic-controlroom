@@ -5,15 +5,24 @@ import { CursorCliBackend } from "./backend/cursorCliBackend.js";
 import { runRoom } from "./orchestrator/orchestrator.js";
 import { loadRole } from "./roles.js";
 
+type AgentState = "idle" | "working" | "done";
+
 type OutMsg =
   | ({ kind: "message" } & ChatMessage)
   | { kind: "status"; text: string }
+  | { kind: "agentState"; agentId: string; state: AgentState }
   | { kind: "running"; running: boolean };
+
+const ROSTER = [
+  { id: "dev", name: "Dev", desc: "implements" },
+  { id: "qa", name: "QA", desc: "verifies" },
+];
 
 class RoomController {
   private view?: vscode.WebviewView;
   private transcript: ChatMessage[] = [];
   private statusText = "";
+  private agentStates: Record<string, AgentState> = {};
   private running = false;
 
   constructor(private context: vscode.ExtensionContext) {}
@@ -27,7 +36,6 @@ class RoomController {
         void this.run(m.task.trim());
       }
     });
-    // replay: persisted log if transcript empty (fresh window), else this session's messages
     if (this.transcript.length === 0) {
       const ws = vscode.workspace.workspaceFolders?.[0];
       if (ws) {
@@ -35,6 +43,9 @@ class RoomController {
       }
     }
     for (const msg of this.transcript) this.post({ kind: "message", ...msg });
+    for (const [agentId, state] of Object.entries(this.agentStates)) {
+      this.post({ kind: "agentState", agentId, state });
+    }
     this.post({ kind: "status", text: this.statusText });
     this.post({ kind: "running", running: this.running });
   }
@@ -66,6 +77,10 @@ class RoomController {
     log.on("status", (text: string) => {
       this.statusText = text;
       this.post({ kind: "status", text });
+    });
+    log.on("agentState", ({ agentId, state }: { agentId: string; state: AgentState }) => {
+      this.agentStates[agentId] = state;
+      this.post({ kind: "agentState", agentId, state });
     });
 
     const rolesDir = join(this.context.extensionPath, "roles");
@@ -133,11 +148,27 @@ export function activate(context: vscode.ExtensionContext) {
 export function deactivate() {}
 
 function chatHtml(): string {
+  const rosterCards = ROSTER.map(
+    (a) => /* html */ `
+      <div class="agent ${a.name}" id="agent-${a.id}" data-state="idle">
+        <div class="avatar">${a.name[0]}</div>
+        <div class="meta">
+          <div class="name">${a.name}</div>
+          <div class="state"><span class="dot"></span><span class="label">idle</span></div>
+        </div>
+      </div>`,
+  ).join("");
+
   return /* html */ `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
 <style>
+  :root {
+    --dev: var(--vscode-charts-blue, #4fc1ff);
+    --qa: var(--vscode-charts-yellow, #e5c07b);
+    --sys: var(--vscode-descriptionForeground);
+  }
   html, body { height: 100%; }
   body {
     font-family: var(--vscode-font-family);
@@ -147,25 +178,84 @@ function chatHtml(): string {
     display: flex;
     flex-direction: column;
   }
+
+  /* ── roster ── */
+  #roster {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.6rem 0.65rem;
+    border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border, var(--vscode-editorWidget-border, transparent));
+  }
+  .agent {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex: 1;
+    padding: 0.45rem 0.55rem;
+    border-radius: 8px;
+    background: var(--vscode-editorWidget-background);
+    border: 1px solid var(--vscode-editorWidget-border, transparent);
+  }
+  .avatar {
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 0.8em;
+    color: var(--vscode-sideBar-background);
+    flex-shrink: 0;
+  }
+  .Dev .avatar { background: var(--dev); }
+  .QA .avatar { background: var(--qa); }
+  .name { font-weight: 600; font-size: 0.85em; }
+  .state { display: flex; align-items: center; gap: 0.3rem; font-size: 0.75em; color: var(--vscode-descriptionForeground); }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--vscode-descriptionForeground); opacity: 0.5; }
+  .agent[data-state="working"] .dot {
+    background: var(--vscode-charts-green, #89d185);
+    opacity: 1;
+    animation: pulse 1.1s ease-in-out infinite;
+  }
+  .agent[data-state="working"] { border-color: var(--vscode-focusBorder); }
+  .agent[data-state="done"] .dot { background: var(--vscode-charts-green, #89d185); opacity: 1; animation: none; }
+  @keyframes pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.6); opacity: 0.55; } }
+
+  /* ── chat ── */
   #chat { flex: 1; overflow-y: auto; padding: 0.5rem 0.65rem; }
-  .msg { margin: 0.6rem 0; }
-  .who { font-weight: 600; font-size: 0.85em; margin-bottom: 0.15rem; }
+  .msg { display: flex; gap: 0.5rem; margin: 0.65rem 0; }
+  .msg .mAvatar {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 0.7em;
+    color: var(--vscode-sideBar-background);
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .msg.Dev .mAvatar { background: var(--dev); }
+  .msg.QA .mAvatar { background: var(--qa); }
+  .msg.system .mAvatar { background: var(--sys); opacity: 0.6; }
+  .msg .content { flex: 1; min-width: 0; }
+  .who { font-weight: 600; font-size: 0.8em; margin-bottom: 0.15rem; }
+  .msg.Dev .who { color: var(--dev); }
+  .msg.QA .who { color: var(--qa); }
+  .msg.system .who { color: var(--sys); }
   .who .time { font-weight: 400; color: var(--vscode-descriptionForeground); margin-left: 0.4em; font-size: 0.9em; }
-  .Dev .who { color: var(--vscode-charts-blue, #4fc1ff); }
-  .QA .who { color: var(--vscode-charts-yellow, #e5c07b); }
-  .system .who { color: var(--vscode-descriptionForeground); }
-  .body {
+  .bubble {
     white-space: pre-wrap;
     overflow-wrap: anywhere;
     background: var(--vscode-editorWidget-background);
     border: 1px solid var(--vscode-editorWidget-border, transparent);
-    border-radius: 6px;
+    border-left: 2px solid var(--sys);
+    border-radius: 0 6px 6px 6px;
     padding: 0.5rem 0.65rem;
-    font-size: 0.9em;
-    line-height: 1.4;
+    font-size: 0.88em;
+    line-height: 1.45;
   }
-  .system .body { background: transparent; border: none; padding: 0.1rem 0; font-style: italic; }
+  .msg.Dev .bubble { border-left-color: var(--dev); }
+  .msg.QA .bubble { border-left-color: var(--qa); }
+  .msg.system .bubble { background: transparent; border: none; padding: 0.1rem 0; font-style: italic; color: var(--sys); }
   #empty { color: var(--vscode-descriptionForeground); font-style: italic; padding: 1rem 0.65rem; }
+
+  /* ── status + input ── */
   #status {
     color: var(--vscode-descriptionForeground);
     font-style: italic;
@@ -207,7 +297,8 @@ function chatHtml(): string {
 </style>
 </head>
 <body>
-  <div id="chat"><div id="empty">No messages yet. Describe a task below — Dev implements it, QA verifies it, live in this chatroom.</div></div>
+  <div id="roster">${rosterCards}</div>
+  <div id="chat"><div id="empty">No messages yet. Describe a task below — Dev implements it, QA verifies it, live in this room.</div></div>
   <div id="status"></div>
   <div id="inputRow">
     <textarea id="task" rows="2" placeholder="e.g. add a /health endpoint with a test"></textarea>
@@ -236,8 +327,14 @@ function chatHtml(): string {
       const m = e.data;
       if (m.kind === 'message') {
         if (empty.parentNode) empty.remove();
+        const safeRole = m.role.replace(/[^A-Za-z]/g, '');
         const div = document.createElement('div');
-        div.className = 'msg ' + m.role.replace(/[^A-Za-z]/g, '');
+        div.className = 'msg ' + safeRole;
+        const avatar = document.createElement('div');
+        avatar.className = 'mAvatar';
+        avatar.textContent = m.role === 'system' ? '•' : m.role[0].toUpperCase();
+        const content = document.createElement('div');
+        content.className = 'content';
         const who = document.createElement('div');
         who.className = 'who';
         who.textContent = m.role;
@@ -245,12 +342,19 @@ function chatHtml(): string {
         time.className = 'time';
         time.textContent = new Date(m.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         who.appendChild(time);
-        const body = document.createElement('div');
-        body.className = 'body';
-        body.textContent = m.message;
-        div.append(who, body);
+        const bubble = document.createElement('div');
+        bubble.className = 'bubble';
+        bubble.textContent = m.message;
+        content.append(who, bubble);
+        div.append(avatar, content);
         chat.appendChild(div);
         chat.scrollTop = chat.scrollHeight;
+      } else if (m.kind === 'agentState') {
+        const card = document.getElementById('agent-' + m.agentId);
+        if (card) {
+          card.dataset.state = m.state;
+          card.querySelector('.label').textContent = m.state;
+        }
       } else if (m.kind === 'status') {
         status.innerHTML = '';
         if (m.text) {

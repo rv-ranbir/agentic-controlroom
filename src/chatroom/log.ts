@@ -27,6 +27,11 @@ export class ChatLog extends EventEmitter {
     this.emit("status", text);
   }
 
+  // ephemeral per-agent state for UIs (roster dots) — emitted, never persisted
+  agentState(agentId: string, state: "idle" | "working" | "done"): void {
+    this.emit("agentState", { agentId, state });
+  }
+
   tail(n: number): ChatMessage[] {
     if (!existsSync(this.file)) return [];
     return readFileSync(this.file, "utf8")

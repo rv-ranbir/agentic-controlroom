@@ -29,6 +29,8 @@ export async function runRoom(
   log.post("orchestrator", "system", `Task: ${task}`);
 
   log.status(`${dev.name} is working…`);
+  log.agentState(dev.id, "working");
+  log.agentState(qa.id, "idle");
   const devStart = await backend.start(
     dev,
     `Task:\n${task}\n\nWork on this task in the current repository. When done, summarize what you changed and end your message with "STATUS: READY_FOR_REVIEW".`,
@@ -39,6 +41,8 @@ export async function runRoom(
   for (let round = 1; round <= maxRounds; round++) {
     const qaPrompt = `Chatroom so far:\n${chatroomTail()}\n\nReview the developer's work in the current repository. Verify the changes actually exist and do what the developer claims. End your message with "STATUS: APPROVED" or "STATUS: CHANGES_REQUESTED" followed by your findings.`;
     log.status(`${qa.name} is reviewing…`);
+    log.agentState(dev.id, "idle");
+    log.agentState(qa.id, "working");
     let qaReply: string;
     if (qaSessionId === undefined) {
       const r = await backend.start(qa, qaPrompt);
@@ -51,11 +55,15 @@ export async function runRoom(
 
     if (APPROVED.test(qaReply)) {
       log.status("");
+      log.agentState(dev.id, "done");
+      log.agentState(qa.id, "done");
       log.post("orchestrator", "system", "QA approved. Done.");
       return "approved";
     }
 
     log.status(`${dev.name} is working…`);
+    log.agentState(dev.id, "working");
+    log.agentState(qa.id, "idle");
     const devReply = (
       await backend.resume(
         devStart.sessionId,
@@ -67,6 +75,8 @@ export async function runRoom(
   }
 
   log.status("");
+  log.agentState(dev.id, "idle");
+  log.agentState(qa.id, "idle");
   log.post("orchestrator", "system", `Max rounds (${maxRounds}) reached without QA approval.`);
   return "max-rounds";
 }
