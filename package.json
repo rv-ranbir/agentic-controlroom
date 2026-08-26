@@ -15,7 +15,7 @@
     "media"
   ],
   "engines": {
-    "node": ">=20",
+    "node": ">=24",
     "vscode": "^1.85.0"
   },
   "categories": [
