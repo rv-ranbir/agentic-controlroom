@@ -51,7 +51,7 @@ export function lineCollector(onLine?: OnLine): { push: (chunk: string) => void;
 // Windows installs cursor-agent as a .cmd->powershell shim; spawning that through a
 // shell mangles multiline prompts and is an injection risk. Resolve the real
 // node.exe + index.js it wraps and spawn those directly instead.
-function resolveLauncher(bin: string): { cmd: string; prefixArgs: string[]; shell: boolean } {
+export function resolveLauncher(bin: string): { cmd: string; prefixArgs: string[]; shell: boolean } {
   if (process.platform !== "win32") return { cmd: bin, prefixArgs: [], shell: false };
   if (bin !== "cursor-agent") return { cmd: bin, prefixArgs: [], shell: bin.endsWith(".cmd") };
   const root = join(process.env.LOCALAPPDATA ?? "", "cursor-agent", "versions");

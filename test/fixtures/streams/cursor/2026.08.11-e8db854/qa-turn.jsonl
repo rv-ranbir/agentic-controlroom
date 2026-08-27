@@ -1,0 +1,4 @@
+{"type":"system","subtype":"init"}
+{"type":"assistant","message":{"content":[{"type":"text","text":"Reviewing the health check endpoint against the request."}]}}
+{"type":"tool_use","tool_call":{"name":"Read","arguments":{"path":"server.js"}}}
+{"type":"result","result":"Looks correct and matches the request. STATUS: APPROVED","session_id":"cursor-fixture-session-1"}

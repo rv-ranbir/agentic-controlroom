@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useStore } from "../store";
-import { agentIdOf, describeLine } from "../lib/agents";
+import { agentIdOf } from "../lib/agents";
+import { classifyLine } from "../../../backend/streamBlocks";
 import type { Msg } from "../types";
 
 export function Stream({ agentId }: { agentId?: string } = {}) {
@@ -68,14 +69,15 @@ function MsgBlock({ m }: { m: Msg }) {
 }
 
 function ToolBlock({ text, raw, ts }: { text: string; raw?: string; ts: string }) {
-  const { kind, text: body } = describeLine(raw ?? text);
+  const block = classifyLine(raw ?? text);
+  const sig = block.kind === "tool" ? (block.toolName ?? "tool") : block.kind;
   return (
     <div className="blk tool">
       <div className="gutter">{new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>
       <div className="content">
         <div className="toolHead">
-          <span className="sig mono">{kind}</span>
-          <span className="res mono">{body.slice(0, 80)}</span>
+          <span className="sig mono">{sig}</span>
+          <span className="res mono">{block.text.slice(0, 80)}</span>
         </div>
       </div>
     </div>

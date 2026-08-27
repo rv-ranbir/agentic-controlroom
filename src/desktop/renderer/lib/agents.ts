@@ -41,27 +41,3 @@ export function elapsedLabel(since: number | undefined): string {
   return `${Math.round(s / 3600)}h`;
 }
 
-export function describeLine(line: string): { kind: string; text: string; cls: string } {
-  try {
-    const obj = JSON.parse(line);
-    const type = String(obj.type ?? "event");
-    if (type === "assistant" || type === "message") {
-      const content = obj.message?.content;
-      const text = Array.isArray(content)
-        ? content.map((c: { text?: string }) => c.text ?? "").join("")
-        : (obj.message?.text ?? obj.text ?? "");
-      if (text) return { kind: "says", text: String(text).slice(0, 400), cls: "" };
-    }
-    if (type.includes("tool")) {
-      const name = obj.tool_call?.name ?? obj.tool_name ?? obj.name ?? obj.subtype ?? "tool";
-      const input = obj.tool_call?.arguments ?? obj.input ?? obj.args;
-      return { kind: String(name), text: input ? JSON.stringify(input).slice(0, 200) : "", cls: "tool" };
-    }
-    if (type === "result") return { kind: "result", text: String(obj.result ?? "").slice(0, 200), cls: "" };
-    if (type === "error") return { kind: "error", text: String(obj.error ?? line).slice(0, 300), cls: "err" };
-    if (type === "system") return { kind: "system", text: String(obj.subtype ?? "init"), cls: "" };
-    return { kind: type, text: line.slice(0, 200), cls: "" };
-  } catch {
-    return { kind: "raw", text: line.slice(0, 300), cls: "" };
-  }
-}

@@ -1,0 +1,5 @@
+{"type":"system","subtype":"init"}
+{"type":"assistant","message":{"content":[{"type":"text","text":"I'll add a health check endpoint."}]}}
+{"type":"tool_use","tool_call":{"name":"Write","arguments":{"path":"server.js","content":"app.get('/health', ...)"}}}
+{"type":"tool_result","name":"Write","input":{"ok":true}}
+{"type":"result","result":"Added the endpoint. STATUS: READY_FOR_REVIEW","session_id":"claude-fixture-session-1"}
