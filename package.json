@@ -67,17 +67,29 @@
   "scripts": {
     "build": "tsc && npm run build:ext && npm run build:desktop",
     "build:ext": "esbuild src/extension.ts --bundle --platform=node --format=cjs --external:vscode --outfile=dist/extension.cjs",
-    "build:desktop": "esbuild src/desktop/main.ts --bundle --platform=node --format=cjs --external:electron --outfile=dist/desktop/main.cjs && esbuild src/desktop/preload.ts --bundle --platform=node --format=cjs --external:electron --outfile=dist/desktop/preload.cjs && esbuild src/desktop/renderer.ts --bundle --format=iife --outfile=dist/desktop/renderer.js && node -e \"require('fs').copyFileSync('src/desktop/index.html','dist/desktop/index.html')\"",
+    "build:desktop": "esbuild src/desktop/main.ts --bundle --platform=node --format=cjs --external:electron --outfile=dist/desktop/main.cjs && esbuild src/desktop/preload.ts --bundle --platform=node --format=cjs --external:electron --outfile=dist/desktop/preload.cjs && tsc -p tsconfig.renderer.json --noEmit && vite build --config src/desktop/renderer/vite.config.ts",
     "app": "npm run build && electron dist/desktop/main.cjs",
     "test": "npm run build && node --test \"dist/**/*.test.js\"",
     "package": "npm run build && vsce package --allow-missing-repository"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
     "@types/vscode": "^1.85.0",
+    "@vitejs/plugin-react": "^4.3.0",
     "@vscode/vsce": "^3.0.0",
     "electron": "^44.0.0",
     "esbuild": "^0.24.0",
-    "typescript": "^5.6.0"
+    "playwright": "^1.62.1",
+    "typescript": "^5.6.0",
+    "vite": "^6.0.0"
+  },
+  "dependencies": {
+    "better-sqlite3": "^13.0.3",
+    "node-pty": "^1.1.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "zustand": "^5.0.0"
   }
 }

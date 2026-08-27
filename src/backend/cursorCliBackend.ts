@@ -1,12 +1,14 @@
 import { spawn } from "node:child_process";
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import type { AgentBackend, OnLine, RoleConfig, StartResult } from "./agentBackend.js";
+import type { AgentBackend, OnLine, OnProcess, RoleConfig, StartResult } from "./agentBackend.js";
 
 export interface CursorCliOptions {
   bin?: string;
   model?: string;
   cwd?: string;
+  /** Extra CLI flags from the agent's "CLI flags" field, appended after the standard args. */
+  extraArgs?: string[];
 }
 
 export function parseAgentOutput(stdout: string): { reply: string; sessionId?: string } {
@@ -71,22 +73,28 @@ export class CursorCliBackend implements AgentBackend {
   private launcher: { cmd: string; prefixArgs: string[]; shell: boolean };
   private model?: string;
   private cwd: string;
+  private extraArgs: string[];
 
   constructor(opts: CursorCliOptions = {}) {
     this.bin = opts.bin ?? process.env.CURSOR_AGENT_BIN ?? "cursor-agent";
     this.launcher = resolveLauncher(this.bin);
     this.model = opts.model;
     this.cwd = opts.cwd ?? process.cwd();
+    this.extraArgs = opts.extraArgs ?? [];
   }
 
-  private exec(args: string[], onLine?: OnLine): Promise<string> {
+  private exec(args: string[], onLine?: OnLine, onProcess?: OnProcess): Promise<string> {
     return new Promise((resolve, reject) => {
       const child = spawn(this.launcher.cmd, [...this.launcher.prefixArgs, ...args], {
         cwd: this.cwd,
         windowsHide: true,
         shell: this.launcher.shell,
+        // non-Windows: own process group, so a caller can kill the whole tree via
+        // process.kill(-pid). Windows tree-kill goes through `taskkill /t` instead.
+        detached: process.platform !== "win32",
         env: { ...process.env, CURSOR_INVOKED_AS: "cursor-agent" },
       });
+      onProcess?.(child);
       const out = lineCollector(onLine);
       let stderr = "";
       child.stdout.on("data", (d) => out.push(String(d)));
@@ -109,22 +117,23 @@ export class CursorCliBackend implements AgentBackend {
     // --trust: headless runs are always pointed at a directory the user chose
     const args = ["-p", "--trust", "--output-format", streaming ? "stream-json" : "json"];
     if (this.model) args.push("--model", this.model);
+    args.push(...this.extraArgs);
     return args;
   }
 
-  async start(role: RoleConfig, prompt: string, onLine?: OnLine): Promise<StartResult> {
-    const out = await this.exec([...this.baseArgs(!!onLine), `${role.systemPrompt}\n\n${prompt}`], onLine);
+  async start(role: RoleConfig, prompt: string, onLine?: OnLine, onProcess?: OnProcess): Promise<StartResult> {
+    const out = await this.exec([...this.baseArgs(!!onLine), `${role.systemPrompt}\n\n${prompt}`], onLine, onProcess);
     const { reply, sessionId } = parseAgentOutput(out);
     // ponytail: missing session id tolerated — orchestrator prompts always carry the
     // chatroom tail, so a stateless fallback still coordinates, just without CLI-side history.
     return { sessionId: sessionId ?? "", reply };
   }
 
-  async resume(sessionId: string, prompt: string, role: RoleConfig, onLine?: OnLine): Promise<{ reply: string }> {
+  async resume(sessionId: string, prompt: string, role: RoleConfig, onLine?: OnLine, onProcess?: OnProcess): Promise<{ reply: string }> {
     const args = sessionId
       ? [...this.baseArgs(!!onLine), "--resume", sessionId, prompt]
       : [...this.baseArgs(!!onLine), `${role.systemPrompt}\n\n${prompt}`];
-    const out = await this.exec(args, onLine);
+    const out = await this.exec(args, onLine, onProcess);
     return { reply: parseAgentOutput(out).reply };
   }
 }

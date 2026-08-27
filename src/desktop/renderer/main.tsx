@@ -1,0 +1,16 @@
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import { App } from "./App";
+import { ErrorBoundary } from "./ErrorBoundary";
+import "./app.css";
+
+window.addEventListener("error", (e) => console.error("[AgentRoom] uncaught:", e.message, e.error?.stack));
+window.addEventListener("unhandledrejection", (e) => console.error("[AgentRoom] unhandled rejection:", e.reason));
+
+createRoot(document.getElementById("root")!).render(
+  <StrictMode>
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
+  </StrictMode>,
+);

@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import type { AgentBackend, OnLine, RoleConfig, StartResult } from "./agentBackend.js";
+import type { AgentBackend, OnLine, OnProcess, RoleConfig, StartResult } from "./agentBackend.js";
 import { lineCollector, parseAgentOutput } from "./cursorCliBackend.js";
 
 export interface ClaudeCliOptions {
@@ -8,6 +8,8 @@ export interface ClaudeCliOptions {
   cwd?: string;
   /** Claude Code permission mode for headless runs. */
   permissionMode?: string;
+  /** Extra CLI flags from the agent's "CLI flags" field, appended after the standard args. */
+  extraArgs?: string[];
 }
 
 /**
@@ -20,21 +22,28 @@ export class ClaudeCliBackend implements AgentBackend {
   private model?: string;
   private cwd: string;
   private permissionMode: string;
+  private extraArgs: string[];
 
   constructor(opts: ClaudeCliOptions = {}) {
     this.bin = opts.bin ?? process.env.CLAUDE_BIN ?? "claude";
     this.model = opts.model;
     this.cwd = opts.cwd ?? process.cwd();
     this.permissionMode = opts.permissionMode ?? "acceptEdits";
+    this.extraArgs = opts.extraArgs ?? [];
   }
 
-  private exec(args: string[], stdin: string, onLine?: OnLine): Promise<string> {
+  private exec(args: string[], stdin: string, onLine?: OnLine, onProcess?: OnProcess): Promise<string> {
     return new Promise((resolve, reject) => {
       const child = spawn(this.bin, args, {
         cwd: this.cwd,
         windowsHide: true,
         shell: process.platform === "win32",
+        // non-Windows: own process group, so a caller can kill the whole tree via
+        // process.kill(-pid). Windows tree-kill goes through `taskkill /t` instead
+        // (needed there regardless, since shell:true wraps the real process anyway).
+        detached: process.platform !== "win32",
       });
+      onProcess?.(child);
       const out = lineCollector(onLine);
       let stderr = "";
       child.stdout.on("data", (d) => out.push(String(d)));
@@ -59,21 +68,22 @@ export class ClaudeCliBackend implements AgentBackend {
     const args = ["-p", "--output-format", streaming ? "stream-json" : "json", "--permission-mode", this.permissionMode];
     if (streaming) args.push("--verbose"); // claude requires --verbose with stream-json in -p mode
     if (this.model) args.push("--model", this.model);
+    args.push(...this.extraArgs);
     return args;
   }
 
   // role prompt goes through stdin with the task — argv stays static flags only
   // (Windows shell shim would mangle multiline argv content)
-  async start(role: RoleConfig, prompt: string, onLine?: OnLine): Promise<StartResult> {
-    const out = await this.exec(this.baseArgs(!!onLine), `${role.systemPrompt}\n\n${prompt}`, onLine);
+  async start(role: RoleConfig, prompt: string, onLine?: OnLine, onProcess?: OnProcess): Promise<StartResult> {
+    const out = await this.exec(this.baseArgs(!!onLine), `${role.systemPrompt}\n\n${prompt}`, onLine, onProcess);
     const { reply, sessionId } = parseAgentOutput(out);
     return { sessionId: sessionId ?? "", reply };
   }
 
-  async resume(sessionId: string, prompt: string, role: RoleConfig, onLine?: OnLine): Promise<{ reply: string }> {
+  async resume(sessionId: string, prompt: string, role: RoleConfig, onLine?: OnLine, onProcess?: OnProcess): Promise<{ reply: string }> {
     const args = sessionId ? [...this.baseArgs(!!onLine), "--resume", sessionId] : this.baseArgs(!!onLine);
     const stdin = sessionId ? prompt : `${role.systemPrompt}\n\n${prompt}`;
-    const out = await this.exec(args, stdin, onLine);
+    const out = await this.exec(args, stdin, onLine, onProcess);
     return { reply: parseAgentOutput(out).reply };
   }
 }

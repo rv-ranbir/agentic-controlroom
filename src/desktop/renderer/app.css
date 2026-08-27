@@ -1,0 +1,102 @@
+.viewRoot { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+/* ── top bar (Room view) ── */
+#topbar { height: 46px; flex-shrink: 0; display: flex; align-items: center; gap: 10px; padding: 0 16px; border-bottom: 1px solid var(--rule); position: relative; }
+.wordmark { font-family: var(--font-heading); font-size: 16px; letter-spacing: -.01em; }
+.vDivider { width: 1px; height: 18px; background: var(--rule); }
+.switcher { font-family: var(--font-body); font-size: 12.5px; font-weight: 600; }
+.chev { opacity: .6; font-size: 9px; }
+.branch { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; }
+.spacer { flex: 1; }
+.toast { font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px; }
+.blockedWrap { display: flex; align-items: center; gap: 7px; font-size: 10.5px; }
+#projectMenu {
+  position: absolute; top: 44px; left: 130px; min-width: 240px; background: var(--deck);
+  border: 1px solid var(--rule); border-radius: 8px; padding: 6px; z-index: 20;
+  box-shadow: 0 12px 28px rgba(0,0,0,.35);
+}
+.menuItem { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: 6px; cursor: pointer; font-size: 12.5px; }
+.menuItem:hover { background: var(--sink); }
+.menuItem .mName { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.menuItem select { background: var(--sink); color: var(--ink); border: 1px solid var(--rule); border-radius: 5px; font-size: 10px; font-family: var(--mono); }
+.menuDivider { height: 1px; background: var(--rule); margin: 5px 2px; }
+.menuEmpty { padding: 8px 9px; font-size: 11.5px; color: var(--ink-50); font-style: italic; }
+
+/* ── body regions ── */
+#body { flex: 1; display: flex; min-height: 0; }
+#roster { width: 284px; flex-shrink: 0; background: var(--deck); border-right: 1px solid var(--rule); display: flex; flex-direction: column; min-height: 0; }
+#rosterTop { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px 6px; gap: 6px; }
+#rosterList { flex: 1; overflow-y: auto; min-height: 0; }
+.bucketHead {
+  position: sticky; top: 0; background: var(--deck); padding: 8px 12px 4px; font-size: 10px;
+  text-transform: uppercase; letter-spacing: .1em; color: var(--ink-50); display: flex; gap: 6px; align-items: center;
+}
+.bucketHead .n { font-family: var(--mono); }
+#rosterFooter { padding: 8px 12px; border-top: 1px solid var(--rule); font-size: 10px; display: flex; justify-content: space-between; }
+.rosterEmpty { padding: 10px 12px; font-size: 11.5px; color: var(--ink-50); font-style: italic; }
+#rail { width: 54px; flex-shrink: 0; background: var(--paper); border-left: 1px solid var(--rule); border-right: 1px solid var(--rule); }
+#railCanvas { display: block; width: 100%; height: 100%; }
+#mainPane { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+#agentHeader { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--rule); }
+.ahInfo { flex: 1; min-width: 0; }
+.ahTitleRow { display: flex; align-items: center; gap: 7px; }
+.ahTask { font-weight: 700; font-size: 13.5px; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ahMeta { font-size: 10.5px; margin-top: 2px; }
+.ahRight { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.ahActions { display: flex; gap: 6px; flex-shrink: 0; }
+#stream { flex: 1; overflow-y: auto; padding: 14px 18px; min-height: 0; }
+.streamEmpty { color: var(--ink-50); font-style: italic; font-size: 13px; }
+#composerWrap { padding: 10px 16px 12px; border-top: 1px solid var(--rule); }
+.composerRow { display: flex; gap: 8px; }
+
+/* ── launcher ── */
+.lnHeader { height: 46px; flex-shrink: 0; display: flex; align-items: center; gap: 10px; padding: 0 20px; border-bottom: 1px solid var(--rule); }
+.lnScroll { flex: 1; overflow-y: auto; display: flex; justify-content: center; }
+.lnCol { width: 100%; max-width: 760px; padding: 48px 24px 60px; }
+.lnGreetRow { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.lnGreetRow h1 { font-size: 44px; margin: 0; }
+.lnSub { max-width: 420px; font-size: 14px; margin: 10px 0 22px; }
+.lnPanel { margin-top: 18px; }
+.dropZone { border: 1.5px dashed var(--rule); border-radius: 12px; padding: 26px; text-align: center; font-size: 13px; color: var(--ink-70); cursor: pointer; }
+.dropZone.drag { border-color: var(--signal); background: var(--ink-16); }
+.lnList { margin-top: 14px; display: flex; flex-direction: column; gap: 4px; }
+.lnItem { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 8px; cursor: pointer; }
+.lnItem:hover { background: var(--deck); }
+.lnItem .liName { font-weight: 600; font-size: 13px; }
+.lnItem .liPath { font-family: var(--mono); font-size: 10.5px; color: var(--ink-50); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lnItem .liMeta { margin-left: auto; font-family: var(--mono); font-size: 10.5px; color: var(--ink-50); flex-shrink: 0; }
+.lnRoomsHead { margin: 26px 0 4px; font-size: 11px; text-transform: uppercase; letter-spacing: .1em; }
+.lnEmpty { color: var(--ink-50); font-size: 12.5px; font-style: italic; padding: 8px 10px; }
+.repoRow { display: flex; gap: 8px; }
+
+/* ── review ── */
+.rvHeader { height: 46px; flex-shrink: 0; display: flex; align-items: center; gap: 10px; padding: 0 16px; border-bottom: 1px solid var(--rule); }
+.rvName { font-weight: 700; font-size: 13px; }
+.rvBody { flex: 1; display: flex; min-height: 0; }
+.rvLeft { flex: 1; display: flex; flex-direction: column; min-width: 0; border-right: 1px solid var(--rule); }
+.rvSummary { padding: 12px 16px; border-bottom: 1px solid var(--rule); display: flex; justify-content: space-between; font-size: 12.5px; }
+.rvFiles { flex: 1; overflow-y: auto; padding: 0 16px 16px; }
+.rvFileHead {
+  position: sticky; top: 0; background: var(--sink); padding: 8px 10px; border-radius: 8px;
+  margin-top: 12px; font-family: var(--mono); font-size: 11px; font-weight: 700;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.rvFileHead:first-child { margin-top: 0; }
+.rvFileStat .p { color: var(--live); margin-right: 6px; }
+.rvFileStat .m { color: var(--signal); }
+.rvRight { width: 380px; flex-shrink: 0; background: var(--deck); display: flex; flex-direction: column; }
+.rvEyebrow { padding: 12px 14px 6px; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; }
+.rvConvo { flex: 1; overflow-y: auto; padding: 0 14px; }
+.rvTurn { margin: 10px 0; font-size: 12.5px; }
+.rvTurn .rvSender { font-family: var(--mono); font-size: 10px; color: var(--ink-50); margin-bottom: 2px; }
+.rvTurn.user { border-left: 2px solid var(--ink-16); padding-left: 10px; }
+.rvActions { padding: 12px 14px; border-top: 1px solid var(--rule); }
+.rvBtnRow { display: flex; gap: 8px; }
+.rvEmpty { color: var(--ink-50); font-size: 12.5px; font-style: italic; padding: 14px; }
+
+/* ── new-agent modal ── */
+#modalBox { width: 560px; max-height: 82vh; overflow-y: auto; padding: 16px; }
+.fField { margin-bottom: 12px; }
+.roleGrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.roleGrid .roleOpt { flex-direction: column; text-align: center; gap: 4px; padding: 10px 6px; }
+.roleGrid .roleOpt span { font-size: 11px; }

@@ -27,8 +27,10 @@ export class ChatLog extends EventEmitter {
     this.emit("status", text);
   }
 
-  // ephemeral per-agent state for UIs (roster dots) — emitted, never persisted
-  agentState(agentId: string, state: "idle" | "working" | "done"): void {
+  // ephemeral per-agent state for UIs (roster dots) — emitted, never persisted.
+  // "needs" is a heuristic guess (the agent's reply looks like a question) — see
+  // isQuestionLike() in main.ts; it can be wrong in both directions.
+  agentState(agentId: string, state: "idle" | "working" | "done" | "needs"): void {
     this.emit("agentState", { agentId, state });
   }
 

@@ -1,0 +1,161 @@
+/* AgentRoom theme — inverted "Organic" tokens (dark-first) + shared component
+   classes, reused by index.html (the live app) and components.html (the
+   isolated reference sheet). See design_handoff_agentroom/README.md. */
+@import url('https://fonts.googleapis.com/css2?family=Caprasimo&family=Figtree:wght@400;600;700&family=Spline+Sans+Mono:wght@300;400;500;600&display=swap');
+
+:root {
+  --paper: #1B1814;
+  --deck: #241F1A;
+  --sink: #151210;
+  --rule: #3A332B;
+  --ink: #F0E7D6;
+  --ink-rgb: 240, 231, 214;
+  --signal: #D67F48;
+  --live: #AEBF92;
+  --plus: rgba(174, 191, 146, .16);
+  --minus: rgba(214, 127, 72, .16);
+  --font-heading: 'Caprasimo', system-ui, sans-serif;
+  --font-body: 'Figtree', system-ui, sans-serif;
+  --mono: 'Spline Sans Mono', ui-monospace, Consolas, monospace;
+  --ink-70: rgba(var(--ink-rgb), .74);
+  --ink-50: rgba(var(--ink-rgb), .50);
+  --ink-34: rgba(var(--ink-rgb), .32);
+  --ink-16: rgba(var(--ink-rgb), .14);
+  --i0: #8AA1C4; --i1: #B98AC0; --i2: #7FB0A6; --i3: #C6A366;
+  --i4: #B4A6D6; --i5: #C48A8A; --i6: #A8A88A; --i7: #6FA8CF;
+}
+:root[data-theme="light"] {
+  --paper: #F5EAD8;
+  --deck: #EBDDC5;
+  --sink: #E2D2B6;
+  --rule: #D0C2A6;
+  --ink: #201E1D;
+  --ink-rgb: 32, 30, 29;
+  --signal: #B2622D;
+  --live: #56633F;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { font-family: var(--font-body); background: var(--paper); color: var(--ink); }
+.mono { font-family: var(--mono); }
+.dim { color: var(--ink-70); }
+button { font-family: inherit; color: inherit; }
+
+/* — buttons / pills — */
+.pillBtn {
+  background: transparent; border: 1px solid var(--rule); color: var(--ink);
+  border-radius: 999px; padding: 4px 12px; cursor: pointer; font-size: 10.5px;
+  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+}
+.pillBtn:hover { border-color: var(--ink-50); color: var(--ink); }
+.pillBtn:disabled { opacity: .45; cursor: default; }
+.ghostBtn { opacity: .85; }
+.fillBtn { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.fillBtn:hover { opacity: .88; }
+.sendBtn { background: var(--ink); color: var(--paper); border-color: var(--ink); font-weight: 600; padding: 4px 16px; }
+.signalBtn { background: var(--signal); color: #1B1814; border-color: var(--signal); }
+.sageBtn { background: var(--live); color: #151210; border-color: var(--live); }
+.iconBtn { width: 28px; height: 28px; padding: 0; justify-content: center; font-size: 13px; }
+
+/* — identity monogram — */
+.monogram {
+  width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-weight: 600; font-size: 11px; letter-spacing: .04em; flex-shrink: 0; background: var(--sink);
+  box-shadow: inset 0 0 0 1px var(--rule);
+}
+.identDot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+/* — state pip (label + colored dot) — */
+.statePip { display: flex; align-items: center; gap: 6px; font-size: 10.5px; font-family: var(--mono); }
+.pipDot { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-34); }
+
+/* — roster agent row, 5-state treatment (do not deviate) — */
+.agentRow {
+  height: 50px; display: flex; align-items: center; gap: 11px; padding: 0 12px 0 10px;
+  cursor: pointer; position: relative;
+}
+.agentRow.idle { height: 44px; }
+.agentRow:hover { background: var(--ink-16); }
+.agentRow.sel { background: var(--ink-16); }
+.agentRow .mono2 {
+  width: 21px; flex-shrink: 0; font-family: var(--mono); font-weight: 600; font-size: 10.5px;
+  letter-spacing: .06em; text-align: center; box-shadow: 0 2px 0 0 var(--dotcolor, var(--rule));
+  padding-bottom: 2px;
+}
+.agentRow .rInfo { flex: 1; min-width: 0; }
+.agentRow .rTitle { font-weight: 700; font-size: 12.5px; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.agentRow .rSub { font-family: var(--mono); font-size: 10.5px; color: var(--ink-50); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.agentRow .rMeta { font-family: var(--mono); font-size: 10.5px; flex-shrink: 0; }
+.agentRow.st-needs { background: var(--signal); color: #1B1814; }
+.agentRow.st-needs .rSub, .agentRow.st-needs .rMeta { color: #1B1814; opacity: .8; }
+.agentRow.st-needs:hover, .agentRow.st-needs.sel { background: var(--signal); }
+.agentRow.st-review { box-shadow: inset 2px 0 0 0 var(--ink); }
+.agentRow.st-active { box-shadow: inset 2px 0 0 0 var(--live); color: var(--ink-70); }
+.agentRow.st-active .rMeta { color: var(--live); }
+.agentRow.st-seen { box-shadow: inset 2px 0 0 0 var(--rule); color: var(--ink-50); }
+.agentRow.st-idle { color: var(--ink-34); }
+
+/* — stream blocks: user / prose / note / tool / diff / ask — */
+.blk { margin: 14px 0; display: flex; gap: 12px; }
+.blk .gutter { width: 52px; flex-shrink: 0; font-family: var(--mono); font-size: 10px; color: var(--ink-34); text-align: right; padding-top: 3px; }
+.blk .content { flex: 1; min-width: 0; }
+.blk.user .content { border-left: 2px solid var(--ink-16); padding-left: 12px; font-size: 14px; }
+.blk.prose .content { color: var(--ink-70); font-size: 14px; line-height: 1.55; }
+.blk.prose .content.streaming::after { content: '▍'; animation: caret 1s steps(1) infinite; color: var(--ink-50); }
+@keyframes caret { 50% { opacity: 0; } }
+.blk.note .content { color: var(--ink-50); font-family: var(--mono); font-size: 11.5px; font-style: italic; }
+.blk.tool .content, .blk.diff .content {
+  background: var(--sink); border: 1px solid var(--rule); border-radius: 8px; padding: 10px 12px;
+}
+.toolHead { display: flex; justify-content: space-between; gap: 10px; font-family: var(--mono); font-size: 11px; }
+.toolHead .sig { font-weight: 700; }
+.toolHead .res { color: var(--ink-50); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.toolBody { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--rule); font-family: var(--mono); font-size: 11px; color: var(--ink-50); white-space: pre-wrap; overflow-wrap: anywhere; }
+.diffHead { display: flex; justify-content: space-between; align-items: baseline; font-family: var(--mono); font-size: 11px; }
+.diffHead .fname { font-weight: 700; }
+.diffHead .stat .p { color: var(--live); } .diffHead .stat .m { color: var(--signal); }
+.diffHead .verdict.pending { color: var(--ink-50); } .diffHead .verdict.approved { color: var(--live); } .diffHead .verdict.rejected { color: var(--signal); }
+.diffLine { font-family: var(--mono); font-size: 11.5px; line-height: 1.75; display: flex; }
+.diffLine .ln { width: 22px; flex-shrink: 0; color: var(--ink-34); text-align: right; margin-right: 8px; }
+.diffLine.add { background: var(--plus); } .diffLine.del { background: var(--minus); }
+.askBadge { display: inline-block; background: var(--signal); color: #1B1814; font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: .06em; border-radius: 5px; padding: 2px 7px; margin-bottom: 6px; }
+
+/* — composer — */
+.composerInput {
+  flex: 1; background: transparent; border: 1px solid var(--rule); border-radius: 999px;
+  padding: 8px 16px; font-size: 13px; color: var(--ink); font-family: var(--font-body);
+}
+.composerInput:focus { outline: none; border-color: var(--signal); }
+.hintRow { margin-top: 6px; font-size: 10px; display: flex; gap: 12px; }
+
+/* — dialog / modal shell — */
+.dialogBackdrop { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: none; align-items: center; justify-content: center; z-index: 30; }
+.dialogBackdrop.open { display: flex; }
+.dialogBox { background: var(--deck); border: 1px solid var(--rule); border-radius: 12px; box-shadow: 0 12px 32px rgba(0,0,0,.35); }
+.dialogBox h3 { margin: 0 0 10px; font-family: var(--font-heading); font-weight: 400; font-size: 15px; }
+.roleOpt { display: flex; align-items: center; gap: 10px; padding: 8px 9px; border-radius: 8px; cursor: pointer; font-size: 12.5px; }
+.roleOpt:hover { background: var(--sink); }
+.roleOpt.taken { opacity: .4; cursor: default; }
+.roleOpt.chosen { box-shadow: inset 0 0 0 2px var(--signal); }
+
+/* — status dot / pill badge — */
+.statusDot { width: 7px; height: 7px; border-radius: 50%; background: var(--live); flex-shrink: 0; }
+.pill { border-radius: 999px; padding: 1px 9px; font-size: 10.5px; font-family: var(--mono); background: var(--sink); border: 1px solid var(--rule); }
+.pill.on { background: var(--signal); color: #1B1814; border-color: var(--signal); font-weight: 700; }
+
+/* — field label + input, used by the new-agent modal and launcher — */
+.fLabel { display: block; font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-50); margin-bottom: 5px; }
+.fInput {
+  width: 100%; background: var(--sink); border: 1px solid var(--rule); border-radius: 8px;
+  padding: 7px 10px; font-size: 13px; color: var(--ink); font-family: var(--font-body);
+}
+.fInput:focus-visible { outline: 2px solid var(--signal); outline-offset: 0; }
+textarea.fInput { resize: vertical; min-height: 64px; font-family: var(--mono); font-size: 12px; }
+.segGroup { display: inline-flex; border: 1px solid var(--rule); border-radius: 999px; overflow: hidden; }
+.segOpt { padding: 6px 13px; font-size: 12px; cursor: pointer; font-family: var(--mono); }
+.segOpt + .segOpt { border-left: 1px solid var(--rule); }
+.segOpt.on { background: var(--ink); color: var(--paper); }
+.segOpt:not(.on):hover { background: var(--ink-16); }
+.chip { display: inline-flex; align-items: center; gap: 5px; background: var(--sink); border: 1px solid var(--rule); border-radius: 999px; padding: 3px 6px 3px 10px; font-size: 11px; font-family: var(--mono); }
+.chip .x { cursor: pointer; opacity: .6; }
+.chip .x:hover { opacity: 1; }

@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>AgentRoom — Components</title>
+<link rel="stylesheet" href="./theme.css">
+<style>
+  body { padding: 24px; background: #0e0d0b; }
+  h1 { font-family: var(--font-heading); font-weight: 400; font-size: 20px; color: #eee; margin: 0 0 18px; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .panel { border-radius: 12px; padding: 20px; }
+  .panelDark {
+    --paper: #1B1814; --deck: #241F1A; --sink: #151210; --rule: #3A332B; --ink: #F0E7D6; --ink-rgb: 240, 231, 214;
+    --signal: #D67F48; --live: #AEBF92;
+    background: var(--paper); color: var(--ink);
+  }
+  .panelLight {
+    --paper: #F5EAD8; --deck: #EBDDC5; --sink: #E2D2B6; --rule: #D0C2A6; --ink: #201E1D; --ink-rgb: 32, 30, 29;
+    --signal: #B2622D; --live: #56633F;
+    background: var(--paper); color: var(--ink);
+  }
+  .panel h6 { font-size: 10px; text-transform: uppercase; letter-spacing: .1em; color: var(--ink-50); margin: 20px 0 8px; }
+  .panel h6:first-child { margin-top: 0; }
+  .rosterDemo { border-radius: 12px; overflow: hidden; background: var(--deck); }
+  .pipRow { display: flex; gap: 18px; flex-wrap: wrap; padding: 4px 0; }
+  .composerDemo { display: flex; gap: 8px; }
+</style>
+</head>
+<body>
+  <h1>AgentRoom — component reference (dark / light)</h1>
+  <div class="cols">
+    <div class="panel panelDark">
+      <h6>Agent row — five states</h6>
+      <div class="rosterDemo" id="rosterDark"></div>
+      <h6>Status indicators</h6>
+      <div class="pipRow" id="pipsDark"></div>
+      <h6>Tool-call block</h6>
+      <div id="toolDark"></div>
+      <h6>Needs-input block</h6>
+      <div id="needsDark"></div>
+      <h6>Composer</h6>
+      <div class="composerDemo">
+        <input class="composerInput mono" placeholder="Message…">
+        <button class="pillBtn sendBtn mono">send</button>
+      </div>
+    </div>
+    <div class="panel panelLight">
+      <h6>Agent row — five states</h6>
+      <div class="rosterDemo" id="rosterLight"></div>
+      <h6>Status indicators</h6>
+      <div class="pipRow" id="pipsLight"></div>
+      <h6>Tool-call block</h6>
+      <div id="toolLight"></div>
+      <h6>Needs-input block</h6>
+      <div id="needsLight"></div>
+      <h6>Composer</h6>
+      <div class="composerDemo">
+        <input class="composerInput mono" placeholder="Message…">
+        <button class="pillBtn sendBtn mono">send</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const STATES = [
+    ["needs", "Needs input", "reply ⏎"],
+    ["review", "To review", "review"],
+    ["active", "Active", "3m"],
+    ["seen", "Seen", "✓"],
+    ["idle", "Inactive", ""],
+  ];
+  function rosterHtml() {
+    return STATES.map(([st, label, meta]) => `
+      <div class="agentRow st-${st}${st === "idle" ? " idle" : ""}" style="--dotcolor:#8AA1C4">
+        <div class="mono2">${label.slice(0, 2).toUpperCase()}</div>
+        <div class="rInfo"><div class="rTitle">${label} agent</div>${st === "idle" ? "" : '<div class="rSub">demo-project</div>'}</div>
+        <div class="rMeta"${st === "active" ? ' style="color:var(--live)"' : ""}>${meta}</div>
+      </div>`).join("");
+  }
+  function pipsHtml() {
+    const colors = { needs: "var(--signal)", review: "var(--ink)", active: "var(--live)", seen: "var(--rule)", idle: "var(--ink-34)" };
+    return STATES.map(([st, label]) => `
+      <div class="statePip"><span class="pipDot" style="background:${colors[st]}"></span><span>${label}</span></div>`).join("");
+  }
+  const toolHtml = `<div class="blk tool"><div class="content"><div class="toolHead"><span class="sig mono">Read(src/index.ts)</span><span class="res mono">240 lines</span></div></div></div>`;
+  const needsHtml = `<div class="agentRow st-needs" style="--dotcolor:#8AA1C4;height:auto;padding:10px 12px"><div class="mono2">NI</div><div class="rInfo"><div class="rTitle">Needs Input</div><div class="rSub">demo-project · blocked on a question</div></div><div class="rMeta">reply ⏎</div></div>`;
+
+  for (const id of ["rosterDark", "rosterLight"]) document.getElementById(id).innerHTML = rosterHtml();
+  for (const id of ["pipsDark", "pipsLight"]) document.getElementById(id).innerHTML = pipsHtml();
+  for (const id of ["toolDark", "toolLight"]) document.getElementById(id).innerHTML = toolHtml;
+  for (const id of ["needsDark", "needsLight"]) document.getElementById(id).innerHTML = needsHtml;
+</script>
+</body>
+</html>
