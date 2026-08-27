@@ -3,6 +3,7 @@ import { useStore } from "./store";
 import { Launcher } from "./components/Launcher";
 import { Room } from "./components/Room";
 import { Review } from "./components/Review";
+import { Terminal } from "./components/Terminal";
 import { NewAgentModal } from "./components/NewAgentModal";
 
 export function App() {
@@ -18,6 +19,7 @@ export function App() {
       {view === "launcher" && <Launcher onNewAgent={() => setModalOpen(true)} />}
       {view === "room" && <Room onAddAgent={() => setModalOpen(true)} onOpenReview={() => showView("review")} />}
       {view === "review" && <Review />}
+      {view === "terminal" && <Terminal />}
       {modalOpen && <NewAgentModal onClose={() => setModalOpen(false)} />}
     </>
   );

@@ -21,7 +21,7 @@ export function AgentHeader({ onOpenReview }: { onOpenReview: () => void }) {
   const localForceActive = useStore((s) => s.localForceActive);
   const localPaused = useStore((s) => s.localPaused);
   const rawMode = useStore((s) => s.rawMode);
-  const { togglePaused, markReviewed, toggleRawMode, showToast } = useStore.getState();
+  const { togglePaused, markReviewed, toggleRawMode, showToast, showView } = useStore.getState();
 
   if (!project) {
     return (
@@ -76,7 +76,7 @@ export function AgentHeader({ onOpenReview }: { onOpenReview: () => void }) {
         </button>
         <button className="pillBtn ghostBtn mono" onClick={() => showToast("Reassign — not wired yet")}>reassign</button>
         <button className="pillBtn ghostBtn mono" onClick={() => showToast("Fork — not wired yet")}>fork</button>
-        <button className="pillBtn ghostBtn mono" onClick={() => showToast("Terminal — not wired yet (needs PTY, M1)")}>terminal ↗</button>
+        <button className="pillBtn ghostBtn mono" onClick={() => showView("terminal")}>terminal ↗</button>
         {bucket === "review" && (
           <button className="pillBtn fillBtn mono" onClick={() => { markReviewed(selectedAgent); showToast(`Marked reviewed · ${agent?.name}`); }}>
             mark-reviewed

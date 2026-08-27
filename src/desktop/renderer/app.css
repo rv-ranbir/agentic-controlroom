@@ -94,6 +94,10 @@
 .rvBtnRow { display: flex; gap: 8px; }
 .rvEmpty { color: var(--ink-50); font-size: 12.5px; font-style: italic; padding: 14px; }
 
+/* ── terminal (M1: real PTY session) ── */
+.ptBody { flex: 1; min-height: 0; padding: 8px; background: var(--paper); }
+.ptContainer { width: 100%; height: 100%; }
+
 /* ── new-agent modal ── */
 #modalBox { width: 560px; max-height: 82vh; overflow-y: auto; padding: 16px; }
 .fField { margin-bottom: 12px; }

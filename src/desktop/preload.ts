@@ -23,4 +23,19 @@ contextBridge.exposeInMainWorld("api", {
   onEvent: (cb: (e: unknown) => void) => {
     ipcRenderer.on("room:event", (_evt, payload) => cb(payload));
   },
+  startPty: (projectId: string, agentId: string) => ipcRenderer.invoke("pty:start", { projectId, agentId }),
+  writePty: (projectId: string, agentId: string, data: string) => ipcRenderer.invoke("pty:write", { projectId, agentId, data }),
+  resizePty: (projectId: string, agentId: string, cols: number, rows: number) =>
+    ipcRenderer.invoke("pty:resize", { projectId, agentId, cols, rows }),
+  stopPty: (projectId: string, agentId: string) => ipcRenderer.invoke("pty:stop", { projectId, agentId }),
+  onPtyData: (cb: (e: { key: string; data: string }) => void) => {
+    const handler = (_evt: unknown, payload: { key: string; data: string }) => cb(payload);
+    ipcRenderer.on("pty:data", handler);
+    return () => ipcRenderer.removeListener("pty:data", handler);
+  },
+  onPtyExit: (cb: (e: { key: string; exitCode: number }) => void) => {
+    const handler = (_evt: unknown, payload: { key: string; exitCode: number }) => cb(payload);
+    ipcRenderer.on("pty:exit", handler);
+    return () => ipcRenderer.removeListener("pty:exit", handler);
+  },
 });

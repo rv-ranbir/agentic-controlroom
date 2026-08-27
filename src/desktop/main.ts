@@ -2,6 +2,8 @@ import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import { basename, join } from "node:path";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
+import * as pty from "node-pty";
+import type { IPty } from "node-pty";
 import { randomUUID } from "node:crypto";
 import { ChatLog, type ChatMessage } from "../chatroom/log.js";
 import { CursorCliBackend } from "../backend/cursorCliBackend.js";
@@ -32,6 +34,7 @@ const rolesDir = join(__dirname, "..", "..", "roles");
 let win: BrowserWindow | undefined;
 const running = new Set<string>(); // "projectId" (room run) or "projectId:agentId" (direct send)
 const runningProcs = new Map<string, ChildProcess>(); // "projectId:agentId" -> in-flight direct-send child process
+const ptySessions = new Map<string, IPty>(); // "projectId:agentId" -> live interactive PTY session (M1)
 
 // ── real pause: kill the in-flight child process for a direct-send agent ──
 // Windows: these backends may spawn through a shell shim (claude) or a
@@ -321,6 +324,45 @@ async function sendToAgent(project: Project, agent: AgentRef, prompt: string): P
   }
 }
 
+// ── interactive PTY terminal (M1: real node-pty session, not headless exec) ──
+// The CLI runs through the user's own shell (cmd/bash) rather than being
+// resolved/exec'd directly like the headless backends: here the user types
+// live, so there's no untrusted-argv content to protect against, and running
+// through the shell means PATH/aliases/shims behave exactly like a real
+// terminal the user opened themselves.
+//
+// "Session persists across restart" (SPEC M1) relies on the CLI's own
+// directory-scoped conversation continuity, not on us keeping the OS process
+// alive — closing the pane (or the whole app) and reopening it re-spawns the
+// CLI fresh in the same project directory, and `claude`/`cursor-agent` pick
+// their own prior conversation back up from there.
+
+function ptyKey(projectId: string, agentId: string): string {
+  return `${projectId}:${agentId}`;
+}
+
+function startPty(project: Project, agentId: string): { alreadyRunning: boolean } {
+  const key = ptyKey(project.id, agentId);
+  if (ptySessions.has(key)) return { alreadyRunning: true };
+  const bin = project.backend === "claude" ? (process.env.CLAUDE_BIN ?? "claude") : (process.env.CURSOR_AGENT_BIN ?? "cursor-agent");
+  const shell = process.platform === "win32" ? "cmd.exe" : (process.env.SHELL ?? "/bin/bash");
+  const shellArgs = process.platform === "win32" ? ["/c", bin] : ["-lc", bin];
+  const child = pty.spawn(shell, shellArgs, {
+    name: "xterm-256color",
+    cols: 80,
+    rows: 30,
+    cwd: project.path,
+    env: process.env as Record<string, string>,
+  });
+  ptySessions.set(key, child);
+  child.onData((data) => send("pty:data", { key, data }));
+  child.onExit(({ exitCode }) => {
+    ptySessions.delete(key);
+    send("pty:exit", { key, exitCode });
+  });
+  return { alreadyRunning: false };
+}
+
 // ── app ────────────────────────────────────────────────────────
 
 app.whenReady().then(() => {
@@ -476,6 +518,34 @@ app.whenReady().then(() => {
 
   ipcMain.handle("room:diff", (_e, path: string) => getDiff(path));
 
+  ipcMain.handle("pty:start", (_e, { projectId, agentId }: { projectId: string; agentId: string }) => {
+    const project = loadProjects().find((p) => p.id === projectId);
+    if (!project) throw new Error("Unknown project");
+    if (!project.agents!.some((a) => a.id === agentId)) throw new Error("Unknown agent");
+    return startPty(project, agentId);
+  });
+
+  ipcMain.handle("pty:write", (_e, { projectId, agentId, data }: { projectId: string; agentId: string; data: string }) => {
+    ptySessions.get(ptyKey(projectId, agentId))?.write(data);
+  });
+
+  ipcMain.handle(
+    "pty:resize",
+    (_e, { projectId, agentId, cols, rows }: { projectId: string; agentId: string; cols: number; rows: number }) => {
+      try {
+        ptySessions.get(ptyKey(projectId, agentId))?.resize(cols, rows);
+      } catch {
+        // pty already exited between the resize observer firing and this handler running
+      }
+    },
+  );
+
+  ipcMain.handle("pty:stop", (_e, { projectId, agentId }: { projectId: string; agentId: string }) => {
+    const key = ptyKey(projectId, agentId);
+    ptySessions.get(key)?.kill();
+    ptySessions.delete(key);
+  });
+
   win = new BrowserWindow({
     width: 1440,
     height: 920,
@@ -489,4 +559,8 @@ app.whenReady().then(() => {
   void win.loadFile(join(__dirname, "index.html"));
 });
 
-app.on("window-all-closed", () => app.quit());
+app.on("window-all-closed", () => {
+  for (const child of ptySessions.values()) child.kill();
+  ptySessions.clear();
+  app.quit();
+});

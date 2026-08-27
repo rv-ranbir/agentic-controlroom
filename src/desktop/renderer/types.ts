@@ -57,6 +57,12 @@ export interface DesktopApi {
   runTask(projectId: string, task: string): Promise<void>;
   sendToAgent(projectId: string, agentId: string, prompt: string): Promise<void>;
   pauseAgent(projectId: string, agentId: string): Promise<boolean>;
+  startPty(projectId: string, agentId: string): Promise<{ alreadyRunning: boolean }>;
+  writePty(projectId: string, agentId: string, data: string): Promise<void>;
+  resizePty(projectId: string, agentId: string, cols: number, rows: number): Promise<void>;
+  stopPty(projectId: string, agentId: string): Promise<void>;
+  onPtyData(cb: (e: { key: string; data: string }) => void): () => void;
+  onPtyExit(cb: (e: { key: string; exitCode: number }) => void): () => void;
   getRunning(): Promise<string[]>;
   gitBranch(path: string): Promise<string>;
   getDiff(path: string): Promise<DiffResult>;
