@@ -12,6 +12,9 @@ import type { Bucket } from "../types";
 const ORDER: Bucket[] = ["needs", "review", "active", "seen", "idle"];
 
 export function Room({ onAddAgent, onOpenReview }: { onAddAgent: () => void; onOpenReview: () => void }) {
+  const splitAgent = useStore((s) => s.splitAgent);
+  const toggleSplit = useStore.getState().toggleSplit;
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
@@ -41,9 +44,29 @@ export function Room({ onAddAgent, onOpenReview }: { onAddAgent: () => void; onO
         <Roster onAddAgent={onAddAgent} />
         <Rail />
         <main id="mainPane">
-          <AgentHeader onOpenReview={onOpenReview} />
-          <Stream />
-          <Composer />
+          {splitAgent ? (
+            <div className="splitRow">
+              <div className="splitPane">
+                <AgentHeader onOpenReview={onOpenReview} />
+                <Stream />
+                <Composer />
+              </div>
+              <div className="splitPane">
+                <div className="splitPaneHead">
+                  <span className="dim mono" style={{ fontSize: 10 }}>SPLIT</span>
+                  <button className="pillBtn ghostBtn mono" onClick={() => toggleSplit(splitAgent)}>&times; close</button>
+                </div>
+                <AgentHeader agentId={splitAgent} interactive={false} />
+                <Stream agentId={splitAgent} />
+              </div>
+            </div>
+          ) : (
+            <>
+              <AgentHeader onOpenReview={onOpenReview} />
+              <Stream />
+              <Composer />
+            </>
+          )}
         </main>
       </div>
     </div>

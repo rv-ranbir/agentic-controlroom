@@ -37,13 +37,13 @@
 #rail { width: 54px; flex-shrink: 0; background: var(--paper); border-left: 1px solid var(--rule); border-right: 1px solid var(--rule); }
 #railCanvas { display: block; width: 100%; height: 100%; }
 #mainPane { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-#agentHeader { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--rule); }
+#agentHeader { display: flex; align-items: center; flex-wrap: wrap; row-gap: 6px; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--rule); }
 .ahInfo { flex: 1; min-width: 0; }
 .ahTitleRow { display: flex; align-items: center; gap: 7px; }
 .ahTask { font-weight: 700; font-size: 13.5px; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ahMeta { font-size: 10.5px; margin-top: 2px; }
+.ahMeta { font-size: 10.5px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ahRight { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
-.ahActions { display: flex; gap: 6px; flex-shrink: 0; }
+.ahActions { display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
 #stream { flex: 1; overflow-y: auto; padding: 14px 18px; min-height: 0; }
 .streamEmpty { color: var(--ink-50); font-style: italic; font-size: 13px; }
 #composerWrap { padding: 10px 16px 12px; border-top: 1px solid var(--rule); }
@@ -93,6 +93,12 @@
 .rvActions { padding: 12px 14px; border-top: 1px solid var(--rule); }
 .rvBtnRow { display: flex; gap: 8px; }
 .rvEmpty { color: var(--ink-50); font-size: 12.5px; font-style: italic; padding: 14px; }
+
+/* ── split view (M2) ── */
+.splitRow { flex: 1; display: flex; min-height: 0; }
+.splitPane { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.splitPane + .splitPane { border-left: 1px solid var(--rule); }
+.splitPaneHead { display: flex; justify-content: space-between; align-items: center; padding: 4px 16px; border-bottom: 1px solid var(--rule); }
 
 /* ── terminal (M1: real PTY session) ── */
 .ptBody { flex: 1; min-height: 0; padding: 8px; background: var(--paper); }

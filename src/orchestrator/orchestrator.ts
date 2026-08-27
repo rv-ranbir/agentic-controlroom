@@ -1,5 +1,6 @@
 import type { AgentBackend, RoleConfig } from "../backend/agentBackend.js";
 import type { ChatLog } from "../chatroom/log.js";
+import { isQuestionLike } from "./needsInput.js";
 
 export interface OrchestratorOptions {
   maxRounds?: number;
@@ -8,7 +9,7 @@ export interface OrchestratorOptions {
   streamActivity?: boolean;
 }
 
-export type RoomResult = "approved" | "max-rounds";
+export type RoomResult = "approved" | "max-rounds" | "needs-input";
 
 const APPROVED = /STATUS:\s*APPROVED/;
 
@@ -41,6 +42,13 @@ export async function runRoom(
     onLineFor(dev.id),
   );
   log.post(dev.id, dev.name, devStart.reply);
+  if (isQuestionLike(devStart.reply)) {
+    log.status("");
+    log.agentState(dev.id, "needs");
+    log.agentState(qa.id, "idle");
+    log.post("orchestrator", "system", `${dev.name} needs input — reply to them directly to continue.`);
+    return "needs-input";
+  }
 
   let qaSessionId: string | undefined;
   for (let round = 1; round <= maxRounds; round++) {
@@ -66,6 +74,14 @@ export async function runRoom(
       return "approved";
     }
 
+    if (isQuestionLike(qaReply)) {
+      log.status("");
+      log.agentState(qa.id, "needs");
+      log.agentState(dev.id, "idle");
+      log.post("orchestrator", "system", `${qa.name} needs input — reply to them directly to continue.`);
+      return "needs-input";
+    }
+
     log.status(`${dev.name} is working…`);
     log.agentState(dev.id, "working");
     log.agentState(qa.id, "idle");
@@ -78,6 +94,13 @@ export async function runRoom(
       )
     ).reply;
     log.post(dev.id, dev.name, devReply);
+    if (isQuestionLike(devReply)) {
+      log.status("");
+      log.agentState(dev.id, "needs");
+      log.agentState(qa.id, "idle");
+      log.post("orchestrator", "system", `${dev.name} needs input — reply to them directly to continue.`);
+      return "needs-input";
+    }
   }
 
   log.status("");

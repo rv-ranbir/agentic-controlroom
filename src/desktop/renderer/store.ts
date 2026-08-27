@@ -10,6 +10,7 @@ interface State {
   projects: Project[];
   selectedProjectId: string | null;
   selectedAgent: string | null;
+  splitAgent: string | null; // M2: second agent shown side-by-side with selectedAgent
   messages: Msg[];
   branch: string;
   view: View;
@@ -35,6 +36,7 @@ interface State {
   refreshProjects(): Promise<void>;
   selectProject(p: Project): Promise<void>;
   selectAgent(id: string | null): void;
+  toggleSplit(agentId: string): void;
   createProject(): Promise<void>;
   createRepoProject(url: string): Promise<void>;
   removeProject(id: string): Promise<void>;
@@ -57,6 +59,7 @@ export const useStore = create<State>((set, get) => ({
   projects: [],
   selectedProjectId: null,
   selectedAgent: null,
+  splitAgent: null,
   messages: [],
   branch: "",
   view: "launcher",
@@ -120,14 +123,22 @@ export const useStore = create<State>((set, get) => ({
     clearTicks();
     const messages = await api.getLog(p.id);
     set({
-      selectedProjectId: p.id, selectedAgent: null, messages, branch: "",
+      selectedProjectId: p.id, selectedAgent: null, splitAgent: null, messages, branch: "",
       agentStates: {}, stateSince: {}, localSeen: {}, localForceActive: {}, localPaused: {}, activityLog: {},
       diff: null,
     });
     void api.gitBranch(p.path).then((b) => set({ branch: b }));
   },
 
-  selectAgent(id) { set({ selectedAgent: id }); },
+  selectAgent(id) { set({ selectedAgent: id, splitAgent: null }); },
+
+  toggleSplit(agentId) {
+    set((s) => {
+      if (s.splitAgent === agentId) return { splitAgent: null };
+      if (agentId === s.selectedAgent) return {}; // can't split an agent against itself
+      return { splitAgent: agentId };
+    });
+  },
 
   async createProject() {
     const p = await api.addProject();
@@ -186,6 +197,7 @@ export const useStore = create<State>((set, get) => ({
     if (p) set((st) => ({
       projects: st.projects.map((x) => (x.id === p.id ? p : x)),
       selectedAgent: st.selectedAgent === agentId ? null : st.selectedAgent,
+      splitAgent: st.splitAgent === agentId ? null : st.splitAgent,
     }));
   },
 

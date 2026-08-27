@@ -27,11 +27,12 @@ export function Roster({ onAddAgent }: { onAddAgent: () => void }) {
   const selectedProjectId = useStore((s) => s.selectedProjectId);
   const project = useStore((s) => s.projects.find((p) => p.id === selectedProjectId));
   const selectedAgent = useStore((s) => s.selectedAgent);
+  const splitAgent = useStore((s) => s.splitAgent);
   const agentStates = useStore((s) => s.agentStates);
   const stateSince = useStore((s) => s.stateSince);
   const localSeen = useStore((s) => s.localSeen);
   const localForceActive = useStore((s) => s.localForceActive);
-  const { selectAgent, showView } = useStore.getState();
+  const { selectAgent, toggleSplit, showView } = useStore.getState();
 
   return (
     <aside id="roster">
@@ -54,9 +55,10 @@ export function Roster({ onAddAgent }: { onAddAgent: () => void }) {
                 return (
                   <div
                     key={a.id}
-                    className={`agentRow st-${bucket}${bucket === "idle" ? " idle" : ""}${selectedAgent === a.id ? " sel" : ""}`}
+                    className={`agentRow st-${bucket}${bucket === "idle" ? " idle" : ""}${selectedAgent === a.id ? " sel" : ""}${splitAgent === a.id ? " splitSel" : ""}`}
                     style={{ "--dotcolor": colorFor(a.id) } as CSSProperties}
-                    onClick={() => selectAgent(a.id)}
+                    title="Click to open · Ctrl/Cmd+click to open side-by-side (split view)"
+                    onClick={(e) => { if (e.ctrlKey || e.metaKey) toggleSplit(a.id); else selectAgent(a.id); }}
                   >
                     <div className="mono2">{initials(a.name)}</div>
                     <div className="rInfo">

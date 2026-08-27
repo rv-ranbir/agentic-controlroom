@@ -10,11 +10,16 @@ const STATE_LABEL: Record<Bucket, string> = {
   needs: "needs input", review: "to review", active: "active", seen: "seen", idle: "idle",
 };
 
-export function AgentHeader({ onOpenReview }: { onOpenReview: () => void }) {
+// `agentId`/`interactive` let this same header render a read-only split-view
+// pane for a second agent — actions here (terminal, review, mark-reviewed)
+// assume "the" selected agent elsewhere in the store, so they're hidden
+// rather than wired twice for a first split-view pass.
+export function AgentHeader({ onOpenReview, agentId, interactive = true }: { onOpenReview?: () => void; agentId?: string; interactive?: boolean }) {
   useNow();
   const selectedProjectId = useStore((s) => s.selectedProjectId);
   const project = useStore((s) => s.projects.find((p) => p.id === selectedProjectId));
-  const selectedAgent = useStore((s) => s.selectedAgent);
+  const storeSelectedAgent = useStore((s) => s.selectedAgent);
+  const selectedAgent = agentId ?? storeSelectedAgent;
   const agentStates = useStore((s) => s.agentStates);
   const stateSince = useStore((s) => s.stateSince);
   const localSeen = useStore((s) => s.localSeen);
@@ -67,25 +72,27 @@ export function AgentHeader({ onOpenReview }: { onOpenReview: () => void }) {
           <span>{STATE_LABEL[bucket]}</span>
           <span className="dim">{bucket === "active" ? elapsedLabel(stateSince[selectedAgent]) : ""}</span>
         </div>
-        {bucket === "review" && <button className="pillBtn ghostBtn mono" onClick={onOpenReview}>review &rarr;</button>}
-        <button className="pillBtn ghostBtn mono" onClick={toggleRawMode}>{rawMode ? "raw" : "structured"}</button>
+        {interactive && bucket === "review" && <button className="pillBtn ghostBtn mono" onClick={onOpenReview}>review &rarr;</button>}
+        {interactive && <button className="pillBtn ghostBtn mono" onClick={toggleRawMode}>{rawMode ? "raw" : "structured"}</button>}
       </div>
-      <div className="ahActions">
-        <button className="pillBtn ghostBtn mono" onClick={() => { togglePaused(selectedAgent); showToast(`${paused ? "Resumed" : "Paused"} · ${agent?.name}`); }}>
-          {paused ? "resume" : "pause"}
-        </button>
-        <button className="pillBtn ghostBtn mono" onClick={() => showToast("Reassign — not wired yet")}>reassign</button>
-        <button className="pillBtn ghostBtn mono" onClick={() => showToast("Fork — not wired yet")}>fork</button>
-        <button className="pillBtn ghostBtn mono" onClick={() => showView("terminal")}>terminal ↗</button>
-        {bucket === "review" && (
-          <button className="pillBtn fillBtn mono" onClick={() => { markReviewed(selectedAgent); showToast(`Marked reviewed · ${agent?.name}`); }}>
-            mark-reviewed
+      {interactive && (
+        <div className="ahActions">
+          <button className="pillBtn ghostBtn mono" onClick={() => { togglePaused(selectedAgent); showToast(`${paused ? "Resumed" : "Paused"} · ${agent?.name}`); }}>
+            {paused ? "resume" : "pause"}
           </button>
-        )}
-        {bucket === "seen" && (
-          <button className="pillBtn ghostBtn mono" disabled style={{ opacity: 0.5, cursor: "default" }}>reviewed ✓</button>
-        )}
-      </div>
+          <button className="pillBtn ghostBtn mono" onClick={() => showToast("Reassign — not wired yet")}>reassign</button>
+          <button className="pillBtn ghostBtn mono" onClick={() => showToast("Fork — not wired yet")}>fork</button>
+          <button className="pillBtn ghostBtn mono" onClick={() => showView("terminal")}>terminal ↗</button>
+          {bucket === "review" && (
+            <button className="pillBtn fillBtn mono" onClick={() => { markReviewed(selectedAgent); showToast(`Marked reviewed · ${agent?.name}`); }}>
+              mark-reviewed
+            </button>
+          )}
+          {bucket === "seen" && (
+            <button className="pillBtn ghostBtn mono" disabled style={{ opacity: 0.5, cursor: "default" }}>reviewed ✓</button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

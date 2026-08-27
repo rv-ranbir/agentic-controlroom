@@ -3,9 +3,10 @@ import { useStore } from "../store";
 import { agentIdOf, describeLine } from "../lib/agents";
 import type { Msg } from "../types";
 
-export function Stream() {
+export function Stream({ agentId }: { agentId?: string } = {}) {
   const messages = useStore((s) => s.messages);
-  const selectedAgent = useStore((s) => s.selectedAgent);
+  const storeSelectedAgent = useStore((s) => s.selectedAgent);
+  const selectedAgent = agentId ?? storeSelectedAgent;
   const activityLog = useStore((s) => s.activityLog);
   const rawMode = useStore((s) => s.rawMode);
   const streamRef = useRef<HTMLDivElement>(null);

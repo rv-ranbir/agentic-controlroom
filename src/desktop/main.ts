@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Notification } from "electron";
 import { basename, join } from "node:path";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
@@ -10,6 +10,7 @@ import { CursorCliBackend } from "../backend/cursorCliBackend.js";
 import { ClaudeCliBackend } from "../backend/claudeCliBackend.js";
 import type { AgentBackend } from "../backend/agentBackend.js";
 import { runRoom } from "../orchestrator/orchestrator.js";
+import { isQuestionLike } from "../orchestrator/needsInput.js";
 import { loadRole } from "../roles.js";
 
 interface AgentRef {
@@ -58,17 +59,6 @@ function killProcessTree(child: ChildProcess): void {
   }
 }
 
-// ── needs-input heuristic (SPEC's M2 state inference — a heuristic with
-// acknowledged limits, not real intent detection) — conservative on purpose:
-// a false "needs input" is annoying, a false "done" just looks like a normal
-// miss, so we only trigger on a clear question anchored to the final line.
-function isQuestionLike(text: string): boolean {
-  const trimmed = text.trim();
-  if (!trimmed) return false;
-  const lastLine = trimmed.split("\n").filter((l) => l.trim()).pop() ?? trimmed;
-  if (/\?\s*$/.test(lastLine)) return true;
-  return /^(should i|do you want|which |what |could you|can you|would you like|shall i)\b/i.test(lastLine.trim());
-}
 
 // ── role library ───────────────────────────────────────────────
 
@@ -222,6 +212,16 @@ function send(channel: string, payload: unknown): void {
   win?.webContents.send(channel, payload);
 }
 
+// M2: desktop notification when an agent (heuristically) needs input. Skipped
+// when the window already has focus — the user is already looking at it.
+function notifyNeedsInput(project: Project, agentId: string): void {
+  if (!Notification.isSupported() || win?.isFocused()) return;
+  const name = project.agents?.find((a) => a.id === agentId)?.name ?? agentId;
+  const n = new Notification({ title: "AgentRoom — needs input", body: `${name} is waiting on you in ${project.name}` });
+  n.on("click", () => { win?.show(); win?.focus(); });
+  n.show();
+}
+
 function makeBackend(project: Project, agent?: AgentRef): AgentBackend {
   const opts = {
     cwd: project.path,
@@ -235,9 +235,10 @@ function wiredLog(project: Project): ChatLog {
   const log = new ChatLog(join(project.path, ".agent-room", "log.jsonl"));
   log.on("message", (m: ChatMessage) => send("room:event", { projectId: project.id, kind: "message", ...m }));
   log.on("status", (text: string) => send("room:event", { projectId: project.id, kind: "status", text }));
-  log.on("agentState", (s: { agentId: string; state: string }) =>
-    send("room:event", { projectId: project.id, kind: "agentState", ...s }),
-  );
+  log.on("agentState", (s: { agentId: string; state: string }) => {
+    send("room:event", { projectId: project.id, kind: "agentState", ...s });
+    if (s.state === "needs") notifyNeedsInput(project, s.agentId);
+  });
   log.on("activity", (a: { agentId: string; line: string }) =>
     send("room:event", { projectId: project.id, kind: "activity", ...a }),
   );
