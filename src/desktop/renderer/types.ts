@@ -19,6 +19,7 @@ export interface Project {
   zone?: "Work" | "Personal" | "Side";
   lastOpenedAt?: number;
   dbPath?: string;
+  activeAccountId?: string;
 }
 
 export interface Msg {
@@ -101,6 +102,12 @@ export interface DesktopApi {
   listSecretKeys(projectId: string): Promise<string[]>;
   setSecret(projectId: string, key: string, value: string): Promise<string[]>;
   removeSecret(projectId: string, key: string): Promise<string[]>;
+  setAgentModel(projectId: string, agentId: string, model: string): Promise<AgentRef>;
+  listAccounts(): Promise<{ id: string; provider: string; name: string; envKeys: string[] }[]>;
+  addAccount(provider: "claude" | "cursor", name: string, env: Record<string, string>): Promise<{ id: string; provider: string; name: string; envKeys: string[] }[]>;
+  removeAccount(id: string): Promise<{ id: string; provider: string; name: string; envKeys: string[] }[]>;
+  setActiveAccount(projectId: string, accountId?: string): Promise<Project>;
+  onQuotaEvent(cb: (e: { projectId: string; agentId: string }) => void): () => void;
   listSkills(): Promise<{ id: string; name: string }[]>;
   setAgentSkills(projectId: string, agentId: string, skillIds: string[]): Promise<AgentRef>;
   getMemory(projectId: string): Promise<string>;

@@ -36,6 +36,7 @@ interface Project {
   zone?: "Work" | "Personal" | "Side";
   lastOpenedAt?: number; // ms epoch, bumped on selectProject — drives the Launcher's recents ordering
   dbPath?: string; // path to a SQLite file the Environment panel's read-only Database tab queries
+  activeAccountId?: string; // selected credential profile (M8 multi-account quota switching)
 }
 
 const rolesDir = join(__dirname, "..", "..", "roles");
@@ -43,6 +44,21 @@ let win: BrowserWindow | undefined;
 const running = new Set<string>(); // "projectId" (room run) or "projectId:agentId" (direct send)
 const runningProcs = new Map<string, ChildProcess>(); // "projectId:agentId" -> in-flight direct-send child process
 const ptySessions = new Map<string, IPty>(); // "projectId:agentId" -> live interactive PTY session (M1)
+
+// ── Process Guard (M8): every child process AgentRoom itself spawns must
+// resolve to a recognized binary — catches a misconfigured CLAUDE_BIN /
+// CURSOR_AGENT_BIN / SHELL env override before it silently executes
+// something else. Not a sandbox: a provider CLI's own tool calls (e.g. its
+// bash tool) run inside that CLI's process and are outside our reach —
+// this only gates what AgentRoom itself decides to spawn.
+const ALLOWED_BIN_NAMES = new Set(["claude", "cursor-agent", "cloudflared", "whisper", "cmd", "powershell", "bash", "sh", "zsh"]);
+
+function assertAllowedBin(bin: string): void {
+  const base = basename(bin).toLowerCase().replace(/\.exe$/, "");
+  if (!ALLOWED_BIN_NAMES.has(base)) {
+    throw new Error(`Process Guard blocked an unrecognized binary: "${bin}". Allowed: ${[...ALLOWED_BIN_NAMES].join(", ")}.`);
+  }
+}
 
 // ── real pause: kill the in-flight child process for a direct-send agent ──
 // Windows: these backends may spawn through a shell shim (claude) or a
@@ -485,6 +501,68 @@ function prependMemory<T extends { systemPrompt: string }>(role: T, project: Pro
   return memory ? { ...role, systemPrompt: `Project memory:\n${memory}\n\n---\n\n${role.systemPrompt}` } : role;
 }
 
+// ── multi-account quota switching (M8): named credential profiles per
+// provider (encrypted env-var overrides, same mechanism as secrets), so a
+// project can switch which login/key an agent spawns with once a provider's
+// quota is hit. AgentRoom can't reliably auto-detect *which* account failed
+// or auto-switch mid-run — it surfaces the option and lets the user pick.
+interface Account { id: string; provider: "claude" | "cursor"; name: string; env: StoredSecret[] }
+
+function accountsFile(): string {
+  return join(app.getPath("userData"), "accounts.json");
+}
+
+function loadAccounts(): Account[] {
+  try {
+    return JSON.parse(readFileSync(accountsFile(), "utf8"));
+  } catch {
+    return [];
+  }
+}
+
+function saveAccounts(list: Account[]): void {
+  writeFileSync(accountsFile(), JSON.stringify(list, null, 2));
+}
+
+function listAccountsSafe(): { id: string; provider: string; name: string; envKeys: string[] }[] {
+  return loadAccounts().map((a) => ({ id: a.id, provider: a.provider, name: a.name, envKeys: a.env.map((e) => e.key) }));
+}
+
+function addAccount(provider: "claude" | "cursor", name: string, env: Record<string, string>): void {
+  const list = loadAccounts();
+  list.push({
+    id: randomUUID(),
+    provider,
+    name,
+    env: Object.entries(env).map(([key, value]) => ({ key, enc: safeStorage.encryptString(value).toString("base64") })),
+  });
+  saveAccounts(list);
+}
+
+function removeAccount(id: string): void {
+  saveAccounts(loadAccounts().filter((a) => a.id !== id));
+}
+
+function resolveAccountEnv(accountId?: string): Record<string, string> {
+  const account = accountId ? loadAccounts().find((a) => a.id === accountId) : undefined;
+  if (!account) return {};
+  const env: Record<string, string> = {};
+  for (const e of account.env) {
+    try {
+      env[e.key] = safeStorage.decryptString(Buffer.from(e.enc, "base64"));
+    } catch {
+      // corrupted entry — skip rather than crash the spawn
+    }
+  }
+  return env;
+}
+
+const QUOTA_PATTERN = /rate.?limit|quota exceeded|usage limit reached|too many requests|\b429\b/i;
+
+function checkQuota(project: Project, agent: AgentRef, text: string): void {
+  if (QUOTA_PATTERN.test(text)) send("quota:hit", { projectId: project.id, agentId: agent.id });
+}
+
 // ── localhost tunnel (M7): shells out to `cloudflared` (quick tunnels need
 // no account/config) — detection, not a bundled tunneling stack ─────────
 const tunnelProcs = new Map<string, ChildProcess>(); // projectId -> cloudflared child
@@ -647,11 +725,12 @@ function notifyNeedsInput(project: Project, agentId: string): void {
 }
 
 function makeBackend(project: Project, agent?: AgentRef): AgentBackend {
+  assertAllowedBin(project.backend === "claude" ? (process.env.CLAUDE_BIN ?? "claude") : (process.env.CURSOR_AGENT_BIN ?? "cursor-agent"));
   const opts = {
     cwd: agent?.worktreePath ?? project.path,
     model: agent?.model || project.model || undefined,
     extraArgs: agent?.extraArgs,
-    env: { ...process.env, ...resolveSecretsEnv(project.id) } as Record<string, string>,
+    env: { ...process.env, ...resolveSecretsEnv(project.id), ...resolveAccountEnv(project.activeAccountId) } as Record<string, string>,
   };
   return project.backend === "claude" ? new ClaudeCliBackend(opts) : new CursorCliBackend(opts);
 }
@@ -754,7 +833,7 @@ async function sendToAgent(project: Project, agent: AgentRef, prompt: string): P
       .join("\n\n");
     const fullPrompt = `Chatroom so far:\n${tail}\n\nThe user is addressing you directly:\n${prompt}`;
     const backend = makeBackend(project, agent);
-    const onLine = (line: string) => log.activity(agent.id, line);
+    const onLine = (line: string) => { log.activity(agent.id, line); checkQuota(project, agent, line); };
     const onProcess = (child: ChildProcess) => runningProcs.set(key, child);
     const sessionId = loadSessions(project)[agent.id];
     let reply: string;
@@ -766,9 +845,11 @@ async function sendToAgent(project: Project, agent: AgentRef, prompt: string): P
       reply = r.reply;
     }
     log.post(agent.id, agent.name, reply);
+    checkQuota(project, agent, reply);
     log.agentState(agent.id, isQuestionLike(reply) ? "needs" : "done");
   } catch (err) {
     postError(project, err);
+    checkQuota(project, agent, err instanceof Error ? err.message : String(err));
     log.agentState(agent.id, "idle");
   } finally {
     running.delete(key);
@@ -798,14 +879,16 @@ function startPty(project: Project, agentId: string): { alreadyRunning: boolean 
   const key = ptyKey(project.id, agentId);
   if (ptySessions.has(key)) return { alreadyRunning: true };
   const bin = project.backend === "claude" ? (process.env.CLAUDE_BIN ?? "claude") : (process.env.CURSOR_AGENT_BIN ?? "cursor-agent");
+  assertAllowedBin(bin);
   const shell = process.platform === "win32" ? "cmd.exe" : (process.env.SHELL ?? "/bin/bash");
+  assertAllowedBin(shell);
   const shellArgs = process.platform === "win32" ? ["/c", bin] : ["-lc", bin];
   const child = pty.spawn(shell, shellArgs, {
     name: "xterm-256color",
     cols: 80,
     rows: 30,
     cwd: project.path,
-    env: { ...process.env, ...resolveSecretsEnv(project.id) } as Record<string, string>,
+    env: { ...process.env, ...resolveSecretsEnv(project.id), ...resolveAccountEnv(project.activeAccountId) } as Record<string, string>,
   });
   ptySessions.set(key, child);
   child.onData((data) => send("pty:data", { key, data }));
@@ -826,12 +909,13 @@ function startShellPty(project: Project): { alreadyRunning: boolean } {
   const key = ptyKey(project.id, SHELL_AGENT_KEY);
   if (ptySessions.has(key)) return { alreadyRunning: true };
   const shell = process.platform === "win32" ? "powershell.exe" : (process.env.SHELL ?? "/bin/bash");
+  assertAllowedBin(shell);
   const child = pty.spawn(shell, [], {
     name: "xterm-256color",
     cols: 80,
     rows: 30,
     cwd: project.path,
-    env: { ...process.env, ...resolveSecretsEnv(project.id) } as Record<string, string>,
+    env: { ...process.env, ...resolveSecretsEnv(project.id), ...resolveAccountEnv(project.activeAccountId) } as Record<string, string>,
   });
   ptySessions.set(key, child);
   child.onData((data) => send("pty:data", { key, data }));
@@ -1163,6 +1247,36 @@ app.whenReady().then(() => {
   ipcMain.handle("secrets:remove", (_e, { projectId, key }: { projectId: string; key: string }) => {
     removeSecret(projectId, key);
     return listSecretKeys(projectId);
+  });
+
+  ipcMain.handle("accounts:list", () => listAccountsSafe());
+
+  ipcMain.handle("accounts:add", (_e, { provider, name, env }: { provider: "claude" | "cursor"; name: string; env: Record<string, string> }) => {
+    addAccount(provider, name, env);
+    return listAccountsSafe();
+  });
+
+  ipcMain.handle("accounts:remove", (_e, { id }: { id: string }) => {
+    removeAccount(id);
+    return listAccountsSafe();
+  });
+
+  ipcMain.handle("accounts:setActive", (_e, { projectId, accountId }: { projectId: string; accountId?: string }) => {
+    const projects = loadProjects();
+    const project = projects.find((p) => p.id === projectId);
+    if (!project) throw new Error("Unknown project");
+    project.activeAccountId = accountId || undefined;
+    saveProjects(projects);
+    return project;
+  });
+
+  ipcMain.handle("agents:setModel", (_e, { projectId, agentId, model }: { projectId: string; agentId: string; model: string }) => {
+    const projects = loadProjects();
+    const agent = projects.find((p) => p.id === projectId)?.agents?.find((a) => a.id === agentId);
+    if (!agent) throw new Error("Unknown agent");
+    agent.model = model;
+    saveProjects(projects);
+    return agent;
   });
 
   ipcMain.handle("skills:list", () => listSkills());

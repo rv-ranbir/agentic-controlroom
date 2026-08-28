@@ -29,6 +29,8 @@ interface State {
   diffLoading: boolean;
   projectStats: Record<string, { blocked: number; lastActivityAt: number }>;
   composerQueue: Record<string, string[]>; // key: `${projectId}:${agentId||""}` — messages waiting for the target to go idle
+  needsInputCounts: Record<string, number>; // M8 adaptive model suggestion: consecutive needs-input cycles per agent
+  modelSuggestion: Record<string, string>; // agentId -> suggested stronger model, once offered
 
   init(): Promise<void>;
   fetchDiff(): Promise<void>;
@@ -50,6 +52,8 @@ interface State {
   removeAgent(agentId: string): Promise<void>;
   submitComposer(text: string): void;
   dequeueComposer(key: string, index: number): void;
+  bumpAgentModel(projectId: string, agentId: string, model: string): Promise<void>;
+  dismissModelSuggestion(agentId: string): void;
   toggleRawMode(): void;
   togglePaused(agentId: string): void;
   markReviewed(agentId: string): void;
@@ -103,6 +107,8 @@ export const useStore = create<State>((set, get) => ({
   diffLoading: false,
   projectStats: {},
   composerQueue: {},
+  needsInputCounts: {},
+  modelSuggestion: {},
 
   async fetchProjectStats() {
     const projectStats = await api.getProjectStats();
@@ -162,6 +168,7 @@ export const useStore = create<State>((set, get) => ({
     set({
       selectedProjectId: p.id, selectedAgent: null, splitAgent: null, messages, branch: "",
       agentStates: {}, stateSince: {}, localSeen: {}, localForceActive: {}, localPaused: {}, activityLog: {},
+      needsInputCounts: {}, modelSuggestion: {},
       diff: null,
     });
     void api.gitBranch(p.path).then((b) => set({ branch: b }));
@@ -270,6 +277,20 @@ export const useStore = create<State>((set, get) => ({
     else void api.runTask(projectId, text);
   },
 
+  async bumpAgentModel(projectId, agentId, model) {
+    await api.setAgentModel(projectId, agentId, model);
+    get().dismissModelSuggestion(agentId);
+    await get().refreshProjects();
+  },
+
+  dismissModelSuggestion(agentId) {
+    set((st) => {
+      const modelSuggestion = { ...st.modelSuggestion };
+      delete modelSuggestion[agentId];
+      return { modelSuggestion };
+    });
+  },
+
   dequeueComposer(key, index) {
     set((st) => {
       const list = st.composerQueue[key];
@@ -365,6 +386,20 @@ api.onEvent((e: RoomEvent) => {
       useStore.setState({ agentStates, stateSince, localForceActive, localSeen, localPaused, runningKeys });
       const nextBucket = bucketOf(agentId, useStore.getState());
       if (nextBucket !== prevBucket) pushTick(agentId, nextBucket === "needs");
+      if (nextBucket === "needs" && prevBucket !== "needs") {
+        const st = useStore.getState();
+        const project = st.projects.find((p) => p.id === st.selectedProjectId);
+        const agent = project?.agents.find((a) => a.id === agentId);
+        const count = (st.needsInputCounts[agentId] ?? 0) + 1;
+        useStore.setState({ needsInputCounts: { ...st.needsInputCounts, [agentId]: count } });
+        // heuristic covers claude's known model tiers only — cursor's catalog isn't ours to guess at
+        const upgrade: Record<string, string> = { "": "opus", sonnet: "opus", haiku: "sonnet" };
+        const suggestion = upgrade[agent?.model ?? ""];
+        if (agent && project?.backend === "claude" && count >= 3 && suggestion && !st.modelSuggestion[agentId]) {
+          useStore.setState({ modelSuggestion: { ...st.modelSuggestion, [agentId]: suggestion } });
+          s.showToast(`${agent.name} keeps needing input — try ${suggestion}?`);
+        }
+      }
       if (state !== "working") trySendQueued(s.selectedProjectId!, agentId);
       break;
     }
@@ -381,4 +416,15 @@ api.onEvent((e: RoomEvent) => {
     case "done":
       break;
   }
+});
+
+// M8 multi-account quota switching: a rate-limit/quota phrase seen in an
+// agent's output prompts the user toward the account switcher, rather than
+// guessing at auto-switching (providers don't expose a reliable "which
+// account failed" signal we can act on ourselves).
+api.onQuotaEvent(({ projectId, agentId }) => {
+  const s = useStore.getState();
+  if (projectId !== s.selectedProjectId) return;
+  const agent = s.projects.find((p) => p.id === projectId)?.agents.find((a) => a.id === agentId);
+  s.showToast(`${agent?.name ?? "Agent"} may have hit a rate limit — switch accounts in Environment → Secrets`);
 });

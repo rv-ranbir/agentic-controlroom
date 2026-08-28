@@ -1,6 +1,6 @@
 import { useStore } from "../store";
 import type { Bucket } from "../types";
-import { bucketOf, colorFor, elapsedLabel, initials } from "../lib/agents";
+import { bucketOf, colorFor, CONTEXT_WARN_CHARS, elapsedLabel, initials, transcriptSize } from "../lib/agents";
 import { useNow } from "../lib/useNow";
 
 const PIP_COLOR: Record<Bucket, string> = {
@@ -26,7 +26,9 @@ export function AgentHeader({ onOpenReview, agentId, interactive = true }: { onO
   const localForceActive = useStore((s) => s.localForceActive);
   const localPaused = useStore((s) => s.localPaused);
   const rawMode = useStore((s) => s.rawMode);
-  const { togglePaused, markReviewed, toggleRawMode, showToast, showView } = useStore.getState();
+  const messages = useStore((s) => s.messages);
+  const modelSuggestion = useStore((s) => s.modelSuggestion);
+  const { togglePaused, markReviewed, toggleRawMode, showToast, showView, bumpAgentModel, dismissModelSuggestion } = useStore.getState();
 
   if (!project) {
     return (
@@ -55,6 +57,8 @@ export function AgentHeader({ onOpenReview, agentId, interactive = true }: { onO
   const agent = project.agents.find((a) => a.id === selectedAgent);
   const bucket = bucketOf(selectedAgent, { agentStates, localSeen, localForceActive });
   const paused = !!localPaused[selectedAgent];
+  const contextLarge = transcriptSize(messages, selectedAgent) > CONTEXT_WARN_CHARS;
+  const suggestedModel = modelSuggestion[selectedAgent];
 
   return (
     <div id="agentHeader">
@@ -72,6 +76,13 @@ export function AgentHeader({ onOpenReview, agentId, interactive = true }: { onO
           <span>{STATE_LABEL[bucket]}</span>
           <span className="dim">{bucket === "active" ? elapsedLabel(stateSince[selectedAgent]) : ""}</span>
         </div>
+        {contextLarge && <span className="pill on mono" title="Long transcript — consider starting a fresh session soon">context large</span>}
+        {suggestedModel && (
+          <span className="chip mono" title="Repeated needs-input cycles — this task may need a stronger model">
+            <span onClick={() => void bumpAgentModel(project.id, selectedAgent, suggestedModel)}>try {suggestedModel}?</span>
+            <span className="x" onClick={() => dismissModelSuggestion(selectedAgent)}>&times;</span>
+          </span>
+        )}
         {interactive && bucket === "review" && <button className="pillBtn ghostBtn mono" onClick={onOpenReview}>review &rarr;</button>}
         {interactive && <button className="pillBtn ghostBtn mono" onClick={toggleRawMode}>{rawMode ? "raw" : "structured"}</button>}
       </div>

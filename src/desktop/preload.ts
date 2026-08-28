@@ -56,6 +56,16 @@ contextBridge.exposeInMainWorld("api", {
   listSecretKeys: (projectId: string) => ipcRenderer.invoke("secrets:list", { projectId }),
   setSecret: (projectId: string, key: string, value: string) => ipcRenderer.invoke("secrets:set", { projectId, key, value }),
   removeSecret: (projectId: string, key: string) => ipcRenderer.invoke("secrets:remove", { projectId, key }),
+  setAgentModel: (projectId: string, agentId: string, model: string) => ipcRenderer.invoke("agents:setModel", { projectId, agentId, model }),
+  listAccounts: () => ipcRenderer.invoke("accounts:list"),
+  addAccount: (provider: "claude" | "cursor", name: string, env: Record<string, string>) => ipcRenderer.invoke("accounts:add", { provider, name, env }),
+  removeAccount: (id: string) => ipcRenderer.invoke("accounts:remove", { id }),
+  setActiveAccount: (projectId: string, accountId?: string) => ipcRenderer.invoke("accounts:setActive", { projectId, accountId }),
+  onQuotaEvent: (cb: (e: { projectId: string; agentId: string }) => void) => {
+    const handler = (_evt: unknown, payload: { projectId: string; agentId: string }) => cb(payload);
+    ipcRenderer.on("quota:hit", handler);
+    return () => ipcRenderer.removeListener("quota:hit", handler);
+  },
   listSkills: () => ipcRenderer.invoke("skills:list"),
   setAgentSkills: (projectId: string, agentId: string, skillIds: string[]) =>
     ipcRenderer.invoke("skills:setForAgent", { projectId, agentId, skillIds }),

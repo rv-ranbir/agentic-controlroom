@@ -15,6 +15,15 @@ export function initials(name: string): string {
   return (parts.length > 1 ? parts[0][0] + parts[1][0] : name.slice(0, 2)).toUpperCase();
 }
 
+// M8 context canary: rough proxy for "this agent's context is getting big"
+// — total transcript chars is cheap to track and doesn't need the actual
+// tokenizer the CLI uses, just an early warning before it truncates on us.
+export const CONTEXT_WARN_CHARS = 60_000;
+
+export function transcriptSize(messages: Msg[], agentId: string): number {
+  return messages.reduce((sum, m) => sum + (agentIdOf(m) === agentId ? m.message.length : 0), 0);
+}
+
 export function agentIdOf(m: Msg): string {
   return m.agentId ?? (m.role === "system" ? "system" : m.role.toLowerCase());
 }
