@@ -12,10 +12,10 @@ contextBridge.exposeInMainWorld("api", {
   cloneGithubRepo: (cloneUrl: string, name: string) => ipcRenderer.invoke("projects:addGithubRepo", { cloneUrl, name }),
   updateProject: (update: unknown) => ipcRenderer.invoke("projects:update", update),
   removeProject: (id: string) => ipcRenderer.invoke("projects:remove", id),
-  addAgent: (projectId: string, roleId: string, model?: string, extraArgs?: string[]) =>
-    ipcRenderer.invoke("agents:add", { projectId, roleId, model, extraArgs }),
-  addCustomAgent: (projectId: string, name: string, systemPrompt: string, model?: string, extraArgs?: string[]) =>
-    ipcRenderer.invoke("agents:addCustom", { projectId, name, systemPrompt, model, extraArgs }),
+  addAgent: (projectId: string, roleId: string, model?: string, extraArgs?: string[], useWorktree?: boolean) =>
+    ipcRenderer.invoke("agents:add", { projectId, roleId, model, extraArgs, useWorktree }),
+  addCustomAgent: (projectId: string, name: string, systemPrompt: string, model?: string, extraArgs?: string[], useWorktree?: boolean) =>
+    ipcRenderer.invoke("agents:addCustom", { projectId, name, systemPrompt, model, extraArgs, useWorktree }),
   removeAgent: (projectId: string, agentId: string) => ipcRenderer.invoke("agents:remove", { projectId, agentId }),
   getLog: (id: string) => ipcRenderer.invoke("room:log", id),
   runTask: (projectId: string, task: string) => ipcRenderer.invoke("room:run", { projectId, task }),
@@ -26,6 +26,8 @@ contextBridge.exposeInMainWorld("api", {
   gitBranch: (path: string) => ipcRenderer.invoke("git:branch", path),
   getDiff: (path: string) => ipcRenderer.invoke("room:diff", path),
   getProjectStats: () => ipcRenderer.invoke("projects:stats"),
+  approveDiff: (projectId: string, agentId: string) => ipcRenderer.invoke("room:approve", { projectId, agentId }),
+  getCommits: (projectId: string) => ipcRenderer.invoke("room:commits", projectId),
   onEvent: (cb: (e: unknown) => void) => {
     ipcRenderer.on("room:event", (_evt, payload) => cb(payload));
   },

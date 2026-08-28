@@ -8,7 +8,7 @@ import { randomUUID } from "node:crypto";
 import { ChatLog, type ChatMessage } from "../chatroom/log.js";
 import { CursorCliBackend } from "../backend/cursorCliBackend.js";
 import { ClaudeCliBackend } from "../backend/claudeCliBackend.js";
-import type { AgentBackend } from "../backend/agentBackend.js";
+import type { AgentBackend, RoleConfig } from "../backend/agentBackend.js";
 import { runRoom } from "../orchestrator/orchestrator.js";
 import { isQuestionLike } from "../orchestrator/needsInput.js";
 import { loadRole } from "../roles.js";
@@ -19,6 +19,7 @@ interface AgentRef {
   systemPrompt?: string; // present for custom agents only — overrides the role-file lookup
   model?: string; // per-agent model override; falls back to the project's model
   extraArgs?: string[]; // raw CLI flags from the new-agent modal's "CLI flags" field
+  worktreePath?: string; // present when this agent got its own git worktree (M5)
 }
 
 interface Project {
@@ -119,7 +120,7 @@ function repoNameFrom(url: string): string {
 // per-agent worktrees yet (that's the modal's inert "new worktree per
 // agent" option), so this shows the whole room's uncommitted changes.
 
-interface DiffLine { kind: "add" | "del" | "ctx"; text: string; ln: number }
+interface DiffLine { kind: "add" | "del" | "ctx"; text: string; ln: number; oldLn?: number; newLn?: number }
 interface DiffFile { name: string; plus: number; minus: number; lines: DiffLine[] }
 interface DiffResult { files: DiffFile[]; plus: number; minus: number; notGitRepo: boolean }
 
@@ -146,13 +147,15 @@ function parseUnifiedDiff(raw: string): DiffFile[] {
       line.startsWith("similarity ") || line.startsWith("rename ") || line.startsWith("\\ No newline")
     ) continue;
     if (line.startsWith("+")) {
-      cur.lines.push({ kind: "add", text: line.slice(1), ln: newLine++ });
+      cur.lines.push({ kind: "add", text: line.slice(1), ln: newLine, newLn: newLine });
+      newLine++;
       cur.plus++;
     } else if (line.startsWith("-")) {
-      cur.lines.push({ kind: "del", text: line.slice(1), ln: oldLine++ });
+      cur.lines.push({ kind: "del", text: line.slice(1), ln: oldLine, oldLn: oldLine });
+      oldLine++;
       cur.minus++;
     } else if (line.startsWith(" ")) {
-      cur.lines.push({ kind: "ctx", text: line.slice(1), ln: newLine });
+      cur.lines.push({ kind: "ctx", text: line.slice(1), ln: newLine, oldLn: oldLine, newLn: newLine });
       oldLine++; newLine++;
     }
   }
@@ -160,9 +163,42 @@ function parseUnifiedDiff(raw: string): DiffFile[] {
   return files;
 }
 
+// Plain `git diff` only shows changes to already-tracked files — a brand
+// new file an agent creates never appears, since git has nothing to diff
+// it against. Fix: mark untracked files "intent to add" (-N stages the
+// path with no content, so diff treats it as a pure addition against
+// empty) and reset immediately after — the working tree itself is never
+// touched, this only affects what `git diff` chooses to show.
+// AgentRoom's own bookkeeping (chat log, sessions, commit records) lives
+// inside the project directory and would otherwise show up as untracked
+// files in every diff/commit — not something that belongs in the user's
+// actual history. Best-effort and idempotent; never fatal if it can't write.
+function ensureAgentRoomGitignored(projectPath: string): void {
+  try {
+    if (!existsSync(join(projectPath, ".agent-room"))) return; // not this directory's concern (e.g. an agent worktree)
+    const gitignorePath = join(projectPath, ".gitignore");
+    const existing = existsSync(gitignorePath) ? readFileSync(gitignorePath, "utf8") : "";
+    if (existing.split("\n").some((l) => l.trim() === ".agent-room/" || l.trim() === ".agent-room")) return;
+    const sep = existing && !existing.endsWith("\n") ? "\n" : "";
+    writeFileSync(gitignorePath, `${existing}${sep}.agent-room/\n`);
+  } catch {
+    // not fatal — worst case .agent-room/ shows up as untracked, same as before this fix
+  }
+}
+
+function gitDiffIncludingUntracked(path: string): string {
+  ensureAgentRoomGitignored(path);
+  execFileSync("git", ["add", "-A", "-N"], { cwd: path });
+  try {
+    return execFileSync("git", ["diff", "--no-color"], { cwd: path, maxBuffer: 1024 * 1024 * 16 }).toString();
+  } finally {
+    execFileSync("git", ["reset"], { cwd: path });
+  }
+}
+
 function getDiff(path: string): DiffResult {
   try {
-    const raw = execFileSync("git", ["diff", "--no-color"], { cwd: path, maxBuffer: 1024 * 1024 * 16 }).toString();
+    const raw = gitDiffIncludingUntracked(path);
     const files = parseUnifiedDiff(raw);
     return {
       files,
@@ -174,6 +210,74 @@ function getDiff(path: string): DiffResult {
     // not a git repo, or git missing — either way there's nothing to show
     return { files: [], plus: 0, minus: 0, notGitRepo: true };
   }
+}
+
+// ── approve → real commit, AI Conventional Commit message (M5) ─────
+// "Conversation attached to commits": each commit record keeps a snippet
+// of the exchange that led to it, so a later reviewer can see why, not
+// just what. Stored in the PROJECT's .agent-room/ (not the agent's
+// worktree) so it survives even if that worktree is later removed.
+
+interface CommitRecord {
+  sha: string;
+  agentId: string;
+  agentName: string;
+  message: string;
+  ts: string;
+  conversationSnippet: string;
+}
+
+function commitsFile(project: Project): string {
+  return join(project.path, ".agent-room", "commits.json");
+}
+
+function loadCommits(project: Project): CommitRecord[] {
+  try {
+    return JSON.parse(readFileSync(commitsFile(project), "utf8"));
+  } catch {
+    return [];
+  }
+}
+
+function saveCommit(project: Project, record: CommitRecord): void {
+  const commits = loadCommits(project);
+  commits.push(record);
+  mkdirSync(join(project.path, ".agent-room"), { recursive: true });
+  writeFileSync(commitsFile(project), JSON.stringify(commits, null, 2));
+}
+
+async function generateCommitMessage(project: Project, agent: AgentRef, diffText: string): Promise<string> {
+  const role: RoleConfig = {
+    id: "committer",
+    name: "Committer",
+    systemPrompt:
+      "You write concise git commit messages in the Conventional Commits format (type(scope): summary). " +
+      "Output ONLY the commit message — a summary line under 72 characters, optionally a short body after a " +
+      "blank line. No commentary, no markdown fences.",
+  };
+  const backend = makeBackend(project, agent);
+  const truncated = diffText.length > 8000 ? diffText.slice(0, 8000) + "\n… (truncated)" : diffText;
+  const { reply } = await backend.start(role, `Write a Conventional Commits message for this diff:\n\n${truncated}`);
+  const cleaned = reply.trim().replace(/^```[a-z]*\n?/i, "").replace(/```\s*$/, "").trim();
+  return cleaned || "chore: agent changes";
+}
+
+async function approveAndCommit(project: Project, agent: AgentRef, log: ChatLog): Promise<{ sha: string; message: string }> {
+  const target = agent.worktreePath ?? project.path;
+  const diffText = gitDiffIncludingUntracked(target);
+  if (!diffText.trim()) throw new Error("Nothing to commit — the working tree is clean.");
+  const message = await generateCommitMessage(project, agent, diffText);
+  execFileSync("git", ["add", "-A"], { cwd: target });
+  execFileSync("git", ["commit", "-m", message], { cwd: target });
+  const sha = execFileSync("git", ["rev-parse", "HEAD"], { cwd: target }).toString().trim();
+  const conversationSnippet = log
+    .tail(20)
+    .filter((m) => m.agentId === agent.id || m.agentId === "user")
+    .slice(-6)
+    .map((m) => `[${m.role}] ${m.message}`)
+    .join("\n\n");
+  saveCommit(project, { sha, agentId: agent.id, agentName: agent.name, message, ts: new Date().toISOString(), conversationSnippet });
+  return { sha, message };
 }
 
 function cloneRepo(url: string, dest: string, token?: string): Promise<void> {
@@ -219,6 +323,40 @@ async function cloneAndRegister(url: string, name: string, token?: string): Prom
   projects.push(project);
   saveProjects(projects);
   return project;
+}
+
+// ── per-agent git worktrees (M5) ─────────────────────────────────
+// Wires up the new-agent modal's "new worktree per agent" checkbox, which
+// existed in the UI but was inert until now. Each worktree gets its own
+// branch (agent/<id>) so an agent's changes are genuinely isolated — the
+// Review pane's per-agent diff (see getDiff) only works meaningfully once
+// this exists; before it, "per-agent diff" was really "whole project diff".
+
+function worktreePathFor(project: Project, agentId: string): string {
+  return join(project.path, ".agent-room", "worktrees", agentId);
+}
+
+function createWorktree(project: Project, agentId: string): string {
+  const path = worktreePathFor(project, agentId);
+  if (existsSync(path)) return path; // idempotent — reuse an existing worktree
+  mkdirSync(join(project.path, ".agent-room", "worktrees"), { recursive: true });
+  try {
+    execFileSync("git", ["worktree", "add", "-B", `agent/${agentId}`, path], { cwd: project.path });
+  } catch (err) {
+    throw new Error(
+      `Couldn't create a worktree for this agent (is "${project.path}" a git repo with at least one commit?): ` +
+        (err instanceof Error ? err.message : String(err)),
+    );
+  }
+  return path;
+}
+
+function removeWorktree(project: Project, worktreePath: string): void {
+  try {
+    execFileSync("git", ["worktree", "remove", "--force", worktreePath], { cwd: project.path });
+  } catch {
+    // already gone, or project.path itself no longer exists — nothing to clean up
+  }
 }
 
 // ── GitHub connect (M4): PAT stored via OS keychain (safeStorage, ADR-003) ──
@@ -289,7 +427,7 @@ function notifyNeedsInput(project: Project, agentId: string): void {
 
 function makeBackend(project: Project, agent?: AgentRef): AgentBackend {
   const opts = {
-    cwd: project.path,
+    cwd: agent?.worktreePath ?? project.path,
     model: agent?.model || project.model || undefined,
     extraArgs: agent?.extraArgs,
   };
@@ -535,14 +673,20 @@ app.whenReady().then(() => {
 
   ipcMain.handle(
     "agents:add",
-    (_e, { projectId, roleId, model, extraArgs }: { projectId: string; roleId: string; model?: string; extraArgs?: string[] }) => {
+    (
+      _e,
+      { projectId, roleId, model, extraArgs, useWorktree }: {
+        projectId: string; roleId: string; model?: string; extraArgs?: string[]; useWorktree?: boolean;
+      },
+    ) => {
       const projects = loadProjects();
       const p = projects.find((x) => x.id === projectId);
       if (!p) return null;
       if (!p.agents!.some((a) => a.id === roleId)) {
         const role = listRoles().find((r) => r.id === roleId);
         if (role) {
-          p.agents!.push({ ...role, model: model || undefined, extraArgs: extraArgs?.length ? extraArgs : undefined });
+          const worktreePath = useWorktree ? createWorktree(p, roleId) : undefined;
+          p.agents!.push({ ...role, model: model || undefined, extraArgs: extraArgs?.length ? extraArgs : undefined, worktreePath });
           saveProjects(projects);
         }
       }
@@ -554,14 +698,16 @@ app.whenReady().then(() => {
     "agents:addCustom",
     (
       _e,
-      { projectId, name, systemPrompt, model, extraArgs }: {
-        projectId: string; name: string; systemPrompt: string; model?: string; extraArgs?: string[];
+      { projectId, name, systemPrompt, model, extraArgs, useWorktree }: {
+        projectId: string; name: string; systemPrompt: string; model?: string; extraArgs?: string[]; useWorktree?: boolean;
       },
     ) => {
       const projects = loadProjects();
       const p = projects.find((x) => x.id === projectId);
       if (!p) return null;
-      p.agents!.push({ id: randomUUID(), name, systemPrompt, model: model || undefined, extraArgs: extraArgs?.length ? extraArgs : undefined });
+      const id = randomUUID();
+      const worktreePath = useWorktree ? createWorktree(p, id) : undefined;
+      p.agents!.push({ id, name, systemPrompt, model: model || undefined, extraArgs: extraArgs?.length ? extraArgs : undefined, worktreePath });
       saveProjects(projects);
       return p;
     },
@@ -578,6 +724,8 @@ app.whenReady().then(() => {
     const projects = loadProjects();
     const p = projects.find((x) => x.id === projectId);
     if (!p) return null;
+    const agent = p.agents!.find((a) => a.id === agentId);
+    if (agent?.worktreePath) removeWorktree(p, agent.worktreePath);
     p.agents = p.agents!.filter((a) => a.id !== agentId);
     saveProjects(projects);
     return p;
@@ -638,6 +786,23 @@ app.whenReady().then(() => {
       out[p.id] = { blocked, lastActivityAt };
     }
     return out;
+  });
+
+  ipcMain.handle("room:approve", async (_e, { projectId, agentId }: { projectId: string; agentId: string }) => {
+    const project = loadProjects().find((p) => p.id === projectId);
+    if (!project) throw new Error("Unknown project");
+    const agent = project.agents!.find((a) => a.id === agentId);
+    if (!agent) throw new Error("Unknown agent");
+    const log = wiredLog(project);
+    const { sha, message } = await approveAndCommit(project, agent, log);
+    const branchLabel = agent.worktreePath ? `agent/${agent.id}` : "the working tree";
+    log.post("orchestrator", "system", `Approved · ${agent.name} committed ${sha.slice(0, 7)} on ${branchLabel}: ${message.split("\n")[0]}`);
+    return { sha, message };
+  });
+
+  ipcMain.handle("room:commits", (_e, projectId: string) => {
+    const project = loadProjects().find((p) => p.id === projectId);
+    return project ? loadCommits(project) : [];
   });
 
   ipcMain.handle("pty:start", (_e, { projectId, agentId }: { projectId: string; agentId: string }) => {

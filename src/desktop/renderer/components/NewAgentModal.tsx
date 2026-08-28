@@ -54,13 +54,13 @@ export function NewAgentModal({ onClose }: { onClose: () => void }) {
       const rules = cRules.trim();
       const skillsLine = skills.length ? `Skills: ${skills.join(", ")}` : "";
       const systemPrompt = override || [rules, skillsLine].filter(Boolean).join("\n\n") || `You are ${name}.`;
-      await addCustomAgent(name, systemPrompt, finalModel || undefined, extraArgs);
+      await addCustomAgent(name, systemPrompt, finalModel || undefined, extraArgs, advWorktree);
     } else if (override) {
       const role = roles.find((r) => r.id === selectedRoleId);
-      await addCustomAgent(role?.name ?? "Custom agent", override, finalModel || undefined, extraArgs);
+      await addCustomAgent(role?.name ?? "Custom agent", override, finalModel || undefined, extraArgs, advWorktree);
     } else {
       if (!selectedRoleId) { showToast("Pick a role"); return; }
-      await addAgent(selectedRoleId, finalModel || undefined, extraArgs);
+      await addAgent(selectedRoleId, finalModel || undefined, extraArgs, advWorktree);
     }
     await refreshProjects();
     onClose();

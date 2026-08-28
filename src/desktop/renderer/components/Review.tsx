@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useStore } from "../store";
 import { agentIdOf, colorFor, initials } from "../lib/agents";
+import { pairDiffLines } from "../lib/diffPairing";
+import type { DiffLine } from "../types";
 
 export function Review() {
   const selectedProjectId = useStore((s) => s.selectedProjectId);
@@ -14,8 +16,11 @@ export function Review() {
   const diffLoading = useStore((s) => s.diffLoading);
   const { toggleTheme, showView, approve, reject, showToast, fetchDiff } = useStore.getState();
   const [verdict, setVerdict] = useState<"pending" | "approved" | "rejected">("pending");
+  const [diffView, setDiffView] = useState<"unified" | "split">("unified");
+  const [approving, setApproving] = useState(false);
+  const [commitInfo, setCommitInfo] = useState<{ sha: string; message: string } | null>(null);
 
-  useEffect(() => { void fetchDiff(); }, [project?.path, fetchDiff]);
+  useEffect(() => { void fetchDiff(); }, [project?.path, selectedAgent, fetchDiff]);
 
   const agent = project?.agents.find((a) => a.id === selectedAgent);
   if (!project || !agent || !selectedAgent) {
@@ -47,13 +52,19 @@ export function Review() {
         <div className="rvLeft">
           <div className="rvSummary">
             <span>{lastTask.slice(0, 90)}</span>
-            <span className="mono dim">
-              {diffLoading
-                ? "loading…"
-                : diff && !diff.notGitRepo
-                  ? `+${diff.plus} −${diff.minus} · ${diff.files.length} file${diff.files.length === 1 ? "" : "s"}`
-                  : "no diff"}
-            </span>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span className="mono dim">
+                {diffLoading
+                  ? "loading…"
+                  : diff && !diff.notGitRepo
+                    ? `+${diff.plus} −${diff.minus} · ${diff.files.length} file${diff.files.length === 1 ? "" : "s"}`
+                    : "no diff"}
+              </span>
+              <div className="segGroup">
+                <div className={`segOpt${diffView === "unified" ? " on" : ""}`} onClick={() => setDiffView("unified")}>unified</div>
+                <div className={`segOpt${diffView === "split" ? " on" : ""}`} onClick={() => setDiffView("split")}>split</div>
+              </div>
+            </div>
           </div>
           <div className="rvFiles">
             {diffLoading && <div className="rvEmpty">Loading diff&hellip;</div>}
@@ -61,7 +72,10 @@ export function Review() {
               <div className="rvEmpty">Not a git repository &mdash; no diff available.</div>
             )}
             {!diffLoading && diff && !diff.notGitRepo && diff.files.length === 0 && (
-              <div className="rvEmpty">Clean working tree &mdash; no uncommitted changes. (This shows the whole room's working-tree diff, not per-agent — per-agent worktrees aren't built yet.)</div>
+              <div className="rvEmpty">
+                Clean working tree &mdash; no uncommitted changes.
+                {!agent?.worktreePath && " (This agent has no dedicated worktree, so this is the whole room's working-tree diff, not just this agent's.)"}
+              </div>
             )}
             {!diffLoading && diff?.files.map((f) => (
               <div key={f.name}>
@@ -69,12 +83,16 @@ export function Review() {
                   <span>{f.name}</span>
                   <span className="rvFileStat"><span className="p">+{f.plus}</span><span className="m">&minus;{f.minus}</span></span>
                 </div>
-                {f.lines.map((l, i) => (
-                  <div key={i} className={`diffLine${l.kind === "add" ? " add" : l.kind === "del" ? " del" : ""}`}>
-                    <span className="ln">{l.ln}</span>
-                    <span>{l.text}</span>
-                  </div>
-                ))}
+                {diffView === "unified" ? (
+                  f.lines.map((l, i) => (
+                    <div key={i} className={`diffLine${l.kind === "add" ? " add" : l.kind === "del" ? " del" : ""}`}>
+                      <span className="ln">{l.ln}</span>
+                      <span>{l.text}</span>
+                    </div>
+                  ))
+                ) : (
+                  <SplitDiff lines={f.lines} />
+                )}
               </div>
             ))}
           </div>
@@ -95,13 +113,20 @@ export function Review() {
             <div className="rvBtnRow">
               <button
                 className="pillBtn sageBtn mono"
-                disabled={verdict !== "pending"}
+                disabled={verdict !== "pending" || approving}
                 onClick={() => {
-                  approve(selectedAgent); setVerdict("approved");
-                  showToast(`Approved · ${agent.name} merged ${branch || "branch"}`);
+                  setApproving(true);
+                  approve(selectedAgent)
+                    .then(({ sha, message }) => {
+                      setVerdict("approved");
+                      setCommitInfo({ sha, message });
+                      showToast(`Committed ${sha.slice(0, 7)} · ${agent.name}`);
+                    })
+                    .catch((err) => showToast(err instanceof Error ? err.message : String(err)))
+                    .finally(() => setApproving(false));
                 }}
               >
-                approve
+                {approving ? "committing…" : "approve"}
               </button>
               <button
                 className="pillBtn ghostBtn mono"
@@ -115,10 +140,38 @@ export function Review() {
               </button>
             </div>
             <div className="dim mono" style={{ fontSize: 10.5, marginTop: 6 }}>
-              {verdict === "pending" ? "awaiting review" : verdict === "approved" ? `approved · merged ${branch || "branch"}` : "rejected · back to active"}
+              {verdict === "pending"
+                ? "awaiting review"
+                : verdict === "approved"
+                  ? `committed ${commitInfo?.sha.slice(0, 7)} · ${commitInfo?.message.split("\n")[0]}`
+                  : "rejected · back to active"}
             </div>
           </div>
         </aside>
+      </div>
+    </div>
+  );
+}
+
+function SplitDiff({ lines }: { lines: DiffLine[] }) {
+  const rows = pairDiffLines(lines);
+  return (
+    <div className="diffSplit">
+      <div className="diffSplitCol">
+        {rows.map((row, i) => (
+          <div key={i} className={`diffLine${row.left ? (row.left.kind === "del" ? " del" : "") : " empty"}`}>
+            <span className="ln">{row.left?.oldLn ?? ""}</span>
+            <span>{row.left?.text ?? ""}</span>
+          </div>
+        ))}
+      </div>
+      <div className="diffSplitCol">
+        {rows.map((row, i) => (
+          <div key={i} className={`diffLine${row.right ? (row.right.kind === "add" ? " add" : "") : " empty"}`}>
+            <span className="ln">{row.right?.newLn ?? ""}</span>
+            <span>{row.right?.text ?? ""}</span>
+          </div>
+        ))}
       </div>
     </div>
   );

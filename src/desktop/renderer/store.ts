@@ -44,14 +44,14 @@ interface State {
   removeProject(id: string): Promise<void>;
   updateProjectBackend(id: string, backend: Project["backend"]): void;
   setZone(id: string, zone: Project["zone"]): void;
-  addAgent(roleId: string, model?: string, extraArgs?: string[]): Promise<void>;
-  addCustomAgent(name: string, systemPrompt: string, model?: string, extraArgs?: string[]): Promise<void>;
+  addAgent(roleId: string, model?: string, extraArgs?: string[], useWorktree?: boolean): Promise<void>;
+  addCustomAgent(name: string, systemPrompt: string, model?: string, extraArgs?: string[], useWorktree?: boolean): Promise<void>;
   removeAgent(agentId: string): Promise<void>;
   submitComposer(text: string): void;
   toggleRawMode(): void;
   togglePaused(agentId: string): void;
   markReviewed(agentId: string): void;
-  approve(agentId: string): void;
+  approve(agentId: string): Promise<{ sha: string; message: string }>;
   reject(agentId: string): void;
 }
 
@@ -90,9 +90,14 @@ export const useStore = create<State>((set, get) => ({
     const s = get();
     const project = s.projects.find((p) => p.id === s.selectedProjectId);
     if (!project) return;
+    // A worktree'd agent gets its own real diff; without one, this still
+    // falls back to the whole project's working tree (the only option
+    // before per-agent worktrees existed).
+    const agent = project.agents.find((a) => a.id === s.selectedAgent);
+    const target = agent?.worktreePath ?? project.path;
     set({ diffLoading: true });
     try {
-      const diff = await api.getDiff(project.path);
+      const diff = await api.getDiff(target);
       set({ diff });
     } finally {
       set({ diffLoading: false });
@@ -193,18 +198,26 @@ export const useStore = create<State>((set, get) => ({
     void api.updateProject({ id, zone });
   },
 
-  async addAgent(roleId, model, extraArgs) {
+  async addAgent(roleId, model, extraArgs, useWorktree) {
     const s = get();
     if (!s.selectedProjectId) return;
-    const p = await api.addAgent(s.selectedProjectId, roleId, model, extraArgs);
-    if (p) set((st) => ({ projects: st.projects.map((x) => (x.id === p.id ? p : x)) }));
+    try {
+      const p = await api.addAgent(s.selectedProjectId, roleId, model, extraArgs, useWorktree);
+      if (p) set((st) => ({ projects: st.projects.map((x) => (x.id === p.id ? p : x)) }));
+    } catch (err) {
+      get().showToast(err instanceof Error ? err.message : String(err));
+    }
   },
 
-  async addCustomAgent(name, systemPrompt, model, extraArgs) {
+  async addCustomAgent(name, systemPrompt, model, extraArgs, useWorktree) {
     const s = get();
     if (!s.selectedProjectId) return;
-    const p = await api.addCustomAgent(s.selectedProjectId, name, systemPrompt, model, extraArgs);
-    if (p) set((st) => ({ projects: st.projects.map((x) => (x.id === p.id ? p : x)) }));
+    try {
+      const p = await api.addCustomAgent(s.selectedProjectId, name, systemPrompt, model, extraArgs, useWorktree);
+      if (p) set((st) => ({ projects: st.projects.map((x) => (x.id === p.id ? p : x)) }));
+    } catch (err) {
+      get().showToast(err instanceof Error ? err.message : String(err));
+    }
   },
 
   async removeAgent(agentId) {
@@ -248,11 +261,17 @@ export const useStore = create<State>((set, get) => ({
     set((s) => ({ localSeen: { ...s.localSeen, [agentId]: true } }));
   },
 
-  approve(agentId) {
-    set((s) => {
-      const forceActive = { ...s.localForceActive }; delete forceActive[agentId];
-      return { localSeen: { ...s.localSeen, [agentId]: true }, localForceActive: forceActive };
+  async approve(agentId) {
+    const s = get();
+    if (!s.selectedProjectId) throw new Error("No project selected.");
+    // real commit — can fail (nothing to commit, git not configured, etc.);
+    // only flip to "seen" once it actually succeeds, not optimistically.
+    const result = await api.approveDiff(s.selectedProjectId, agentId);
+    set((st) => {
+      const forceActive = { ...st.localForceActive }; delete forceActive[agentId];
+      return { localSeen: { ...st.localSeen, [agentId]: true }, localForceActive: forceActive };
     });
+    return result;
   },
 
   reject(agentId) {
