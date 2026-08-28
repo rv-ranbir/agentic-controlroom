@@ -5,6 +5,7 @@ export interface AgentRef {
   model?: string;
   extraArgs?: string[];
   worktreePath?: string;
+  skillIds?: string[];
 }
 
 export interface Project {
@@ -17,6 +18,7 @@ export interface Project {
   repoUrl?: string;
   zone?: "Work" | "Personal" | "Side";
   lastOpenedAt?: number;
+  dbPath?: string;
 }
 
 export interface Msg {
@@ -83,8 +85,26 @@ export interface DesktopApi {
   stopPty(projectId: string, agentId: string): Promise<void>;
   onPtyData(cb: (e: { key: string; data: string }) => void): () => void;
   onPtyExit(cb: (e: { key: string; exitCode: number }) => void): () => void;
+  startShellPty(projectId: string): Promise<{ alreadyRunning: boolean }>;
+  writeShellPty(projectId: string, data: string): Promise<void>;
+  resizeShellPty(projectId: string, cols: number, rows: number): Promise<void>;
+  stopShellPty(projectId: string): Promise<void>;
   captureScreenshot(projectId: string, agentId?: string): Promise<string>;
   transcribeAudio(audio: Uint8Array): Promise<string>;
+  startTunnel(projectId: string, port: number): Promise<void>;
+  stopTunnel(projectId: string): Promise<void>;
+  getTunnelStatus(projectId: string): Promise<boolean>;
+  onTunnelEvent(cb: (e: { projectId: string; kind: string; url?: string; message?: string }) => void): () => void;
+  pickDbFile(): Promise<string | null>;
+  setDbPath(projectId: string, path: string): Promise<Project>;
+  runDbQuery(projectId: string, sql: string): Promise<{ columns: string[]; rows: unknown[][] }>;
+  listSecretKeys(projectId: string): Promise<string[]>;
+  setSecret(projectId: string, key: string, value: string): Promise<string[]>;
+  removeSecret(projectId: string, key: string): Promise<string[]>;
+  listSkills(): Promise<{ id: string; name: string }[]>;
+  setAgentSkills(projectId: string, agentId: string, skillIds: string[]): Promise<AgentRef>;
+  getMemory(projectId: string): Promise<string>;
+  setMemory(projectId: string, text: string): Promise<void>;
   getRunning(): Promise<string[]>;
   gitBranch(path: string): Promise<string>;
   getDiff(path: string): Promise<DiffResult>;

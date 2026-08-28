@@ -12,6 +12,7 @@
   "files": [
     "dist",
     "roles",
+    "skills",
     "media"
   ],
   "engines": {

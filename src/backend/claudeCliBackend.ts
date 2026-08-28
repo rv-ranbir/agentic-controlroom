@@ -10,6 +10,8 @@ export interface ClaudeCliOptions {
   permissionMode?: string;
   /** Extra CLI flags from the agent's "CLI flags" field, appended after the standard args. */
   extraArgs?: string[];
+  /** Extra env vars for the spawned process (e.g. decrypted project secrets). Merged over process.env. */
+  env?: Record<string, string>;
 }
 
 /**
@@ -23,6 +25,7 @@ export class ClaudeCliBackend implements AgentBackend {
   private cwd: string;
   private permissionMode: string;
   private extraArgs: string[];
+  private env?: Record<string, string>;
 
   constructor(opts: ClaudeCliOptions = {}) {
     this.bin = opts.bin ?? process.env.CLAUDE_BIN ?? "claude";
@@ -30,6 +33,7 @@ export class ClaudeCliBackend implements AgentBackend {
     this.cwd = opts.cwd ?? process.cwd();
     this.permissionMode = opts.permissionMode ?? "acceptEdits";
     this.extraArgs = opts.extraArgs ?? [];
+    this.env = opts.env;
   }
 
   private exec(args: string[], stdin: string, onLine?: OnLine, onProcess?: OnProcess): Promise<string> {
@@ -42,6 +46,7 @@ export class ClaudeCliBackend implements AgentBackend {
         // process.kill(-pid). Windows tree-kill goes through `taskkill /t` instead
         // (needed there regardless, since shell:true wraps the real process anyway).
         detached: process.platform !== "win32",
+        env: this.env,
       });
       onProcess?.(child);
       const out = lineCollector(onLine);

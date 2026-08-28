@@ -9,6 +9,8 @@ export interface CursorCliOptions {
   cwd?: string;
   /** Extra CLI flags from the agent's "CLI flags" field, appended after the standard args. */
   extraArgs?: string[];
+  /** Extra env vars for the spawned process (e.g. decrypted project secrets). Merged over process.env. */
+  env?: Record<string, string>;
 }
 
 export function parseAgentOutput(stdout: string): { reply: string; sessionId?: string } {
@@ -74,6 +76,7 @@ export class CursorCliBackend implements AgentBackend {
   private model?: string;
   private cwd: string;
   private extraArgs: string[];
+  private env?: Record<string, string>;
 
   constructor(opts: CursorCliOptions = {}) {
     this.bin = opts.bin ?? process.env.CURSOR_AGENT_BIN ?? "cursor-agent";
@@ -81,6 +84,7 @@ export class CursorCliBackend implements AgentBackend {
     this.model = opts.model;
     this.cwd = opts.cwd ?? process.cwd();
     this.extraArgs = opts.extraArgs ?? [];
+    this.env = opts.env;
   }
 
   private exec(args: string[], onLine?: OnLine, onProcess?: OnProcess): Promise<string> {
@@ -92,7 +96,7 @@ export class CursorCliBackend implements AgentBackend {
         // non-Windows: own process group, so a caller can kill the whole tree via
         // process.kill(-pid). Windows tree-kill goes through `taskkill /t` instead.
         detached: process.platform !== "win32",
-        env: { ...process.env, CURSOR_INVOKED_AS: "cursor-agent" },
+        env: { ...process.env, CURSOR_INVOKED_AS: "cursor-agent", ...this.env },
       });
       onProcess?.(child);
       const out = lineCollector(onLine);

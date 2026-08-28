@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import * as pty from "node-pty";
 import type { IPty } from "node-pty";
+import Database from "better-sqlite3";
 import { randomUUID } from "node:crypto";
 import { ChatLog, type ChatMessage } from "../chatroom/log.js";
 import { CursorCliBackend } from "../backend/cursorCliBackend.js";
@@ -21,6 +22,7 @@ interface AgentRef {
   model?: string; // per-agent model override; falls back to the project's model
   extraArgs?: string[]; // raw CLI flags from the new-agent modal's "CLI flags" field
   worktreePath?: string; // present when this agent got its own git worktree (M5)
+  skillIds?: string[]; // attached skills/*.md files, appended to the system prompt (M7)
 }
 
 interface Project {
@@ -33,6 +35,7 @@ interface Project {
   repoUrl?: string; // present when this room was created by cloning a repository
   zone?: "Work" | "Personal" | "Side";
   lastOpenedAt?: number; // ms epoch, bumped on selectProject — drives the Launcher's recents ordering
+  dbPath?: string; // path to a SQLite file the Environment panel's read-only Database tab queries
 }
 
 const rolesDir = join(__dirname, "..", "..", "roles");
@@ -75,6 +78,31 @@ function listRoles(): AgentRef[] {
   return readdirSync(rolesDir)
     .filter((f) => f.endsWith(".md"))
     .map((f) => ({ id: f.replace(/\.md$/, ""), name: roleName(f) }));
+}
+
+// ── skills library (M7): markdown files, same shape as roles/, but attached
+// to an agent (possibly several) and appended to its system prompt rather
+// than defining the agent outright.
+const skillsDir = join(__dirname, "..", "..", "skills");
+
+function skillTitle(file: string): string {
+  const firstLine = readFileSync(join(skillsDir, file), "utf8").split("\n", 1)[0];
+  return firstLine.replace(/^#\s*Skill:\s*/i, "").trim() || file.replace(/\.md$/, "");
+}
+
+function listSkills(): { id: string; name: string }[] {
+  if (!existsSync(skillsDir)) return [];
+  return readdirSync(skillsDir)
+    .filter((f) => f.endsWith(".md"))
+    .map((f) => ({ id: f.replace(/\.md$/, ""), name: skillTitle(f) }));
+}
+
+function appendSkills<T extends { systemPrompt: string }>(role: T, agent: AgentRef): T {
+  if (!agent.skillIds?.length) return role;
+  const bodies = agent.skillIds
+    .map((id) => { try { return readFileSync(join(skillsDir, `${id}.md`), "utf8").trim(); } catch { return ""; } })
+    .filter(Boolean);
+  return bodies.length ? { ...role, systemPrompt: `${role.systemPrompt}\n\n${bodies.join("\n\n")}` } : role;
 }
 
 // ── project store ──────────────────────────────────────────────
@@ -379,6 +407,157 @@ async function captureScreenshot(project: Project, agentId?: string): Promise<st
   return file;
 }
 
+// ── secret manager (M7): per-project key/value secrets, encrypted at rest
+// via safeStorage (same OS keychain mechanism already used for the GitHub
+// token). Values never round-trip to the renderer — it only ever sees keys.
+interface StoredSecret { key: string; enc: string } // enc = base64(safeStorage.encryptString(value))
+
+function secretsFile(): string {
+  return join(app.getPath("userData"), "secrets.json");
+}
+
+function loadAllSecrets(): Record<string, StoredSecret[]> {
+  try {
+    return JSON.parse(readFileSync(secretsFile(), "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+function saveAllSecrets(all: Record<string, StoredSecret[]>): void {
+  writeFileSync(secretsFile(), JSON.stringify(all, null, 2));
+}
+
+function listSecretKeys(projectId: string): string[] {
+  return (loadAllSecrets()[projectId] ?? []).map((s) => s.key);
+}
+
+function setSecret(projectId: string, key: string, value: string): void {
+  const all = loadAllSecrets();
+  const list = (all[projectId] ??= []);
+  const enc = safeStorage.encryptString(value).toString("base64");
+  const i = list.findIndex((s) => s.key === key);
+  if (i >= 0) list[i] = { key, enc }; else list.push({ key, enc });
+  saveAllSecrets(all);
+}
+
+function removeSecret(projectId: string, key: string): void {
+  const all = loadAllSecrets();
+  all[projectId] = (all[projectId] ?? []).filter((s) => s.key !== key);
+  saveAllSecrets(all);
+}
+
+// injected as env at spawn — never logged, never sent back to the renderer
+function resolveSecretsEnv(projectId: string): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const s of loadAllSecrets()[projectId] ?? []) {
+    try {
+      env[s.key] = safeStorage.decryptString(Buffer.from(s.enc, "base64"));
+    } catch {
+      // corrupted entry (e.g. OS keychain changed) — skip rather than crash the spawn
+    }
+  }
+  return env;
+}
+
+// ── project memory (M7): free-text notes, prepended into every agent's
+// system prompt for this project — durable context that survives restarts
+// and isn't tied to any one agent, unlike a role's system prompt.
+function memoryFile(project: Project): string {
+  return join(project.path, ".agent-room", "memory.md");
+}
+
+function loadMemory(project: Project): string {
+  try {
+    return readFileSync(memoryFile(project), "utf8");
+  } catch {
+    return "";
+  }
+}
+
+function saveMemory(project: Project, text: string): void {
+  mkdirSync(join(project.path, ".agent-room"), { recursive: true });
+  writeFileSync(memoryFile(project), text);
+}
+
+function prependMemory<T extends { systemPrompt: string }>(role: T, project: Project): T {
+  const memory = loadMemory(project).trim();
+  return memory ? { ...role, systemPrompt: `Project memory:\n${memory}\n\n---\n\n${role.systemPrompt}` } : role;
+}
+
+// ── localhost tunnel (M7): shells out to `cloudflared` (quick tunnels need
+// no account/config) — detection, not a bundled tunneling stack ─────────
+const tunnelProcs = new Map<string, ChildProcess>(); // projectId -> cloudflared child
+
+function detectTunnelCli(): string | null {
+  try {
+    execFileSync("cloudflared", ["--version"], { timeout: 3000, stdio: "ignore" });
+    return "cloudflared";
+  } catch {
+    return null;
+  }
+}
+
+function startTunnel(project: Project, port: number): void {
+  if (tunnelProcs.has(project.id)) throw new Error("Tunnel already running for this project.");
+  const bin = detectTunnelCli();
+  if (!bin) {
+    throw new Error(
+      "Install cloudflared for local tunnels: https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/",
+    );
+  }
+  const child = spawn(bin, ["tunnel", "--url", `http://localhost:${port}`], { windowsHide: true });
+  tunnelProcs.set(project.id, child);
+  let found = false;
+  const onChunk = (d: Buffer) => {
+    if (found) return;
+    const m = /https:\/\/[a-z0-9-]+\.trycloudflare\.com/i.exec(String(d));
+    if (m) { found = true; send("tunnel:event", { projectId: project.id, kind: "url", url: m[0] }); }
+  };
+  // cloudflared logs its assigned URL to stderr, not stdout
+  child.stdout.on("data", onChunk);
+  child.stderr.on("data", onChunk);
+  child.on("exit", () => {
+    tunnelProcs.delete(project.id);
+    send("tunnel:event", { projectId: project.id, kind: "stopped" });
+  });
+  child.on("error", (err) => {
+    tunnelProcs.delete(project.id);
+    send("tunnel:event", { projectId: project.id, kind: "error", message: err.message });
+  });
+}
+
+function stopTunnel(projectId: string): void {
+  const child = tunnelProcs.get(projectId);
+  if (!child) return;
+  killProcessTree(child);
+  tunnelProcs.delete(projectId);
+}
+
+// ── read-only DB panel (M7): better-sqlite3 was already a dependency, unused
+// until now. SELECT-only is enforced here, on top of opening the file
+// `readonly: true` — belt and suspenders per spec's "enforced our side" ──
+function assertSelectOnly(sql: string): string {
+  const stmts = sql.split(";").map((s) => s.trim()).filter(Boolean);
+  if (stmts.length !== 1) throw new Error("Enter exactly one SELECT statement.");
+  if (!/^select\b/i.test(stmts[0])) throw new Error("Only SELECT statements are allowed here.");
+  return stmts[0];
+}
+
+function runReadOnlyQuery(project: Project, sql: string): { columns: string[]; rows: unknown[][] } {
+  if (!project.dbPath) throw new Error("No database file configured for this project.");
+  const stmt = assertSelectOnly(sql);
+  const db = new Database(project.dbPath, { readonly: true, fileMustExist: true });
+  try {
+    const prepared = db.prepare(stmt);
+    const rows = prepared.all() as Record<string, unknown>[];
+    const columns = prepared.columns().map((c) => c.name);
+    return { columns, rows: rows.map((r) => columns.map((c) => r[c])) };
+  } finally {
+    db.close();
+  }
+}
+
 // ── local dictation (M6): shells out to a `whisper` CLI on PATH — no bundled
 // model, matching the "detection, not configuration" BYOK stance ─────────
 async function transcribeAudio(buffer: Buffer): Promise<string> {
@@ -472,6 +651,7 @@ function makeBackend(project: Project, agent?: AgentRef): AgentBackend {
     cwd: agent?.worktreePath ?? project.path,
     model: agent?.model || project.model || undefined,
     extraArgs: agent?.extraArgs,
+    env: { ...process.env, ...resolveSecretsEnv(project.id) } as Record<string, string>,
   };
   return project.backend === "claude" ? new ClaudeCliBackend(opts) : new CursorCliBackend(opts);
 }
@@ -559,9 +739,15 @@ async function sendToAgent(project: Project, agent: AgentRef, prompt: string): P
   log.agentState(agent.id, "working");
   log.status(`${agent.name} is working…`);
   try {
-    const role = agent.systemPrompt
-      ? { id: agent.id, name: agent.name, systemPrompt: agent.systemPrompt }
-      : loadRole(rolesDir, agent.id, agent.name, `${agent.id}.md`);
+    const role = prependMemory(
+      appendSkills(
+        agent.systemPrompt
+          ? { id: agent.id, name: agent.name, systemPrompt: agent.systemPrompt }
+          : loadRole(rolesDir, agent.id, agent.name, `${agent.id}.md`),
+        agent,
+      ),
+      project,
+    );
     const tail = log
       .tail(20)
       .map((m) => `[${m.role}] ${m.message}`)
@@ -619,7 +805,33 @@ function startPty(project: Project, agentId: string): { alreadyRunning: boolean 
     cols: 80,
     rows: 30,
     cwd: project.path,
-    env: process.env as Record<string, string>,
+    env: { ...process.env, ...resolveSecretsEnv(project.id) } as Record<string, string>,
+  });
+  ptySessions.set(key, child);
+  child.onData((data) => send("pty:data", { key, data }));
+  child.onExit(({ exitCode }) => {
+    ptySessions.delete(key);
+    send("pty:exit", { key, exitCode });
+  });
+  return { alreadyRunning: false };
+}
+
+// ── dev terminal (M7): a plain shell in the project directory, not tied to
+// any agent — shares the ptySessions map/pty:data/pty:exit events via the
+// reserved "__shell__" sentinel key, which can never collide with a real
+// agent id (those come from role files or randomUUID()).
+const SHELL_AGENT_KEY = "__shell__";
+
+function startShellPty(project: Project): { alreadyRunning: boolean } {
+  const key = ptyKey(project.id, SHELL_AGENT_KEY);
+  if (ptySessions.has(key)) return { alreadyRunning: true };
+  const shell = process.platform === "win32" ? "powershell.exe" : (process.env.SHELL ?? "/bin/bash");
+  const child = pty.spawn(shell, [], {
+    name: "xterm-256color",
+    cols: 80,
+    rows: 30,
+    cwd: project.path,
+    env: { ...process.env, ...resolveSecretsEnv(project.id) } as Record<string, string>,
   });
   ptySessions.set(key, child);
   child.onData((data) => send("pty:data", { key, data }));
@@ -875,6 +1087,30 @@ app.whenReady().then(() => {
     ptySessions.delete(key);
   });
 
+  ipcMain.handle("shellpty:start", (_e, { projectId }: { projectId: string }) => {
+    const project = loadProjects().find((p) => p.id === projectId);
+    if (!project) throw new Error("Unknown project");
+    return startShellPty(project);
+  });
+
+  ipcMain.handle("shellpty:write", (_e, { projectId, data }: { projectId: string; data: string }) => {
+    ptySessions.get(ptyKey(projectId, SHELL_AGENT_KEY))?.write(data);
+  });
+
+  ipcMain.handle("shellpty:resize", (_e, { projectId, cols, rows }: { projectId: string; cols: number; rows: number }) => {
+    try {
+      ptySessions.get(ptyKey(projectId, SHELL_AGENT_KEY))?.resize(cols, rows);
+    } catch {
+      // shell already exited between the resize observer firing and this handler running
+    }
+  });
+
+  ipcMain.handle("shellpty:stop", (_e, { projectId }: { projectId: string }) => {
+    const key = ptyKey(projectId, SHELL_AGENT_KEY);
+    ptySessions.get(key)?.kill();
+    ptySessions.delete(key);
+  });
+
   ipcMain.handle("screenshot:capture", (_e, { projectId, agentId }: { projectId: string; agentId?: string }) => {
     const project = loadProjects().find((p) => p.id === projectId);
     if (!project) throw new Error("Unknown project");
@@ -882,6 +1118,76 @@ app.whenReady().then(() => {
   });
 
   ipcMain.handle("dictate:transcribe", (_e, { audio }: { audio: Uint8Array }) => transcribeAudio(Buffer.from(audio)));
+
+  ipcMain.handle("tunnel:start", (_e, { projectId, port }: { projectId: string; port: number }) => {
+    const project = loadProjects().find((p) => p.id === projectId);
+    if (!project) throw new Error("Unknown project");
+    startTunnel(project, port);
+  });
+
+  ipcMain.handle("tunnel:stop", (_e, { projectId }: { projectId: string }) => stopTunnel(projectId));
+
+  ipcMain.handle("tunnel:status", (_e, { projectId }: { projectId: string }) => tunnelProcs.has(projectId));
+
+  ipcMain.handle("db:pick", async () => {
+    const res = await dialog.showOpenDialog(win!, {
+      properties: ["openFile"],
+      filters: [{ name: "SQLite database", extensions: ["db", "sqlite", "sqlite3"] }],
+    });
+    if (res.canceled || !res.filePaths[0]) return null;
+    return res.filePaths[0];
+  });
+
+  ipcMain.handle("db:setPath", (_e, { projectId, path }: { projectId: string; path: string }) => {
+    const projects = loadProjects();
+    const p = projects.find((x) => x.id === projectId);
+    if (!p) throw new Error("Unknown project");
+    p.dbPath = path || undefined;
+    saveProjects(projects);
+    return p;
+  });
+
+  ipcMain.handle("db:query", (_e, { projectId, sql }: { projectId: string; sql: string }) => {
+    const project = loadProjects().find((p) => p.id === projectId);
+    if (!project) throw new Error("Unknown project");
+    return runReadOnlyQuery(project, sql);
+  });
+
+  ipcMain.handle("secrets:list", (_e, { projectId }: { projectId: string }) => listSecretKeys(projectId));
+
+  ipcMain.handle("secrets:set", (_e, { projectId, key, value }: { projectId: string; key: string; value: string }) => {
+    setSecret(projectId, key, value);
+    return listSecretKeys(projectId);
+  });
+
+  ipcMain.handle("secrets:remove", (_e, { projectId, key }: { projectId: string; key: string }) => {
+    removeSecret(projectId, key);
+    return listSecretKeys(projectId);
+  });
+
+  ipcMain.handle("skills:list", () => listSkills());
+
+  ipcMain.handle("skills:setForAgent", (_e, { projectId, agentId, skillIds }: { projectId: string; agentId: string; skillIds: string[] }) => {
+    const projects = loadProjects();
+    const project = projects.find((p) => p.id === projectId);
+    const agent = project?.agents?.find((a) => a.id === agentId);
+    if (!agent) throw new Error("Unknown agent");
+    agent.skillIds = skillIds;
+    saveProjects(projects);
+    return agent;
+  });
+
+  ipcMain.handle("memory:get", (_e, { projectId }: { projectId: string }) => {
+    const project = loadProjects().find((p) => p.id === projectId);
+    if (!project) throw new Error("Unknown project");
+    return loadMemory(project);
+  });
+
+  ipcMain.handle("memory:set", (_e, { projectId, text }: { projectId: string; text: string }) => {
+    const project = loadProjects().find((p) => p.id === projectId);
+    if (!project) throw new Error("Unknown project");
+    saveMemory(project, text);
+  });
 
   win = new BrowserWindow({
     width: 1440,
@@ -899,5 +1205,7 @@ app.whenReady().then(() => {
 app.on("window-all-closed", () => {
   for (const child of ptySessions.values()) child.kill();
   ptySessions.clear();
+  for (const child of tunnelProcs.values()) killProcessTree(child);
+  tunnelProcs.clear();
   app.quit();
 });

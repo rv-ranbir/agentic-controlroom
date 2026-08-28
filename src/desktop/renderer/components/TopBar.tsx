@@ -46,6 +46,9 @@ export function TopBar() {
         <span className="mono dim">Blocked</span>
         <span className={`pill${blocked > 0 ? " on" : ""}`}>{blocked}</span>
       </div>
+      {selected && (
+        <button className="pillBtn ghostBtn mono" onClick={() => showView("env")}>env</button>
+      )}
       <button className="pillBtn iconBtn" title="Toggle theme" onClick={toggleTheme}>
         {theme === "light" ? "☀" : "☽"}
       </button>

@@ -36,8 +36,31 @@ contextBridge.exposeInMainWorld("api", {
   resizePty: (projectId: string, agentId: string, cols: number, rows: number) =>
     ipcRenderer.invoke("pty:resize", { projectId, agentId, cols, rows }),
   stopPty: (projectId: string, agentId: string) => ipcRenderer.invoke("pty:stop", { projectId, agentId }),
+  startShellPty: (projectId: string) => ipcRenderer.invoke("shellpty:start", { projectId }),
+  writeShellPty: (projectId: string, data: string) => ipcRenderer.invoke("shellpty:write", { projectId, data }),
+  resizeShellPty: (projectId: string, cols: number, rows: number) => ipcRenderer.invoke("shellpty:resize", { projectId, cols, rows }),
+  stopShellPty: (projectId: string) => ipcRenderer.invoke("shellpty:stop", { projectId }),
   captureScreenshot: (projectId: string, agentId?: string) => ipcRenderer.invoke("screenshot:capture", { projectId, agentId }),
   transcribeAudio: (audio: Uint8Array) => ipcRenderer.invoke("dictate:transcribe", { audio }),
+  startTunnel: (projectId: string, port: number) => ipcRenderer.invoke("tunnel:start", { projectId, port }),
+  stopTunnel: (projectId: string) => ipcRenderer.invoke("tunnel:stop", { projectId }),
+  getTunnelStatus: (projectId: string) => ipcRenderer.invoke("tunnel:status", { projectId }),
+  onTunnelEvent: (cb: (e: { projectId: string; kind: string; url?: string; message?: string }) => void) => {
+    const handler = (_evt: unknown, payload: { projectId: string; kind: string; url?: string; message?: string }) => cb(payload);
+    ipcRenderer.on("tunnel:event", handler);
+    return () => ipcRenderer.removeListener("tunnel:event", handler);
+  },
+  pickDbFile: () => ipcRenderer.invoke("db:pick"),
+  setDbPath: (projectId: string, path: string) => ipcRenderer.invoke("db:setPath", { projectId, path }),
+  runDbQuery: (projectId: string, sql: string) => ipcRenderer.invoke("db:query", { projectId, sql }),
+  listSecretKeys: (projectId: string) => ipcRenderer.invoke("secrets:list", { projectId }),
+  setSecret: (projectId: string, key: string, value: string) => ipcRenderer.invoke("secrets:set", { projectId, key, value }),
+  removeSecret: (projectId: string, key: string) => ipcRenderer.invoke("secrets:remove", { projectId, key }),
+  listSkills: () => ipcRenderer.invoke("skills:list"),
+  setAgentSkills: (projectId: string, agentId: string, skillIds: string[]) =>
+    ipcRenderer.invoke("skills:setForAgent", { projectId, agentId, skillIds }),
+  getMemory: (projectId: string) => ipcRenderer.invoke("memory:get", { projectId }),
+  setMemory: (projectId: string, text: string) => ipcRenderer.invoke("memory:set", { projectId, text }),
   onPtyData: (cb: (e: { key: string; data: string }) => void) => {
     const handler = (_evt: unknown, payload: { key: string; data: string }) => cb(payload);
     ipcRenderer.on("pty:data", handler);
