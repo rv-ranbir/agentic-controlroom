@@ -36,6 +36,8 @@ contextBridge.exposeInMainWorld("api", {
   resizePty: (projectId: string, agentId: string, cols: number, rows: number) =>
     ipcRenderer.invoke("pty:resize", { projectId, agentId, cols, rows }),
   stopPty: (projectId: string, agentId: string) => ipcRenderer.invoke("pty:stop", { projectId, agentId }),
+  captureScreenshot: (projectId: string, agentId?: string) => ipcRenderer.invoke("screenshot:capture", { projectId, agentId }),
+  transcribeAudio: (audio: Uint8Array) => ipcRenderer.invoke("dictate:transcribe", { audio }),
   onPtyData: (cb: (e: { key: string; data: string }) => void) => {
     const handler = (_evt: unknown, payload: { key: string; data: string }) => cb(payload);
     ipcRenderer.on("pty:data", handler);

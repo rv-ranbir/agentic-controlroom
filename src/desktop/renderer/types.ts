@@ -83,6 +83,8 @@ export interface DesktopApi {
   stopPty(projectId: string, agentId: string): Promise<void>;
   onPtyData(cb: (e: { key: string; data: string }) => void): () => void;
   onPtyExit(cb: (e: { key: string; exitCode: number }) => void): () => void;
+  captureScreenshot(projectId: string, agentId?: string): Promise<string>;
+  transcribeAudio(audio: Uint8Array): Promise<string>;
   getRunning(): Promise<string[]>;
   gitBranch(path: string): Promise<string>;
   getDiff(path: string): Promise<DiffResult>;

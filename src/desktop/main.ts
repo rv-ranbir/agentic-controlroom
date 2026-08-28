@@ -1,6 +1,7 @@
-import { app, BrowserWindow, dialog, ipcMain, Notification, safeStorage } from "electron";
+import { app, BrowserWindow, desktopCapturer, dialog, ipcMain, Notification, safeStorage, screen } from "electron";
 import { basename, join } from "node:path";
-import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import * as pty from "node-pty";
 import type { IPty } from "node-pty";
@@ -356,6 +357,47 @@ function removeWorktree(project: Project, worktreePath: string): void {
     execFileSync("git", ["worktree", "remove", "--force", worktreePath], { cwd: project.path });
   } catch {
     // already gone, or project.path itself no longer exists — nothing to clean up
+  }
+}
+
+// ── screenshot capture (M6): full-res primary display, saved next to the
+// agent's own worktree (or the project root without one) ──────────────
+async function captureScreenshot(project: Project, agentId?: string): Promise<string> {
+  const primary = screen.getPrimaryDisplay();
+  const scale = primary.scaleFactor || 1;
+  const sources = await desktopCapturer.getSources({
+    types: ["screen"],
+    thumbnailSize: { width: Math.round(primary.size.width * scale), height: Math.round(primary.size.height * scale) },
+  });
+  const source = sources[0];
+  if (!source) throw new Error("No screen source available.");
+  const agent = agentId ? project.agents!.find((a) => a.id === agentId) : undefined;
+  const dir = join(agent?.worktreePath ?? project.path, ".agent-room", "screenshots");
+  mkdirSync(dir, { recursive: true });
+  const file = join(dir, `${Date.now()}.png`);
+  writeFileSync(file, source.thumbnail.toPNG());
+  return file;
+}
+
+// ── local dictation (M6): shells out to a `whisper` CLI on PATH — no bundled
+// model, matching the "detection, not configuration" BYOK stance ─────────
+async function transcribeAudio(buffer: Buffer): Promise<string> {
+  const dir = mkdtempSync(join(tmpdir(), "agent-room-dictate-"));
+  try {
+    const input = join(dir, "audio.webm");
+    writeFileSync(input, buffer);
+    try {
+      execFileSync("whisper", [input, "--model", "tiny", "--output_format", "txt", "--output_dir", dir], {
+        timeout: 60_000,
+        stdio: ["ignore", "ignore", "pipe"],
+      });
+    } catch {
+      throw new Error("Local dictation needs the `whisper` CLI on PATH (pip install -U openai-whisper).");
+    }
+    const txtFile = join(dir, "audio.txt");
+    return existsSync(txtFile) ? readFileSync(txtFile, "utf8").trim() : "";
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
   }
 }
 
@@ -832,6 +874,14 @@ app.whenReady().then(() => {
     ptySessions.get(key)?.kill();
     ptySessions.delete(key);
   });
+
+  ipcMain.handle("screenshot:capture", (_e, { projectId, agentId }: { projectId: string; agentId?: string }) => {
+    const project = loadProjects().find((p) => p.id === projectId);
+    if (!project) throw new Error("Unknown project");
+    return captureScreenshot(project, agentId);
+  });
+
+  ipcMain.handle("dictate:transcribe", (_e, { audio }: { audio: Uint8Array }) => transcribeAudio(Buffer.from(audio)));
 
   win = new BrowserWindow({
     width: 1440,

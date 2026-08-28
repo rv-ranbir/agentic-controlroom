@@ -48,6 +48,10 @@
 .streamEmpty { color: var(--ink-50); font-style: italic; font-size: 13px; }
 #composerWrap { padding: 10px 16px 12px; border-top: 1px solid var(--rule); }
 .composerRow { display: flex; gap: 8px; }
+.queueRow { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; font-size: 11px; }
+.suggestRow { display: flex; flex-direction: column; border: 1px solid var(--rule); border-radius: 8px; margin-bottom: 6px; overflow: hidden; }
+.suggestOpt { padding: 6px 10px; font-size: 12px; cursor: pointer; }
+.suggestOpt:hover { background: var(--sink); }
 
 /* ── launcher ── */
 .lnHeader { height: 46px; flex-shrink: 0; display: flex; align-items: center; gap: 10px; padding: 0 20px; border-bottom: 1px solid var(--rule); }

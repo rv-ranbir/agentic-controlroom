@@ -28,6 +28,7 @@ interface State {
   diff: DiffResult | null;
   diffLoading: boolean;
   projectStats: Record<string, { blocked: number; lastActivityAt: number }>;
+  composerQueue: Record<string, string[]>; // key: `${projectId}:${agentId||""}` — messages waiting for the target to go idle
 
   init(): Promise<void>;
   fetchDiff(): Promise<void>;
@@ -48,6 +49,7 @@ interface State {
   addCustomAgent(name: string, systemPrompt: string, model?: string, extraArgs?: string[], useWorktree?: boolean): Promise<void>;
   removeAgent(agentId: string): Promise<void>;
   submitComposer(text: string): void;
+  dequeueComposer(key: string, index: number): void;
   toggleRawMode(): void;
   togglePaused(agentId: string): void;
   markReviewed(agentId: string): void;
@@ -56,6 +58,26 @@ interface State {
 }
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
+
+function composerKey(projectId: string, agentId: string | null): string {
+  return `${projectId}:${agentId ?? ""}`;
+}
+
+// Pop and send the next queued message for a target once it's gone idle —
+// each send re-busies the target, so the following agentState/running event
+// drives the next pop (one at a time, never a burst).
+function trySendQueued(projectId: string, agentId: string | null): void {
+  const key = composerKey(projectId, agentId);
+  const s = useStore.getState();
+  const list = s.composerQueue[key];
+  if (!list?.length) return;
+  const [next, ...rest] = list;
+  const composerQueue = { ...s.composerQueue };
+  if (rest.length) composerQueue[key] = rest; else delete composerQueue[key];
+  useStore.setState({ composerQueue });
+  if (agentId) void api.sendToAgent(projectId, agentId, next);
+  else void api.runTask(projectId, next);
+}
 
 export const useStore = create<State>((set, get) => ({
   roles: [],
@@ -80,6 +102,7 @@ export const useStore = create<State>((set, get) => ({
   diff: null,
   diffLoading: false,
   projectStats: {},
+  composerQueue: {},
 
   async fetchProjectStats() {
     const projectStats = await api.getProjectStats();
@@ -234,8 +257,28 @@ export const useStore = create<State>((set, get) => ({
   submitComposer(text) {
     const s = get();
     if (!s.selectedProjectId) return;
-    if (s.selectedAgent) void api.sendToAgent(s.selectedProjectId, s.selectedAgent, text);
-    else void api.runTask(s.selectedProjectId, text);
+    const { selectedProjectId: projectId, selectedAgent: agentId } = s;
+    const busy = agentId
+      ? !!s.runningKeys[`${projectId}:${agentId}`] || !!s.runningKeys[projectId] || !!s.localPaused[agentId]
+      : !!s.runningKeys[projectId];
+    if (busy) {
+      const key = composerKey(projectId, agentId);
+      set((st) => ({ composerQueue: { ...st.composerQueue, [key]: [...(st.composerQueue[key] ?? []), text] } }));
+      return;
+    }
+    if (agentId) void api.sendToAgent(projectId, agentId, text);
+    else void api.runTask(projectId, text);
+  },
+
+  dequeueComposer(key, index) {
+    set((st) => {
+      const list = st.composerQueue[key];
+      if (!list) return {};
+      const next = list.filter((_, i) => i !== index);
+      const composerQueue = { ...st.composerQueue };
+      if (next.length) composerQueue[key] = next; else delete composerQueue[key];
+      return { composerQueue };
+    });
   },
 
   toggleRawMode() { set((s) => ({ rawMode: !s.rawMode })); },
@@ -289,6 +332,7 @@ api.onEvent((e: RoomEvent) => {
     const runningKeys = { ...s.runningKeys };
     if (e.running) runningKeys[e.projectId] = true; else delete runningKeys[e.projectId];
     useStore.setState({ runningKeys });
+    if (!e.running) trySendQueued(e.projectId, null);
     void s.refreshProjects();
     return;
   }
@@ -321,6 +365,7 @@ api.onEvent((e: RoomEvent) => {
       useStore.setState({ agentStates, stateSince, localForceActive, localSeen, localPaused, runningKeys });
       const nextBucket = bucketOf(agentId, useStore.getState());
       if (nextBucket !== prevBucket) pushTick(agentId, nextBucket === "needs");
+      if (state !== "working") trySendQueued(s.selectedProjectId!, agentId);
       break;
     }
     case "activity": {
