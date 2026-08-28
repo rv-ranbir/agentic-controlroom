@@ -14,6 +14,8 @@ export interface Project {
   model?: string;
   agents: AgentRef[];
   repoUrl?: string;
+  zone?: "Work" | "Personal" | "Side";
+  lastOpenedAt?: number;
 }
 
 export interface Msg {
@@ -48,6 +50,11 @@ export interface DesktopApi {
   listProjects(): Promise<Project[]>;
   addProject(): Promise<Project | null>;
   cloneRepo(url: string): Promise<Project | null>;
+  githubConnect(token: string): Promise<{ login: string }>;
+  githubStatus(): Promise<{ connected: boolean; login?: string }>;
+  githubDisconnect(): Promise<void>;
+  githubListRepos(): Promise<{ name: string; fullName: string; cloneUrl: string; private: boolean; updatedAt: string }[]>;
+  cloneGithubRepo(cloneUrl: string, name: string): Promise<Project | null>;
   updateProject(u: Partial<Project> & { id: string }): Promise<Project>;
   removeProject(id: string): Promise<void>;
   addAgent(projectId: string, roleId: string, model?: string, extraArgs?: string[]): Promise<Project | null>;
@@ -57,6 +64,7 @@ export interface DesktopApi {
   runTask(projectId: string, task: string): Promise<void>;
   sendToAgent(projectId: string, agentId: string, prompt: string): Promise<void>;
   pauseAgent(projectId: string, agentId: string): Promise<boolean>;
+  getProjectStats(): Promise<Record<string, { blocked: number; lastActivityAt: number }>>;
   startPty(projectId: string, agentId: string): Promise<{ alreadyRunning: boolean }>;
   writePty(projectId: string, agentId: string, data: string): Promise<void>;
   resizePty(projectId: string, agentId: string, cols: number, rows: number): Promise<void>;

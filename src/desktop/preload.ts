@@ -5,6 +5,11 @@ contextBridge.exposeInMainWorld("api", {
   listProjects: () => ipcRenderer.invoke("projects:list"),
   addProject: () => ipcRenderer.invoke("projects:add"),
   cloneRepo: (url: string) => ipcRenderer.invoke("projects:addRepo", { url }),
+  githubConnect: (token: string) => ipcRenderer.invoke("github:connect", { token }),
+  githubStatus: () => ipcRenderer.invoke("github:status"),
+  githubDisconnect: () => ipcRenderer.invoke("github:disconnect"),
+  githubListRepos: () => ipcRenderer.invoke("github:listRepos"),
+  cloneGithubRepo: (cloneUrl: string, name: string) => ipcRenderer.invoke("projects:addGithubRepo", { cloneUrl, name }),
   updateProject: (update: unknown) => ipcRenderer.invoke("projects:update", update),
   removeProject: (id: string) => ipcRenderer.invoke("projects:remove", id),
   addAgent: (projectId: string, roleId: string, model?: string, extraArgs?: string[]) =>
@@ -20,6 +25,7 @@ contextBridge.exposeInMainWorld("api", {
   getRunning: () => ipcRenderer.invoke("room:running"),
   gitBranch: (path: string) => ipcRenderer.invoke("git:branch", path),
   getDiff: (path: string) => ipcRenderer.invoke("room:diff", path),
+  getProjectStats: () => ipcRenderer.invoke("projects:stats"),
   onEvent: (cb: (e: unknown) => void) => {
     ipcRenderer.on("room:event", (_evt, payload) => cb(payload));
   },

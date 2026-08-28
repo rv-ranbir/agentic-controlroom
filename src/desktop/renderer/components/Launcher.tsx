@@ -1,13 +1,19 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useStore } from "../store";
+import { fuzzyMatch } from "../lib/fuzzy";
+import { elapsedLabel } from "../lib/agents";
+import { GithubPanel } from "./GithubPanel";
 import type { Project } from "../types";
+
+const ZONES: NonNullable<Project["zone"]>[] = ["Work", "Personal", "Side"];
 
 function isRunning(runningKeys: Record<string, true>, p: Project): boolean {
   return Object.keys(runningKeys).some((k) => k === p.id || k.startsWith(p.id + ":"));
 }
 
-function LnItem({ p, withBadge }: { p: Project; withBadge?: boolean }) {
+function LnItem({ p, withBadge, withZone }: { p: Project; withBadge?: boolean; withZone?: boolean }) {
   const runningKeys = useStore((s) => s.runningKeys);
+  const stats = useStore((s) => s.projectStats[p.id]);
   const { selectProject, showView } = useStore.getState();
   return (
     <div className="lnItem" onClick={async () => { await selectProject(p); showView("room"); }}>
@@ -16,7 +22,28 @@ function LnItem({ p, withBadge }: { p: Project; withBadge?: boolean }) {
         <div className="liName">{p.name}</div>
         <div className="liPath">{p.path}</div>
       </div>
-      {withBadge && <span className="liMeta">{p.agents.length} agent{p.agents.length === 1 ? "" : "s"} · {p.backend}</span>}
+      {withZone && (
+        <select
+          className="mono"
+          style={{ background: "var(--sink)", color: "var(--ink)", border: "1px solid var(--rule)", borderRadius: 5, fontSize: 10 }}
+          value={p.zone ?? ""}
+          onClick={(e) => e.stopPropagation()}
+          onChange={(e) => {
+            const zone = (e.target.value || undefined) as Project["zone"];
+            void useStore.getState().setZone(p.id, zone);
+          }}
+        >
+          <option value="">No zone</option>
+          {ZONES.map((z) => <option key={z} value={z}>{z}</option>)}
+        </select>
+      )}
+      {stats && stats.blocked > 0 && <span className="pill on">{stats.blocked} blocked</span>}
+      {withBadge && (
+        <span className="liMeta">
+          {p.agents.length} agent{p.agents.length === 1 ? "" : "s"} · {p.backend}
+          {stats?.lastActivityAt ? ` · ${elapsedLabel(stats.lastActivityAt)} ago` : ""}
+        </span>
+      )}
     </div>
   );
 }
@@ -31,6 +58,14 @@ export function Launcher({ onNewAgent }: { onNewAgent: () => void }) {
   const [tab, setTab] = useState<"local" | "repo">("local");
   const [drag, setDrag] = useState(false);
   const [repoUrl, setRepoUrl] = useState("");
+  const [query, setQuery] = useState("");
+  const fetchProjectStats = useStore.getState().fetchProjectStats;
+
+  useEffect(() => {
+    void fetchProjectStats();
+    const id = setInterval(() => void fetchProjectStats(), 10000);
+    return () => clearInterval(id);
+  }, [fetchProjectStats]);
 
   async function handleNewAgent() {
     if (selectedProjectId) { onNewAgent(); return; }
@@ -41,6 +76,26 @@ export function Launcher({ onNewAgent }: { onNewAgent: () => void }) {
     }
     showToast("Open a project first — no rooms yet");
   }
+
+  const filtered = useMemo(
+    () => projects.filter((p) => fuzzyMatch(query, p.name) || fuzzyMatch(query, p.path)),
+    [projects, query],
+  );
+  const recent = useMemo(
+    () => [...filtered].sort((a, b) => (b.lastOpenedAt ?? 0) - (a.lastOpenedAt ?? 0)),
+    [filtered],
+  );
+  const zoneGroups = useMemo(() => {
+    const groups = new Map<string, Project[]>();
+    for (const p of filtered) {
+      const key = p.zone ?? "Unzoned";
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(p);
+    }
+    const order = [...ZONES, "Unzoned"];
+    return order.filter((z) => groups.has(z)).map((z) => [z, groups.get(z)!] as const);
+  }, [filtered]);
+  const anyZoned = projects.some((p) => p.zone);
 
   return (
     <div className="viewRoot">
@@ -60,6 +115,16 @@ export function Launcher({ onNewAgent }: { onNewAgent: () => void }) {
           </div>
           <p className="lnSub dim">Open a local folder or connect a repository, then bring in the agents who'll work it.</p>
 
+          {projects.length > 0 && (
+            <input
+              className="fInput mono"
+              style={{ marginBottom: 14 }}
+              placeholder="Search projects…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          )}
+
           <div className="segGroup">
             <div className={`segOpt${tab === "local" ? " on" : ""}`} onClick={() => setTab("local")}>Local folder</div>
             <div className={`segOpt${tab === "repo" ? " on" : ""}`} onClick={() => setTab("repo")}>Repository</div>
@@ -77,9 +142,9 @@ export function Launcher({ onNewAgent }: { onNewAgent: () => void }) {
                 Drop a folder, or <button className="pillBtn ghostBtn" onClick={(e) => { e.stopPropagation(); void createProject(); }}>browse&hellip;</button>
               </div>
               <div className="lnList">
-                {projects.length === 0
-                  ? <div className="lnEmpty">No local folders opened yet.</div>
-                  : projects.map((p) => <LnItem key={p.id} p={p} />)}
+                {recent.length === 0
+                  ? <div className="lnEmpty">{query ? "No matches." : "No local folders opened yet."}</div>
+                  : recent.map((p) => <LnItem key={p.id} p={p} />)}
               </div>
             </div>
           )}
@@ -107,15 +172,23 @@ export function Launcher({ onNewAgent }: { onNewAgent: () => void }) {
                 Clones into ~/Documents/AgentRoom/&lt;repo&gt; and opens a room on it. Requires <code className="mono">git</code> on PATH;
                 per-branch worktrees and PR flow come with full multi-project support.
               </p>
+              <GithubPanel />
             </div>
           )}
 
           <h6 className="lnRoomsHead dim">Open rooms</h6>
-          <div className="lnList">
-            {projects.length === 0
-              ? <div className="lnEmpty">No rooms yet — open a folder above.</div>
-              : projects.map((p) => <LnItem key={p.id} p={p} withBadge />)}
-          </div>
+          {filtered.length === 0 ? (
+            <div className="lnList"><div className="lnEmpty">{query ? "No matches." : "No rooms yet — open a folder above."}</div></div>
+          ) : anyZoned ? (
+            zoneGroups.map(([zone, ps]) => (
+              <div key={zone}>
+                <div className="dim mono" style={{ fontSize: 10, letterSpacing: ".08em", textTransform: "uppercase", margin: "12px 0 2px" }}>{zone}</div>
+                <div className="lnList">{ps.map((p) => <LnItem key={p.id} p={p} withBadge withZone />)}</div>
+              </div>
+            ))
+          ) : (
+            <div className="lnList">{filtered.map((p) => <LnItem key={p.id} p={p} withBadge withZone />)}</div>
+          )}
         </div>
       </div>
     </div>

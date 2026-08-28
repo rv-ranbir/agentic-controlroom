@@ -27,9 +27,11 @@ interface State {
   activityLog: Record<string, { ts: string; agentId: string; kind: "tool"; text: string; raw?: string }[]>;
   diff: DiffResult | null;
   diffLoading: boolean;
+  projectStats: Record<string, { blocked: number; lastActivityAt: number }>;
 
   init(): Promise<void>;
   fetchDiff(): Promise<void>;
+  fetchProjectStats(): Promise<void>;
   showView(v: View): void;
   toggleTheme(): void;
   showToast(text: string): void;
@@ -41,6 +43,7 @@ interface State {
   createRepoProject(url: string): Promise<void>;
   removeProject(id: string): Promise<void>;
   updateProjectBackend(id: string, backend: Project["backend"]): void;
+  setZone(id: string, zone: Project["zone"]): void;
   addAgent(roleId: string, model?: string, extraArgs?: string[]): Promise<void>;
   addCustomAgent(name: string, systemPrompt: string, model?: string, extraArgs?: string[]): Promise<void>;
   removeAgent(agentId: string): Promise<void>;
@@ -76,6 +79,12 @@ export const useStore = create<State>((set, get) => ({
   activityLog: {},
   diff: null,
   diffLoading: false,
+  projectStats: {},
+
+  async fetchProjectStats() {
+    const projectStats = await api.getProjectStats();
+    set({ projectStats });
+  },
 
   async fetchDiff() {
     const s = get();
@@ -128,6 +137,9 @@ export const useStore = create<State>((set, get) => ({
       diff: null,
     });
     void api.gitBranch(p.path).then((b) => set({ branch: b }));
+    const lastOpenedAt = Date.now();
+    void api.updateProject({ id: p.id, lastOpenedAt });
+    set((s) => ({ projects: s.projects.map((x) => (x.id === p.id ? { ...x, lastOpenedAt } : x)) }));
   },
 
   selectAgent(id) { set({ selectedAgent: id, splitAgent: null }); },
@@ -174,6 +186,11 @@ export const useStore = create<State>((set, get) => ({
   updateProjectBackend(id, backend) {
     set((s) => ({ projects: s.projects.map((p) => (p.id === id ? { ...p, backend } : p)) }));
     void api.updateProject({ id, backend });
+  },
+
+  setZone(id, zone) {
+    set((s) => ({ projects: s.projects.map((p) => (p.id === id ? { ...p, zone } : p)) }));
+    void api.updateProject({ id, zone });
   },
 
   async addAgent(roleId, model, extraArgs) {

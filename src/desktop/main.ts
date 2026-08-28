@@ -1,6 +1,6 @@
-import { app, BrowserWindow, dialog, ipcMain, Notification } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Notification, safeStorage } from "electron";
 import { basename, join } from "node:path";
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import * as pty from "node-pty";
 import type { IPty } from "node-pty";
@@ -29,6 +29,8 @@ interface Project {
   model?: string;
   agents?: AgentRef[];
   repoUrl?: string; // present when this room was created by cloning a repository
+  zone?: "Work" | "Personal" | "Side";
+  lastOpenedAt?: number; // ms epoch, bumped on selectProject — drives the Launcher's recents ordering
 }
 
 const rolesDir = join(__dirname, "..", "..", "roles");
@@ -174,9 +176,15 @@ function getDiff(path: string): DiffResult {
   }
 }
 
-function cloneRepo(url: string, dest: string): Promise<void> {
+function cloneRepo(url: string, dest: string, token?: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn("git", ["clone", "--", url, dest], { windowsHide: true });
+    // token, when present, goes through a per-invocation git config override
+    // (http.extraHeader) — never embedded in the URL, so it's never written
+    // to .git/config or persisted anywhere in projects.json's repoUrl field.
+    const args = token
+      ? ["-c", `http.extraHeader=Authorization: Bearer ${token}`, "clone", "--", url, dest]
+      : ["clone", "--", url, dest];
+    const child = spawn("git", args, { windowsHide: true });
     let stderr = "";
     child.stderr.on("data", (d) => { stderr += d.toString(); });
     child.on("error", reject);
@@ -185,6 +193,63 @@ function cloneRepo(url: string, dest: string): Promise<void> {
       else reject(new Error(stderr.trim() || `git clone exited with code ${code}`));
     });
   });
+}
+
+async function cloneAndRegister(url: string, name: string, token?: string): Promise<Project> {
+  const projects = loadProjects();
+  const existingByUrl = projects.find((p) => p.repoUrl === url);
+  if (existingByUrl) return existingByUrl;
+  const workspace = join(app.getPath("documents"), "AgentRoom");
+  const dest = join(workspace, name);
+  if (existsSync(dest)) {
+    const existingByPath = projects.find((p) => p.path === dest);
+    if (existingByPath) return existingByPath;
+    throw new Error(`Destination already exists and isn't a tracked room: ${dest}`);
+  }
+  mkdirSync(workspace, { recursive: true });
+  await cloneRepo(url, dest, token);
+  const project: Project = {
+    id: randomUUID(),
+    name,
+    path: dest,
+    backend: "cursor",
+    repoUrl: url,
+    agents: [{ id: "dev", name: "Developer" }, { id: "qa", name: "QA" }],
+  };
+  projects.push(project);
+  saveProjects(projects);
+  return project;
+}
+
+// ── GitHub connect (M4): PAT stored via OS keychain (safeStorage, ADR-003) ──
+
+function githubTokenFile(): string { return join(app.getPath("userData"), "github-token.enc"); }
+function githubUserFile(): string { return join(app.getPath("userData"), "github-user.json"); }
+
+function saveGithubToken(token: string): void {
+  if (!safeStorage.isEncryptionAvailable()) throw new Error("OS keychain encryption isn't available on this machine.");
+  writeFileSync(githubTokenFile(), safeStorage.encryptString(token));
+}
+
+function loadGithubToken(): string | null {
+  try {
+    return safeStorage.decryptString(readFileSync(githubTokenFile()));
+  } catch {
+    return null;
+  }
+}
+
+function clearGithubToken(): void {
+  try { unlinkSync(githubTokenFile()); } catch { /* not connected */ }
+  try { unlinkSync(githubUserFile()); } catch { /* not connected */ }
+}
+
+async function githubApi(path: string, token: string): Promise<Response> {
+  const res = await fetch(`https://api.github.com${path}`, {
+    headers: { Authorization: `Bearer ${token}`, "User-Agent": "AgentRoom", Accept: "application/vnd.github+json" },
+  });
+  if (!res.ok) throw new Error(`GitHub API error (HTTP ${res.status}) for ${path}`);
+  return res;
 }
 
 // per-project persisted agent CLI sessions (direct chat resume across restarts)
@@ -231,11 +296,32 @@ function makeBackend(project: Project, agent?: AgentRef): AgentBackend {
   return project.backend === "claude" ? new ClaudeCliBackend(opts) : new CursorCliBackend(opts);
 }
 
+// M4 Launcher stats: main.ts is the one place that sees every project's
+// events regardless of which project the renderer currently has open, so
+// this is where cross-project "blocked count" / "last activity" have to
+// live — the renderer's own state (store.ts) only ever tracks the ONE
+// selected project.
+interface ProjectStats {
+  agentStates: Map<string, string>;
+  lastActivityAt: number;
+}
+const projectStats = new Map<string, ProjectStats>();
+
+function statsFor(projectId: string): ProjectStats {
+  let s = projectStats.get(projectId);
+  if (!s) { s = { agentStates: new Map(), lastActivityAt: 0 }; projectStats.set(projectId, s); }
+  return s;
+}
+
 function wiredLog(project: Project): ChatLog {
   const log = new ChatLog(join(project.path, ".agent-room", "log.jsonl"));
-  log.on("message", (m: ChatMessage) => send("room:event", { projectId: project.id, kind: "message", ...m }));
+  log.on("message", (m: ChatMessage) => {
+    statsFor(project.id).lastActivityAt = Date.now();
+    send("room:event", { projectId: project.id, kind: "message", ...m });
+  });
   log.on("status", (text: string) => send("room:event", { projectId: project.id, kind: "status", text }));
   log.on("agentState", (s: { agentId: string; state: string }) => {
+    statsFor(project.id).agentStates.set(s.agentId, s.state);
     send("room:event", { projectId: project.id, kind: "agentState", ...s });
     if (s.state === "needs") notifyNeedsInput(project, s.agentId);
   });
@@ -393,30 +479,44 @@ app.whenReady().then(() => {
   ipcMain.handle("projects:addRepo", async (_e, { url }: { url: string }) => {
     const trimmed = (url || "").trim();
     if (!isSafeRepoUrl(trimmed)) throw new Error("That doesn't look like a valid repository URL.");
-    const projects = loadProjects();
-    const existingByUrl = projects.find((p) => p.repoUrl === trimmed);
-    if (existingByUrl) return existingByUrl;
-    const name = repoNameFrom(trimmed);
-    const workspace = join(app.getPath("documents"), "AgentRoom");
-    const dest = join(workspace, name);
-    if (existsSync(dest)) {
-      const existingByPath = projects.find((p) => p.path === dest);
-      if (existingByPath) return existingByPath;
-      throw new Error(`Destination already exists and isn't a tracked room: ${dest}`);
+    return cloneAndRegister(trimmed, repoNameFrom(trimmed));
+  });
+
+  ipcMain.handle("github:connect", async (_e, { token }: { token: string }) => {
+    const trimmed = (token || "").trim();
+    if (!trimmed) throw new Error("Enter a GitHub personal access token.");
+    const res = await githubApi("/user", trimmed);
+    const user = (await res.json()) as { login: string };
+    saveGithubToken(trimmed);
+    writeFileSync(githubUserFile(), JSON.stringify({ login: user.login }));
+    return { login: user.login };
+  });
+
+  ipcMain.handle("github:status", () => {
+    const token = loadGithubToken();
+    if (!token) return { connected: false as const };
+    try {
+      const user = JSON.parse(readFileSync(githubUserFile(), "utf8")) as { login: string };
+      return { connected: true as const, login: user.login };
+    } catch {
+      return { connected: true as const };
     }
-    mkdirSync(workspace, { recursive: true });
-    await cloneRepo(trimmed, dest);
-    const project: Project = {
-      id: randomUUID(),
-      name,
-      path: dest,
-      backend: "cursor",
-      repoUrl: trimmed,
-      agents: [{ id: "dev", name: "Developer" }, { id: "qa", name: "QA" }],
-    };
-    projects.push(project);
-    saveProjects(projects);
-    return project;
+  });
+
+  ipcMain.handle("github:disconnect", () => clearGithubToken());
+
+  ipcMain.handle("github:listRepos", async () => {
+    const token = loadGithubToken();
+    if (!token) throw new Error("Not connected to GitHub.");
+    const res = await githubApi("/user/repos?sort=updated&per_page=100", token);
+    const repos = (await res.json()) as { name: string; full_name: string; clone_url: string; private: boolean; updated_at: string }[];
+    return repos.map((r) => ({ name: r.name, fullName: r.full_name, cloneUrl: r.clone_url, private: r.private, updatedAt: r.updated_at }));
+  });
+
+  ipcMain.handle("projects:addGithubRepo", async (_e, { cloneUrl, name }: { cloneUrl: string; name: string }) => {
+    const token = loadGithubToken();
+    if (!token) throw new Error("Not connected to GitHub.");
+    return cloneAndRegister(cloneUrl, name.replace(/[^\w.-]/g, "_"), token);
   });
 
   ipcMain.handle("projects:update", (_e, update: Partial<Project> & { id: string }) => {
@@ -518,6 +618,27 @@ app.whenReady().then(() => {
   });
 
   ipcMain.handle("room:diff", (_e, path: string) => getDiff(path));
+
+  ipcMain.handle("projects:stats", () => {
+    const out: Record<string, { blocked: number; lastActivityAt: number }> = {};
+    for (const p of loadProjects()) {
+      const live = projectStats.get(p.id);
+      let lastActivityAt = live?.lastActivityAt ?? 0;
+      if (!lastActivityAt) {
+        // no live events yet this app session — fall back to the persisted log's last message
+        try {
+          const file = join(p.path, ".agent-room", "log.jsonl");
+          const tail = existsSync(file) ? new ChatLog(file).tail(1) : [];
+          lastActivityAt = tail[0] ? new Date(tail[0].ts).getTime() : 0;
+        } catch {
+          lastActivityAt = 0;
+        }
+      }
+      const blocked = live ? [...live.agentStates.values()].filter((v) => v === "needs").length : 0;
+      out[p.id] = { blocked, lastActivityAt };
+    }
+    return out;
+  });
 
   ipcMain.handle("pty:start", (_e, { projectId, agentId }: { projectId: string; agentId: string }) => {
     const project = loadProjects().find((p) => p.id === projectId);
