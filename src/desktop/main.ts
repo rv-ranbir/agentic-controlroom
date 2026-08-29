@@ -12,6 +12,7 @@ import { CursorCliBackend } from "../backend/cursorCliBackend.js";
 import { ClaudeCliBackend } from "../backend/claudeCliBackend.js";
 import type { AgentBackend, RoleConfig } from "../backend/agentBackend.js";
 import { runRoom } from "../orchestrator/orchestrator.js";
+import { runMeeting } from "../orchestrator/meeting.js";
 import { isQuestionLike } from "../orchestrator/needsInput.js";
 import { loadRole } from "../roles.js";
 
@@ -953,6 +954,40 @@ async function sendToAgent(project: Project, agent: AgentRef, prompt: string): P
   }
 }
 
+// ── Meeting room (M9): N-agent live discussion ──────────────────────
+async function startMeeting(project: Project, agentIds: string[], topic: string, rounds: number): Promise<void> {
+  const agents = agentIds.map((id) => project.agents?.find((a) => a.id === id)).filter((a): a is AgentRef => !!a);
+  if (agents.length < 2) throw new Error("Pick at least 2 agents for a meeting.");
+  const keys = agents.map((a) => `${project.id}:${a.id}`);
+  const busy = keys.find((k) => running.has(k));
+  if (busy) throw new Error(`${agents[keys.indexOf(busy)].name} is already busy.`);
+  keys.forEach((k) => running.add(k));
+  const log = wiredLog(project);
+  send("room:event", { projectId: project.id, kind: "running", running: true });
+  try {
+    const participants = agents.map((agent) => ({
+      agent: prependMemory(
+        appendSkills(
+          agent.systemPrompt
+            ? { id: agent.id, name: agent.name, systemPrompt: agent.systemPrompt }
+            : loadRole(rolesDir, agent.id, agent.name, `${agent.id}.md`),
+          agent,
+        ),
+        project,
+      ),
+      backend: makeBackend(project, agent),
+    }));
+    await runMeeting(topic, log, participants, rounds, true);
+  } catch (err) {
+    postError(project, err);
+  } finally {
+    keys.forEach((k) => running.delete(k));
+    agents.forEach((a) => log.agentState(a.id, "idle"));
+    log.status("");
+    send("room:event", { projectId: project.id, kind: "running", running: false });
+  }
+}
+
 // ── interactive PTY terminal (M1: real node-pty session, not headless exec) ──
 // The CLI runs through the user's own shell (cmd/bash) rather than being
 // resolved/exec'd directly like the headless backends: here the user types
@@ -1184,6 +1219,12 @@ app.whenReady().then(() => {
     const agent = p.agents!.find((a) => a.id === agentId);
     if (!agent) throw new Error("Unknown agent");
     void sendToAgent(p, agent, prompt);
+  });
+
+  ipcMain.handle("room:meeting", (_e, { projectId, agentIds, topic, rounds }: { projectId: string; agentIds: string[]; topic: string; rounds: number }) => {
+    const p = loadProjects().find((x) => x.id === projectId);
+    if (!p) throw new Error("Unknown project");
+    void startMeeting(p, agentIds, topic, rounds);
   });
 
   ipcMain.handle("room:running", () => [...running]);

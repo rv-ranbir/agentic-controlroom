@@ -3,7 +3,7 @@ import type { AgentRef, Project, Msg, RoomEvent, DiffResult } from "./types";
 import { bucketOf, deriveAgentStates } from "./lib/agents";
 import { pushTick, clearTicks } from "./lib/rail";
 
-export type View = "launcher" | "room" | "review" | "terminal" | "env" | "ide" | "board" | "chat";
+export type View = "launcher" | "room" | "review" | "terminal" | "env" | "ide" | "board" | "chat" | "meeting";
 
 interface State {
   roles: AgentRef[];

@@ -8,6 +8,7 @@ import { Environment } from "./components/Environment";
 import { Ide } from "./components/Ide";
 import { TaskBoard } from "./components/TaskBoard";
 import { ChatBoard } from "./components/ChatBoard";
+import { MeetingRoom } from "./components/MeetingRoom";
 import { NewAgentModal } from "./components/NewAgentModal";
 
 export function App() {
@@ -28,6 +29,7 @@ export function App() {
       {view === "ide" && <Ide />}
       {view === "board" && <TaskBoard />}
       {view === "chat" && <ChatBoard />}
+      {view === "meeting" && <MeetingRoom />}
       {modalOpen && <NewAgentModal onClose={() => setModalOpen(false)} />}
     </>
   );
