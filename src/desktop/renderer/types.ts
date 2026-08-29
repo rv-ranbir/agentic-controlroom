@@ -81,6 +81,9 @@ export interface DesktopApi {
   approveDiff(projectId: string, agentId: string): Promise<{ sha: string; message: string }>;
   getCommits(projectId: string): Promise<CommitRecord[]>;
   getCommitDiff(projectId: string, agentId: string, sha: string): Promise<DiffResult>;
+  listDir(projectPath: string, sub: string): Promise<{ name: string; path: string; isDir: boolean }[]>;
+  readFile(projectPath: string, sub: string): Promise<{ content: string } | { error: string }>;
+  writeFile(projectPath: string, sub: string, content: string): Promise<void>;
   startPty(projectId: string, agentId: string): Promise<{ alreadyRunning: boolean }>;
   writePty(projectId: string, agentId: string, data: string): Promise<void>;
   resizePty(projectId: string, agentId: string, cols: number, rows: number): Promise<void>;

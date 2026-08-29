@@ -5,6 +5,7 @@ import { Room } from "./components/Room";
 import { Review } from "./components/Review";
 import { Terminal } from "./components/Terminal";
 import { Environment } from "./components/Environment";
+import { Ide } from "./components/Ide";
 import { NewAgentModal } from "./components/NewAgentModal";
 
 export function App() {
@@ -22,6 +23,7 @@ export function App() {
       {view === "review" && <Review />}
       {view === "terminal" && <Terminal />}
       {view === "env" && <Environment />}
+      {view === "ide" && <Ide />}
       {modalOpen && <NewAgentModal onClose={() => setModalOpen(false)} />}
     </>
   );

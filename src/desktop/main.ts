@@ -1,6 +1,6 @@
 import { app, BrowserWindow, desktopCapturer, dialog, ipcMain, Notification, safeStorage, screen } from "electron";
-import { basename, join } from "node:path";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
+import { basename, join, relative, resolve, sep } from "node:path";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import * as pty from "node-pty";
@@ -260,6 +260,42 @@ function getDiff(path: string): DiffResult {
     // not a git repo, or git missing — either way there's nothing to show
     return { files: [], plus: 0, minus: 0, notGitRepo: true };
   }
+}
+
+// ── File IDE (M9): sandboxed browse/edit/save under the project root ──
+const IDE_IGNORE = new Set([".git", "node_modules", "dist", "out", ".agent-room"]);
+const IDE_MAX_BYTES = 2 * 1024 * 1024;
+
+function resolveInProject(root: string, sub: string): string {
+  const target = resolve(root, sub || ".");
+  const rootResolved = resolve(root);
+  if (target !== rootResolved && !target.startsWith(rootResolved + sep)) {
+    throw new Error("Path escapes project root");
+  }
+  return target;
+}
+
+interface IdeEntry { name: string; path: string; isDir: boolean }
+
+function listProjectDir(root: string, sub: string): IdeEntry[] {
+  const dir = resolveInProject(root, sub);
+  return readdirSync(dir, { withFileTypes: true })
+    .filter((e) => !IDE_IGNORE.has(e.name) && !e.name.startsWith("."))
+    .map((e) => ({ name: e.name, path: relative(root, join(dir, e.name)).split(sep).join("/"), isDir: e.isDirectory() }))
+    .sort((a, b) => (a.isDir === b.isDir ? a.name.localeCompare(b.name) : a.isDir ? -1 : 1));
+}
+
+function readProjectFile(root: string, sub: string): { content: string } | { error: string } {
+  const file = resolveInProject(root, sub);
+  const st = statSync(file);
+  if (st.size > IDE_MAX_BYTES) return { error: `File too large to edit here (${Math.round(st.size / 1024)}KB, limit 2MB)` };
+  const buf = readFileSync(file);
+  if (buf.subarray(0, 8000).includes(0)) return { error: "Binary file — can't edit as text" };
+  return { content: buf.toString("utf8") };
+}
+
+function writeProjectFile(root: string, sub: string, content: string): void {
+  writeFileSync(resolveInProject(root, sub), content, "utf8");
 }
 
 function getCommitDiff(path: string, sha: string): DiffResult {
@@ -1168,6 +1204,10 @@ app.whenReady().then(() => {
     log.post("orchestrator", "system", `Approved · ${agent.name} committed ${sha.slice(0, 7)} on ${branchLabel}: ${message.split("\n")[0]}`);
     return { sha, message };
   });
+
+  ipcMain.handle("fs:list", (_e, { path, sub }: { path: string; sub: string }) => listProjectDir(path, sub));
+  ipcMain.handle("fs:read", (_e, { path, sub }: { path: string; sub: string }) => readProjectFile(path, sub));
+  ipcMain.handle("fs:write", (_e, { path, sub, content }: { path: string; sub: string; content: string }) => writeProjectFile(path, sub, content));
 
   ipcMain.handle("room:commitDiff", (_e, { projectId, agentId, sha }: { projectId: string; agentId: string; sha: string }) => {
     const project = loadProjects().find((p) => p.id === projectId);

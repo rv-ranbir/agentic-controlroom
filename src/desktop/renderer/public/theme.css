@@ -127,6 +127,10 @@ button { font-family: inherit; color: inherit; }
 .askChoices { display: flex; gap: 8px; margin-top: 13px; flex-wrap: wrap; }
 .askChoice { font: 600 11.5px/1 var(--mono); color: #1B1814; background: rgba(27,24,20,.12); border: 1px solid rgba(27,24,20,.3); border-radius: 999px; padding: 9px 14px; cursor: pointer; }
 .askChoice:hover { background: rgba(27,24,20,.22); }
+.ideRow { display: flex; align-items: center; gap: 5px; height: 24px; cursor: pointer; color: var(--ink-70); border-radius: 4px; margin: 0 6px; }
+.ideRow:hover { background: var(--ink-16); color: var(--ink); }
+.ideRow.sel { background: var(--ink-16); color: var(--ink); }
+.ideIcon { width: 12px; flex-shrink: 0; font-size: 9px; color: var(--ink-34); text-align: center; }
 .diffFooter { display: flex; gap: 8px; align-items: center; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--rule); }
 
 /* — composer — */

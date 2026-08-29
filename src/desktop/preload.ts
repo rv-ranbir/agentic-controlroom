@@ -29,6 +29,9 @@ contextBridge.exposeInMainWorld("api", {
   approveDiff: (projectId: string, agentId: string) => ipcRenderer.invoke("room:approve", { projectId, agentId }),
   getCommits: (projectId: string) => ipcRenderer.invoke("room:commits", projectId),
   getCommitDiff: (projectId: string, agentId: string, sha: string) => ipcRenderer.invoke("room:commitDiff", { projectId, agentId, sha }),
+  listDir: (path: string, sub: string) => ipcRenderer.invoke("fs:list", { path, sub }),
+  readFile: (path: string, sub: string) => ipcRenderer.invoke("fs:read", { path, sub }),
+  writeFile: (path: string, sub: string, content: string) => ipcRenderer.invoke("fs:write", { path, sub, content }),
   onEvent: (cb: (e: unknown) => void) => {
     ipcRenderer.on("room:event", (_evt, payload) => cb(payload));
   },
