@@ -118,3 +118,19 @@
 .roleGrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
 .roleGrid .roleOpt { flex-direction: column; text-align: center; gap: 4px; padding: 10px 6px; }
 .roleGrid .roleOpt span { font-size: 11px; }
+
+/* ── markdown message content ── */
+.md { font-size: 13px; line-height: 1.5; word-wrap: break-word; }
+.md > *:first-child { margin-top: 0; }
+.md > *:last-child { margin-bottom: 0; }
+.md p, .md ul, .md ol, .md blockquote, .md table { margin: 0 0 8px; }
+.md ul, .md ol { padding-left: 20px; }
+.md a { color: var(--signal); }
+.md blockquote { border-left: 2px solid var(--rule); padding-left: 10px; color: var(--ink-70); }
+.md code { font-family: var(--mono); font-size: 12px; background: var(--sink); border-radius: 3px; padding: 1px 5px; }
+.md pre { background: var(--sink); border: 1px solid var(--rule); border-radius: 8px; padding: 10px 12px; overflow-x: auto; margin: 0 0 8px; }
+.md pre code { background: none; padding: 0; }
+.md table { border-collapse: collapse; font-size: 12.5px; }
+.md th, .md td { border: 1px solid var(--rule); padding: 4px 8px; }
+.md hr { border: none; border-top: 1px solid var(--rule); margin: 10px 0; }
+.md .hljs { background: none; }

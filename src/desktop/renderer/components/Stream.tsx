@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useStore } from "../store";
 import { agentIdOf } from "../lib/agents";
 import { classifyLine } from "../../../backend/streamBlocks";
+import { Markdown } from "./Markdown";
 import type { Msg } from "../types";
 
 export function Stream({ agentId }: { agentId?: string } = {}) {
@@ -63,7 +64,7 @@ function MsgBlock({ m }: { m: Msg }) {
   return (
     <div className={`blk ${isUser ? "user" : isSystem ? "note" : "prose"}`}>
       <div className="gutter">{isUser ? "you" : new Date(m.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>
-      <div className="content">{m.message}</div>
+      <div className="content"><Markdown text={m.message} /></div>
     </div>
   );
 }
