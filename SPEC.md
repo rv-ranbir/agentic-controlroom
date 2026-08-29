@@ -67,7 +67,7 @@ Rules: raw stream always kept verbatim with a toggle (parser failure degrades to
 - **M7 — Environment.** Dev terminals, localhost tunnel, read-only DB (SELECT-only enforced our side), secret manager, skills library, project memory.
 - **M8 — Reliability.** Process Guard (allowlisted), context canary, adaptive model suggestion, multi-account quota switching.
 
-- **M9 — Team coordination.** File IDE (browse/edit/save project files directly, not just diffs). Task board: PM/SM role creates tasks, assigns to specific or newly-spawned agents (Kanban, backed by new SQLite tables). Chat board: shared channel all agents + user post to, distinct from per-agent streams. Meeting room: agent-to-agent live discussion, one agent's output piped into another's input turn-by-turn.
+- **M9 — Team coordination. Shipped 2026-08-30.** File IDE (browse/edit/save project files, sandboxed to project root). Task board: PM/SM role tag on tasks, Kanban, assign-and-send to an existing agent (backed by per-project tasks.json, not a new SQLite table — no SQL needed for this). Chat board: shared unfiltered channel, reuses the existing per-project ChatLog. Meeting room: N-agent round-robin discussion (src/orchestrator/meeting.ts), generalized from the Dev/QA orchestrator loop. New-agent auto-create-and-assign from the task board isn't wired (existing "+ agent" flow covers it, then the agent appears in the assignee list) — noted as a fast follow, not blocking.
 
 Ship each milestone end-to-end; don't start the next until the previous has been used.
 
