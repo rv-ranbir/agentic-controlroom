@@ -262,6 +262,21 @@ function getDiff(path: string): DiffResult {
   }
 }
 
+function getCommitDiff(path: string, sha: string): DiffResult {
+  try {
+    const raw = execFileSync("git", ["show", "--no-color", sha], { cwd: path, maxBuffer: 1024 * 1024 * 16 }).toString();
+    const files = parseUnifiedDiff(raw);
+    return {
+      files,
+      plus: files.reduce((n, f) => n + f.plus, 0),
+      minus: files.reduce((n, f) => n + f.minus, 0),
+      notGitRepo: false,
+    };
+  } catch {
+    return { files: [], plus: 0, minus: 0, notGitRepo: true };
+  }
+}
+
 // ── approve → real commit, AI Conventional Commit message (M5) ─────
 // "Conversation attached to commits": each commit record keeps a snippet
 // of the exchange that led to it, so a later reviewer can see why, not
@@ -1152,6 +1167,14 @@ app.whenReady().then(() => {
     const branchLabel = agent.worktreePath ? `agent/${agent.id}` : "the working tree";
     log.post("orchestrator", "system", `Approved · ${agent.name} committed ${sha.slice(0, 7)} on ${branchLabel}: ${message.split("\n")[0]}`);
     return { sha, message };
+  });
+
+  ipcMain.handle("room:commitDiff", (_e, { projectId, agentId, sha }: { projectId: string; agentId: string; sha: string }) => {
+    const project = loadProjects().find((p) => p.id === projectId);
+    const agent = project?.agents?.find((a) => a.id === agentId);
+    const target = agent?.worktreePath ?? project?.path;
+    if (!target) return { files: [], plus: 0, minus: 0, notGitRepo: true };
+    return getCommitDiff(target, sha);
   });
 
   ipcMain.handle("room:commits", (_e, projectId: string) => {

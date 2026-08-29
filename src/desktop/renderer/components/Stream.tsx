@@ -4,7 +4,7 @@ import { agentIdOf, bucketOf } from "../lib/agents";
 import { extractChoices } from "../../../orchestrator/needsInput";
 import { classifyLine } from "../../../backend/streamBlocks";
 import { Markdown } from "./Markdown";
-import type { Msg } from "../types";
+import type { CommitRecord, DiffResult, Msg } from "../types";
 
 export function Stream({ agentId, interactive = true }: { agentId?: string; interactive?: boolean } = {}) {
   const messages = useStore((s) => s.messages);
@@ -15,11 +15,14 @@ export function Stream({ agentId, interactive = true }: { agentId?: string; inte
   const agentStates = useStore((s) => s.agentStates);
   const localSeen = useStore((s) => s.localSeen);
   const localForceActive = useStore((s) => s.localForceActive);
+  const selectedProjectId = useStore((s) => s.selectedProjectId);
   const project = useStore((s) => s.projects.find((p) => p.id === s.selectedProjectId));
   const fetchDiff = useStore((s) => s.fetchDiff);
   const streamRef = useRef<HTMLDivElement>(null);
+  const [commits, setCommits] = useState<CommitRecord[]>([]);
 
   const bucket = selectedAgent ? bucketOf(selectedAgent, { agentStates, localSeen, localForceActive }) : null;
+  const agentName = project?.agents.find((a) => a.id === selectedAgent)?.name;
 
   useEffect(() => {
     if (streamRef.current) streamRef.current.scrollTop = streamRef.current.scrollHeight;
@@ -29,15 +32,37 @@ export function Stream({ agentId, interactive = true }: { agentId?: string; inte
     if (interactive && bucket === "review") void fetchDiff();
   }, [interactive, bucket, selectedAgent, fetchDiff]);
 
+  // committed diffs are permanent history — shown regardless of current review/seen
+  // state, so "what code did this agent touch" never disappears once approved.
+  useEffect(() => {
+    if (!selectedProjectId || !selectedAgent) { setCommits([]); return; }
+    let cancelled = false;
+    void api.getCommits(selectedProjectId).then((all) => {
+      if (!cancelled) setCommits(all.filter((c) => c.agentId === selectedAgent));
+    });
+    return () => { cancelled = true; };
+  }, [selectedProjectId, selectedAgent, bucket]);
+
+  // a message is visible in this agent's stream if it's their own reply, a system/
+  // orchestrator note, or a user message not explicitly @mentioning a DIFFERENT agent
+  // (an unaddressed/broadcast message is shown everywhere; a targeted one is not).
+  const otherAgentNames = (project?.agents ?? []).filter((a) => a.id !== selectedAgent).map((a) => a.name);
+  function userMsgVisible(text: string): boolean {
+    if (agentName && text.startsWith(`@${agentName} `)) return true;
+    return !otherAgentNames.some((n) => text.startsWith(`@${n} `));
+  }
+
   const visibleMessages = selectedAgent
     ? messages.filter((m) => {
         const id = agentIdOf(m);
-        return id === selectedAgent || id === "user" || id === "system" || id === "orchestrator";
+        if (id === selectedAgent || id === "system" || id === "orchestrator") return true;
+        if (id === "user") return userMsgVisible(m.message);
+        return false;
       })
     : messages;
   const acts = selectedAgent ? (activityLog[selectedAgent] ?? []) : [];
 
-  if (visibleMessages.length === 0 && acts.length === 0) {
+  if (visibleMessages.length === 0 && acts.length === 0 && commits.length === 0) {
     return <div id="stream" ref={streamRef}><div className="streamEmpty">No activity yet.</div></div>;
   }
 
@@ -58,6 +83,7 @@ export function Stream({ agentId, interactive = true }: { agentId?: string; inte
   const combined = [
     ...visibleMessages.map((m) => ({ ts: m.ts, m })),
     ...acts.map((a) => ({ ts: a.ts, a })),
+    ...commits.map((c) => ({ ts: c.ts, c })),
   ].sort((x, y) => x.ts.localeCompare(y.ts));
 
   // the message that put the agent into "needs" gets the full ask-card treatment
@@ -70,32 +96,37 @@ export function Stream({ agentId, interactive = true }: { agentId?: string; inte
     }
   }
 
-  const agentName = project?.agents.find((a) => a.id === selectedAgent)?.name ?? "Agent";
-
   return (
     <div id="stream" ref={streamRef}>
-      {combined.map((item, i) =>
-        "m" in item
-          ? (i === askIndex
-              ? <AskBlock key={`m${i}`} m={item.m} />
-              : <MsgBlock key={`m${i}`} m={item.m} />)
-          : <ToolBlock key={`a${i}`} text={item.a.text} raw={item.a.raw} ts={item.a.ts} />,
-      )}
+      {combined.map((item, i) => {
+        if ("m" in item) {
+          return i === askIndex
+            ? <AskBlock key={`m${i}`} m={item.m} />
+            : <MsgBlock key={`m${i}`} m={item.m} mentionPrefix={agentName} />;
+        }
+        if ("c" in item) {
+          return <CommitDiffBlock key={`c${item.c.sha}`} commit={item.c} projectId={selectedProjectId ?? ""} />;
+        }
+        return <ToolBlock key={`a${i}`} text={item.a.text} raw={item.a.raw} ts={item.a.ts} />;
+      })}
       {interactive && bucket === "review" && selectedAgent && (
-        <ReviewDiffBlock agentId={selectedAgent} agentName={agentName} />
+        <ReviewDiffBlock agentId={selectedAgent} agentName={agentName ?? "Agent"} />
       )}
     </div>
   );
 }
 
-function MsgBlock({ m }: { m: Msg }) {
+function MsgBlock({ m, mentionPrefix }: { m: Msg; mentionPrefix?: string }) {
   const id = agentIdOf(m);
   const isUser = id === "user";
   const isSystem = m.role === "system" || id === "orchestrator";
+  const text = isUser && mentionPrefix && m.message.startsWith(`@${mentionPrefix} `)
+    ? m.message.slice(mentionPrefix.length + 2)
+    : m.message;
   return (
     <div className={`blk ${isUser ? "user" : isSystem ? "note" : "prose"}`}>
       <div className="gutter">{isUser ? "you" : new Date(m.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>
-      <div className="content"><Markdown text={m.message} /></div>
+      <div className="content"><Markdown text={text} /></div>
     </div>
   );
 }
@@ -121,6 +152,27 @@ function AskBlock({ m }: { m: Msg }) {
   );
 }
 
+function DiffFiles({ diff, verdict, verdictText }: { diff: DiffResult; verdict: string; verdictText: string }) {
+  return (
+    <>
+      {diff.files.map((f) => (
+        <div key={f.name}>
+          <div className="diffHead">
+            <span className="fname mono">{f.name}</span>
+            <span className="stat mono"><span className="p">+{f.plus}</span> <span className="m">&minus;{f.minus}</span></span>
+            <span className={`verdict ${verdict}`}>{verdictText}</span>
+          </div>
+          {f.lines.map((l, i) => (
+            <div key={i} className={`diffLine${l.kind === "add" ? " add" : l.kind === "del" ? " del" : ""}`}>
+              <span className="ln">{l.ln}</span><span>{l.text}</span>
+            </div>
+          ))}
+        </div>
+      ))}
+    </>
+  );
+}
+
 function ReviewDiffBlock({ agentId, agentName }: { agentId: string; agentName: string }) {
   const diff = useStore((s) => s.diff);
   const diffLoading = useStore((s) => s.diffLoading);
@@ -137,20 +189,7 @@ function ReviewDiffBlock({ agentId, agentName }: { agentId: string; agentName: s
     <div className="blk diff">
       <div className="gutter" />
       <div className="content">
-        {diff.files.map((f) => (
-          <div key={f.name}>
-            <div className="diffHead">
-              <span className="fname mono">{f.name}</span>
-              <span className="stat mono"><span className="p">+{f.plus}</span> <span className="m">&minus;{f.minus}</span></span>
-              <span className={`verdict ${verdict}`}>{verdictText}</span>
-            </div>
-            {f.lines.map((l, i) => (
-              <div key={i} className={`diffLine${l.kind === "add" ? " add" : l.kind === "del" ? " del" : ""}`}>
-                <span className="ln">{l.ln}</span><span>{l.text}</span>
-              </div>
-            ))}
-          </div>
-        ))}
+        <DiffFiles diff={diff} verdict={verdict} verdictText={verdictText} />
         {verdict === "pending" && (
           <div className="diffFooter">
             <button
@@ -176,6 +215,27 @@ function ReviewDiffBlock({ agentId, agentName }: { agentId: string; agentName: s
             <span className="dim mono" style={{ fontSize: 10.5 }}>&#8984;&#9166; approves</span>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function CommitDiffBlock({ commit, projectId }: { commit: CommitRecord; projectId: string }) {
+  const [diff, setDiff] = useState<DiffResult | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void api.getCommitDiff(projectId, commit.agentId, commit.sha).then((d) => { if (!cancelled) setDiff(d); });
+    return () => { cancelled = true; };
+  }, [projectId, commit.agentId, commit.sha]);
+
+  if (!diff || diff.notGitRepo || diff.files.length === 0) return null;
+
+  return (
+    <div className="blk diff">
+      <div className="gutter">{new Date(commit.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>
+      <div className="content">
+        <DiffFiles diff={diff} verdict="approved" verdictText={`committed ${commit.sha.slice(0, 7)}`} />
       </div>
     </div>
   );

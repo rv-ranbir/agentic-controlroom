@@ -28,6 +28,7 @@ contextBridge.exposeInMainWorld("api", {
   getProjectStats: () => ipcRenderer.invoke("projects:stats"),
   approveDiff: (projectId: string, agentId: string) => ipcRenderer.invoke("room:approve", { projectId, agentId }),
   getCommits: (projectId: string) => ipcRenderer.invoke("room:commits", projectId),
+  getCommitDiff: (projectId: string, agentId: string, sha: string) => ipcRenderer.invoke("room:commitDiff", { projectId, agentId, sha }),
   onEvent: (cb: (e: unknown) => void) => {
     ipcRenderer.on("room:event", (_evt, payload) => cb(payload));
   },

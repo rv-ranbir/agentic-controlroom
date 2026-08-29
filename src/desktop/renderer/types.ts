@@ -80,6 +80,7 @@ export interface DesktopApi {
   getProjectStats(): Promise<Record<string, { blocked: number; lastActivityAt: number }>>;
   approveDiff(projectId: string, agentId: string): Promise<{ sha: string; message: string }>;
   getCommits(projectId: string): Promise<CommitRecord[]>;
+  getCommitDiff(projectId: string, agentId: string, sha: string): Promise<DiffResult>;
   startPty(projectId: string, agentId: string): Promise<{ alreadyRunning: boolean }>;
   writePty(projectId: string, agentId: string, data: string): Promise<void>;
   resizePty(projectId: string, agentId: string, cols: number, rows: number): Promise<void>;
