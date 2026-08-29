@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "../store";
 import { agentIdOf, bucketOf } from "../lib/agents";
+import { extractChoices } from "../../../orchestrator/needsInput";
 import { classifyLine } from "../../../backend/streamBlocks";
 import { Markdown } from "./Markdown";
 import type { Msg } from "../types";
@@ -100,12 +101,21 @@ function MsgBlock({ m }: { m: Msg }) {
 }
 
 function AskBlock({ m }: { m: Msg }) {
+  const choices = extractChoices(m.message);
+  const submitComposer = useStore((s) => s.submitComposer);
   return (
     <div className="blk ask">
       <div className="gutter">{new Date(m.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>
       <div className="content">
         <div className="askEyebrow">Needs input</div>
         <div className="askText">{m.message}</div>
+        {choices && (
+          <div className="askChoices">
+            {choices.map((c) => (
+              <button key={c} className="askChoice mono" onClick={() => submitComposer(c)}>{c}</button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
