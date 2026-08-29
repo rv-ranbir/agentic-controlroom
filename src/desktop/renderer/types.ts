@@ -1,5 +1,6 @@
 export interface AgentRef {
   id: string;
+  roleId?: string;
   name: string;
   systemPrompt?: string;
   model?: string;

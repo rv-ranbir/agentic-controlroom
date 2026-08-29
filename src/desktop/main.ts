@@ -17,7 +17,8 @@ import { isQuestionLike } from "../orchestrator/needsInput.js";
 import { loadRole } from "../roles.js";
 
 interface AgentRef {
-  id: string; // role file id (library agent) or a generated uuid (custom agent)
+  id: string; // unique per instance — always a generated id, never the bare role id (M9: multiple instances of the same role are allowed)
+  roleId?: string; // which roles/*.md this instance was created from, when it was; absent for custom agents (systemPrompt carries their identity instead)
   name: string; // display name from the role file heading, or user-chosen for custom agents
   systemPrompt?: string; // present for custom agents only — overrides the role-file lookup
   model?: string; // per-agent model override; falls back to the project's model
@@ -918,7 +919,7 @@ async function sendToAgent(project: Project, agent: AgentRef, prompt: string): P
       appendSkills(
         agent.systemPrompt
           ? { id: agent.id, name: agent.name, systemPrompt: agent.systemPrompt }
-          : loadRole(rolesDir, agent.id, agent.name, `${agent.id}.md`),
+          : loadRole(rolesDir, agent.id, agent.name, `${agent.roleId ?? agent.id}.md`),
         agent,
       ),
       project,
@@ -970,7 +971,7 @@ async function startMeeting(project: Project, agentIds: string[], topic: string,
         appendSkills(
           agent.systemPrompt
             ? { id: agent.id, name: agent.name, systemPrompt: agent.systemPrompt }
-            : loadRole(rolesDir, agent.id, agent.name, `${agent.id}.md`),
+            : loadRole(rolesDir, agent.id, agent.name, `${agent.roleId ?? agent.id}.md`),
           agent,
         ),
         project,
@@ -1150,13 +1151,16 @@ app.whenReady().then(() => {
       const projects = loadProjects();
       const p = projects.find((x) => x.id === projectId);
       if (!p) return null;
-      if (!p.agents!.some((a) => a.id === roleId)) {
-        const role = listRoles().find((r) => r.id === roleId);
-        if (role) {
-          const worktreePath = useWorktree ? createWorktree(p, roleId) : undefined;
-          p.agents!.push({ ...role, model: model || undefined, extraArgs: extraArgs?.length ? extraArgs : undefined, worktreePath });
-          saveProjects(projects);
-        }
+      const role = listRoles().find((r) => r.id === roleId);
+      if (role) {
+        // M9: multiple instances of the same role are allowed — each gets its own
+        // unique id (and worktree/branch, if requested), never the bare role id.
+        const existing = p.agents!.filter((a) => a.roleId === roleId || a.id === roleId).length;
+        const id = existing === 0 ? roleId : `${roleId}-${randomUUID().slice(0, 8)}`;
+        const name = existing === 0 ? role.name : `${role.name} ${existing + 1}`;
+        const worktreePath = useWorktree ? createWorktree(p, id) : undefined;
+        p.agents!.push({ id, roleId, name, model: model || undefined, extraArgs: extraArgs?.length ? extraArgs : undefined, worktreePath });
+        saveProjects(projects);
       }
       return p;
     },

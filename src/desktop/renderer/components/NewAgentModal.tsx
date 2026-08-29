@@ -84,15 +84,15 @@ export function NewAgentModal({ onClose }: { onClose: () => void }) {
             <span className="fLabel">Role</span>
             <div className="roleGrid">
               {roles.map((r) => {
-                const taken = project.agents.some((a) => a.id === r.id);
+                const count = project.agents.filter((a) => a.roleId === r.id || a.id === r.id).length;
                 return (
                   <div
                     key={r.id}
-                    className={`roleOpt${taken ? " taken" : ""}${selectedRoleId === r.id ? " chosen" : ""}`}
-                    onClick={() => !taken && setSelectedRoleId(r.id)}
+                    className={`roleOpt${selectedRoleId === r.id ? " chosen" : ""}`}
+                    onClick={() => setSelectedRoleId(r.id)}
                   >
                     <div className="monogram mono" style={{ width: 26, height: 26, fontSize: 10, background: colorFor(r.id) }}>{initials(r.name)}</div>
-                    <span>{r.name}{taken ? " (added)" : ""}</span>
+                    <span>{r.name}{count > 0 ? ` (${count})` : ""}</span>
                   </div>
                 );
               })}
