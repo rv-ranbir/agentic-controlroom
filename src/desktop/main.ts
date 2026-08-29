@@ -1233,6 +1233,12 @@ app.whenReady().then(() => {
     return { sha, message };
   });
 
+  ipcMain.handle("room:post", (_e, { projectId, text }: { projectId: string; text: string }) => {
+    const project = loadProjects().find((p) => p.id === projectId);
+    if (!project) throw new Error("Project not found");
+    wiredLog(project).post("user", "user", text);
+  });
+
   ipcMain.handle("tasks:list", (_e, projectId: string) => {
     const project = loadProjects().find((p) => p.id === projectId);
     return project ? loadTasks(project) : [];

@@ -91,6 +91,7 @@ export interface DesktopApi {
   approveDiff(projectId: string, agentId: string): Promise<{ sha: string; message: string }>;
   getCommits(projectId: string): Promise<CommitRecord[]>;
   getCommitDiff(projectId: string, agentId: string, sha: string): Promise<DiffResult>;
+  postBroadcast(projectId: string, text: string): Promise<void>;
   listTasks(projectId: string): Promise<TaskItem[]>;
   createTask(projectId: string, title: string, description: string, assigneeAgentId: string | undefined, createdBy: TaskItem["createdBy"]): Promise<TaskItem>;
   updateTask(projectId: string, id: string, patch: Partial<TaskItem>): Promise<TaskItem>;

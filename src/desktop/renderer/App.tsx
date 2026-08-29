@@ -7,6 +7,7 @@ import { Terminal } from "./components/Terminal";
 import { Environment } from "./components/Environment";
 import { Ide } from "./components/Ide";
 import { TaskBoard } from "./components/TaskBoard";
+import { ChatBoard } from "./components/ChatBoard";
 import { NewAgentModal } from "./components/NewAgentModal";
 
 export function App() {
@@ -26,6 +27,7 @@ export function App() {
       {view === "env" && <Environment />}
       {view === "ide" && <Ide />}
       {view === "board" && <TaskBoard />}
+      {view === "chat" && <ChatBoard />}
       {modalOpen && <NewAgentModal onClose={() => setModalOpen(false)} />}
     </>
   );
