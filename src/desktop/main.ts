@@ -51,10 +51,15 @@ const ptySessions = new Map<string, IPty>(); // "projectId:agentId" -> live inte
 // something else. Not a sandbox: a provider CLI's own tool calls (e.g. its
 // bash tool) run inside that CLI's process and are outside our reach —
 // this only gates what AgentRoom itself decides to spawn.
-const ALLOWED_BIN_NAMES = new Set(["claude", "cursor-agent", "cloudflared", "whisper", "cmd", "powershell", "bash", "sh", "zsh"]);
+const ALLOWED_BIN_NAMES = new Set([
+  "claude", "cursor-agent", "cloudflared", "whisper",
+  "cmd", "powershell", "pwsh",
+  "bash", "sh", "zsh", "fish", "dash", "ash", "ksh", "tcsh", "csh",
+]);
 
 function assertAllowedBin(bin: string): void {
-  const base = basename(bin).toLowerCase().replace(/\.exe$/, "");
+  // npm-global installs on Windows shim CLIs as .cmd/.bat/.ps1, not a bare .exe
+  const base = basename(bin).toLowerCase().replace(/\.(exe|cmd|bat|ps1)$/, "");
   if (!ALLOWED_BIN_NAMES.has(base)) {
     throw new Error(`Process Guard blocked an unrecognized binary: "${bin}". Allowed: ${[...ALLOWED_BIN_NAMES].join(", ")}.`);
   }
@@ -541,6 +546,12 @@ function addAccount(provider: "claude" | "cursor", name: string, env: Record<str
 
 function removeAccount(id: string): void {
   saveAccounts(loadAccounts().filter((a) => a.id !== id));
+  const projects = loadProjects();
+  let changed = false;
+  for (const p of projects) {
+    if (p.activeAccountId === id) { p.activeAccountId = undefined; changed = true; }
+  }
+  if (changed) saveProjects(projects);
 }
 
 function resolveAccountEnv(accountId?: string): Record<string, string> {
@@ -558,9 +569,13 @@ function resolveAccountEnv(accountId?: string): Record<string, string> {
 }
 
 const QUOTA_PATTERN = /rate.?limit|quota exceeded|usage limit reached|too many requests|\b429\b/i;
+const quotaNotified = new Set<string>(); // "projectId:agentId" already notified this run — checkQuota fires from multiple points (streamed lines, final reply, thrown error) on the same underlying message
 
 function checkQuota(project: Project, agent: AgentRef, text: string): void {
-  if (QUOTA_PATTERN.test(text)) send("quota:hit", { projectId: project.id, agentId: agent.id });
+  const key = `${project.id}:${agent.id}`;
+  if (quotaNotified.has(key) || !QUOTA_PATTERN.test(text)) return;
+  quotaNotified.add(key);
+  send("quota:hit", { projectId: project.id, agentId: agent.id });
 }
 
 // ── localhost tunnel (M7): shells out to `cloudflared` (quick tunnels need
@@ -813,6 +828,7 @@ async function sendToAgent(project: Project, agent: AgentRef, prompt: string): P
   const key = `${project.id}:${agent.id}`;
   if (running.has(key)) throw new Error(`${agent.name} is still working.`);
   running.add(key);
+  quotaNotified.delete(key);
   const log = wiredLog(project);
   log.post("user", "user", `@${agent.name} ${prompt}`);
   log.agentState(agent.id, "working");

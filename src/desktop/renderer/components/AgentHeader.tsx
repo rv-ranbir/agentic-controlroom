@@ -77,7 +77,7 @@ export function AgentHeader({ onOpenReview, agentId, interactive = true }: { onO
           <span className="dim">{bucket === "active" ? elapsedLabel(stateSince[selectedAgent]) : ""}</span>
         </div>
         {contextLarge && <span className="pill on mono" title="Long transcript — consider starting a fresh session soon">context large</span>}
-        {suggestedModel && (
+        {interactive && suggestedModel && (
           <span className="chip mono" title="Repeated needs-input cycles — this task may need a stronger model">
             <span onClick={() => void bumpAgentModel(project.id, selectedAgent, suggestedModel)}>try {suggestedModel}?</span>
             <span className="x" onClick={() => dismissModelSuggestion(selectedAgent)}>&times;</span>
