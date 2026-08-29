@@ -29,6 +29,16 @@ export interface Msg {
   message: string;
 }
 
+export interface TaskItem {
+  id: string;
+  title: string;
+  description: string;
+  status: "todo" | "in_progress" | "done";
+  assigneeAgentId?: string;
+  createdBy: "pm" | "sm" | "user";
+  createdAt: string;
+}
+
 export interface RoomEvent {
   projectId: string;
   kind: "message" | "status" | "agentState" | "activity" | "running" | "done";
@@ -81,6 +91,10 @@ export interface DesktopApi {
   approveDiff(projectId: string, agentId: string): Promise<{ sha: string; message: string }>;
   getCommits(projectId: string): Promise<CommitRecord[]>;
   getCommitDiff(projectId: string, agentId: string, sha: string): Promise<DiffResult>;
+  listTasks(projectId: string): Promise<TaskItem[]>;
+  createTask(projectId: string, title: string, description: string, assigneeAgentId: string | undefined, createdBy: TaskItem["createdBy"]): Promise<TaskItem>;
+  updateTask(projectId: string, id: string, patch: Partial<TaskItem>): Promise<TaskItem>;
+  removeTask(projectId: string, id: string): Promise<void>;
   listDir(projectPath: string, sub: string): Promise<{ name: string; path: string; isDir: boolean }[]>;
   readFile(projectPath: string, sub: string): Promise<{ content: string } | { error: string }>;
   writeFile(projectPath: string, sub: string, content: string): Promise<void>;

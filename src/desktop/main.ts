@@ -262,6 +262,34 @@ function getDiff(path: string): DiffResult {
   }
 }
 
+// ── Task board (M9): PM/SM creates tasks, assigns to agents ────────
+interface TaskItem {
+  id: string;
+  title: string;
+  description: string;
+  status: "todo" | "in_progress" | "done";
+  assigneeAgentId?: string;
+  createdBy: "pm" | "sm" | "user";
+  createdAt: string;
+}
+
+function tasksFile(project: Project): string {
+  return join(project.path, ".agent-room", "tasks.json");
+}
+
+function loadTasks(project: Project): TaskItem[] {
+  try {
+    return JSON.parse(readFileSync(tasksFile(project), "utf8"));
+  } catch {
+    return [];
+  }
+}
+
+function saveTasks(project: Project, tasks: TaskItem[]): void {
+  mkdirSync(join(project.path, ".agent-room"), { recursive: true });
+  writeFileSync(tasksFile(project), JSON.stringify(tasks, null, 2));
+}
+
 // ── File IDE (M9): sandboxed browse/edit/save under the project root ──
 const IDE_IGNORE = new Set([".git", "node_modules", "dist", "out", ".agent-room"]);
 const IDE_MAX_BYTES = 2 * 1024 * 1024;
@@ -1203,6 +1231,35 @@ app.whenReady().then(() => {
     const branchLabel = agent.worktreePath ? `agent/${agent.id}` : "the working tree";
     log.post("orchestrator", "system", `Approved · ${agent.name} committed ${sha.slice(0, 7)} on ${branchLabel}: ${message.split("\n")[0]}`);
     return { sha, message };
+  });
+
+  ipcMain.handle("tasks:list", (_e, projectId: string) => {
+    const project = loadProjects().find((p) => p.id === projectId);
+    return project ? loadTasks(project) : [];
+  });
+  ipcMain.handle("tasks:create", (_e, { projectId, title, description, assigneeAgentId, createdBy }: { projectId: string; title: string; description: string; assigneeAgentId?: string; createdBy: TaskItem["createdBy"] }) => {
+    const project = loadProjects().find((p) => p.id === projectId);
+    if (!project) throw new Error("Project not found");
+    const task: TaskItem = { id: randomUUID(), title, description, status: "todo", assigneeAgentId, createdBy, createdAt: new Date().toISOString() };
+    const tasks = loadTasks(project);
+    tasks.push(task);
+    saveTasks(project, tasks);
+    return task;
+  });
+  ipcMain.handle("tasks:update", (_e, { projectId, id, patch }: { projectId: string; id: string; patch: Partial<TaskItem> }) => {
+    const project = loadProjects().find((p) => p.id === projectId);
+    if (!project) throw new Error("Project not found");
+    const tasks = loadTasks(project);
+    const idx = tasks.findIndex((t) => t.id === id);
+    if (idx === -1) throw new Error("Task not found");
+    tasks[idx] = { ...tasks[idx], ...patch };
+    saveTasks(project, tasks);
+    return tasks[idx];
+  });
+  ipcMain.handle("tasks:remove", (_e, { projectId, id }: { projectId: string; id: string }) => {
+    const project = loadProjects().find((p) => p.id === projectId);
+    if (!project) return;
+    saveTasks(project, loadTasks(project).filter((t) => t.id !== id));
   });
 
   ipcMain.handle("fs:list", (_e, { path, sub }: { path: string; sub: string }) => listProjectDir(path, sub));

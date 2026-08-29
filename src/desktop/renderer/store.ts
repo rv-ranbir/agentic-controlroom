@@ -3,7 +3,7 @@ import type { AgentRef, Project, Msg, RoomEvent, DiffResult } from "./types";
 import { bucketOf, deriveAgentStates } from "./lib/agents";
 import { pushTick, clearTicks } from "./lib/rail";
 
-export type View = "launcher" | "room" | "review" | "terminal" | "env" | "ide";
+export type View = "launcher" | "room" | "review" | "terminal" | "env" | "ide" | "board";
 
 interface State {
   roles: AgentRef[];
@@ -51,6 +51,7 @@ interface State {
   addCustomAgent(name: string, systemPrompt: string, model?: string, extraArgs?: string[], useWorktree?: boolean): Promise<void>;
   removeAgent(agentId: string): Promise<void>;
   submitComposer(text: string): void;
+  assignTask(agentId: string, text: string): void;
   dequeueComposer(key: string, index: number): void;
   bumpAgentModel(projectId: string, agentId: string, model: string): Promise<void>;
   dismissModelSuggestion(agentId: string): void;
@@ -276,6 +277,21 @@ export const useStore = create<State>((set, get) => ({
     }
     if (agentId) void api.sendToAgent(projectId, agentId, text);
     else void api.runTask(projectId, text);
+  },
+
+  // like submitComposer, but for an arbitrary agentId (the Task Board assigns
+  // without requiring that agent to be the one currently selected/open).
+  assignTask(agentId, text) {
+    const s = get();
+    if (!s.selectedProjectId) return;
+    const projectId = s.selectedProjectId;
+    const busy = !!s.runningKeys[`${projectId}:${agentId}`] || !!s.runningKeys[projectId] || !!s.localPaused[agentId];
+    if (busy) {
+      const key = composerKey(projectId, agentId);
+      set((st) => ({ composerQueue: { ...st.composerQueue, [key]: [...(st.composerQueue[key] ?? []), text] } }));
+      return;
+    }
+    void api.sendToAgent(projectId, agentId, text);
   },
 
   async bumpAgentModel(projectId, agentId, model) {
