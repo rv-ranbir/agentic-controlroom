@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { AgentRef, Project, Msg, RoomEvent, DiffResult } from "./types";
-import { bucketOf } from "./lib/agents";
+import { bucketOf, deriveAgentStates } from "./lib/agents";
 import { pushTick, clearTicks } from "./lib/rail";
 
 export type View = "launcher" | "room" | "review" | "terminal" | "env";
@@ -165,9 +165,10 @@ export const useStore = create<State>((set, get) => ({
   async selectProject(p) {
     clearTicks();
     const messages = await api.getLog(p.id);
+    const agentStates = deriveAgentStates(messages, p.agents.map((a) => a.id));
     set({
       selectedProjectId: p.id, selectedAgent: null, splitAgent: null, messages, branch: "",
-      agentStates: {}, stateSince: {}, localSeen: {}, localForceActive: {}, localPaused: {}, activityLog: {},
+      agentStates, stateSince: {}, localSeen: {}, localForceActive: {}, localPaused: {}, activityLog: {},
       needsInputCounts: {}, modelSuggestion: {},
       diff: null,
     });

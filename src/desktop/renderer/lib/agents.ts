@@ -1,4 +1,5 @@
 import type { Bucket, Msg } from "../types";
+import { isQuestionLike } from "../../../orchestrator/needsInput";
 
 const IDENT = ["--i0", "--i1", "--i2", "--i3", "--i4", "--i5", "--i6", "--i7"];
 
@@ -26,6 +27,22 @@ export function transcriptSize(messages: Msg[], agentId: string): number {
 
 export function agentIdOf(m: Msg): string {
   return m.agentId ?? (m.role === "system" ? "system" : m.role.toLowerCase());
+}
+
+// Restores each agent's "inbox" after a restart (SPEC: killing the process must not
+// lose the agent's inbox) — agentState itself is runtime-only, so re-derive last known
+// state from the persisted transcript's last reply, same heuristic the live backend uses.
+export function deriveAgentStates(messages: Msg[], agentIds: string[]): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const id of agentIds) {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i];
+      if (agentIdOf(m) !== id) continue;
+      out[id] = isQuestionLike(m.message) ? "needs" : "done";
+      break;
+    }
+  }
+  return out;
 }
 
 export function bucketOf(
