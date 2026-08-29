@@ -22,6 +22,9 @@ export function clearTicks(): void {
 
 const WINDOW = 6000;
 
+// Vertical per-lane strip chart, matching the design handoff's startRail():
+// one narrow lane per agent, newest tick at the top, drifting down and fading
+// as it ages (linear opacity falloff), independent of the other lanes.
 export function drawRail(canvas: HTMLCanvasElement, agentIds: string[], selectedAgentId: string | null): void {
   const rail = canvas.parentElement;
   if (!rail) return;
@@ -34,31 +37,36 @@ export function drawRail(canvas: HTMLCanvasElement, agentIds: string[], selected
   const paper = cs.getPropertyValue("--paper").trim() || "#1B1814";
   const live = cs.getPropertyValue("--live").trim() || "#AEBF92";
   const signal = cs.getPropertyValue("--signal").trim() || "#D67F48";
-  const inkTint = cs.getPropertyValue("--ink-16").trim() || "rgba(240,231,214,.14)";
+  const ink = cs.getPropertyValue("--ink").trim() || "#F0E7D6";
   ctx.clearRect(0, 0, w, h);
   ctx.fillStyle = paper;
   ctx.fillRect(0, 0, w, h);
 
   const n = agentIds.length || 1;
-  const laneH = h / n;
+  const lw = w / n;
   const now = performance.now();
 
+  // faint per-lane divider guide
+  ctx.globalAlpha = 0.07;
+  ctx.fillStyle = ink;
+  for (let i = 0; i < n; i++) ctx.fillRect(i * lw + lw / 2 - 0.5, 0, 1, h);
+
   agentIds.forEach((id, i) => {
-    const cy = i * laneH + laneH / 2;
     if (id === selectedAgentId) {
-      ctx.fillStyle = inkTint;
-      ctx.fillRect(0, i * laneH, w, laneH);
+      ctx.globalAlpha = 0.05;
+      ctx.fillStyle = ink;
+      ctx.fillRect(i * lw, 0, lw, h);
     }
     const arr = (ticks.get(id) ?? []).filter((tk) => now - tk.t < WINDOW);
     ticks.set(id, arr);
     for (const tk of arr) {
       const age = now - tk.t;
-      const x = w - (age / WINDOW) * w;
+      const y = (age / WINDOW) * h;
       const thick = tk.needs ? 4 : 2.5;
       ctx.fillStyle = tk.needs ? signal : live;
-      ctx.globalAlpha = tk.needs ? 0.95 : 0.8;
-      ctx.fillRect(Math.max(0, x - 1.5), cy - thick / 2, 3, thick);
-      ctx.globalAlpha = 1;
+      ctx.globalAlpha = tk.needs ? 0.95 : 0.14 + 0.55 * (1 - y / h);
+      ctx.fillRect(i * lw + 1.5, y, lw - 3, thick);
     }
   });
+  ctx.globalAlpha = 1;
 }

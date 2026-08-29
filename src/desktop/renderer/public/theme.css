@@ -120,6 +120,11 @@ button { font-family: inherit; color: inherit; }
 .diffLine .ln { width: 22px; flex-shrink: 0; color: var(--ink-34); text-align: right; margin-right: 8px; }
 .diffLine.add { background: var(--plus); } .diffLine.del { background: var(--minus); }
 .askBadge { display: inline-block; background: var(--signal); color: #1B1814; font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: .06em; border-radius: 5px; padding: 2px 7px; margin-bottom: 6px; }
+.blk.ask .content { background: var(--signal); color: #1B1814; border-radius: 8px; padding: 14px 16px 13px; }
+.blk.ask .askEyebrow { font-family: var(--mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; opacity: .7; margin-bottom: 9px; }
+.blk.ask .askText { font-family: var(--font-body); font-weight: 600; font-size: 14.5px; line-height: 1.5; letter-spacing: -.01em; }
+.blk.ask .gutter { color: var(--signal); }
+.diffFooter { display: flex; gap: 8px; align-items: center; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--rule); }
 
 /* — composer — */
 .composerInput {

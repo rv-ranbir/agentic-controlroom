@@ -57,7 +57,7 @@ export function Room({ onAddAgent, onOpenReview }: { onAddAgent: () => void; onO
                   <button className="pillBtn ghostBtn mono" onClick={() => toggleSplit(splitAgent)}>&times; close</button>
                 </div>
                 <AgentHeader agentId={splitAgent} interactive={false} />
-                <Stream agentId={splitAgent} />
+                <Stream agentId={splitAgent} interactive={false} />
               </div>
             </div>
           ) : (
