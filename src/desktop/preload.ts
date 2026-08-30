@@ -88,6 +88,7 @@ contextBridge.exposeInMainWorld("api", {
     return () => ipcRenderer.removeListener("quota:hit", handler);
   },
   listSkills: () => ipcRenderer.invoke("skills:list"),
+  importSkillFromGithub: (url: string) => ipcRenderer.invoke("skills:importFromGithub", url),
   setAgentSkills: (projectId: string, agentId: string, skillIds: string[]) =>
     ipcRenderer.invoke("skills:setForAgent", { projectId, agentId, skillIds }),
   getMemory: (projectId: string) => ipcRenderer.invoke("memory:get", { projectId }),

@@ -120,6 +120,32 @@ function listSkills(): { id: string; name: string }[] {
     .map((f) => ({ id: f.replace(/\.md$/, ""), name: skillTitle(f) }));
 }
 
+// GitHub-only allowlist (like isSafeRepoUrl) — never fetch an arbitrary user-pasted
+// URL from the main process, that's an SSRF foot-gun (internal/localhost targets).
+function isGithubSkillUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return u.protocol === "https:" && (u.hostname === "github.com" || u.hostname === "raw.githubusercontent.com");
+  } catch {
+    return false;
+  }
+}
+
+async function importSkillFromGithub(url: string): Promise<{ id: string; name: string }> {
+  if (!isGithubSkillUrl(url)) throw new Error("Only github.com / raw.githubusercontent.com URLs are supported");
+  const rawUrl = url.includes("/blob/") ? url.replace("github.com", "raw.githubusercontent.com").replace("/blob/", "/") : url;
+  const res = await fetch(rawUrl);
+  if (!res.ok) throw new Error(`GitHub fetch failed: ${res.status} ${res.statusText}`);
+  const text = await res.text();
+  if (text.length > 200_000) throw new Error("Skill file too large (200KB limit)");
+  if (!text.trim()) throw new Error("Empty file");
+  const base = (rawUrl.split("/").pop() || `imported-${Date.now()}`).replace(/[^\w.-]/g, "_");
+  const filename = base.endsWith(".md") ? base : `${base}.md`;
+  mkdirSync(skillsDir, { recursive: true });
+  writeFileSync(join(skillsDir, filename), text, "utf8");
+  return { id: filename.replace(/\.md$/, ""), name: skillTitle(filename) };
+}
+
 function appendSkills<T extends { systemPrompt: string }>(role: T, agent: AgentRef): T {
   if (!agent.skillIds?.length) return role;
   const bodies = agent.skillIds
@@ -1553,6 +1579,7 @@ app.whenReady().then(() => {
   });
 
   ipcMain.handle("skills:list", () => listSkills());
+  ipcMain.handle("skills:importFromGithub", (_e, url: string) => importSkillFromGithub(url));
 
   ipcMain.handle("skills:setForAgent", (_e, { projectId, agentId, skillIds }: { projectId: string; agentId: string; skillIds: string[] }) => {
     const projects = loadProjects();

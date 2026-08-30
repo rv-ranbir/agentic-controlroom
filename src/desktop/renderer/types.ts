@@ -160,6 +160,7 @@ export interface DesktopApi {
   setActiveAccount(projectId: string, accountId?: string): Promise<Project>;
   onQuotaEvent(cb: (e: { projectId: string; agentId: string }) => void): () => void;
   listSkills(): Promise<{ id: string; name: string }[]>;
+  importSkillFromGithub(url: string): Promise<{ id: string; name: string }>;
   setAgentSkills(projectId: string, agentId: string, skillIds: string[]): Promise<AgentRef>;
   getMemory(projectId: string): Promise<string>;
   setMemory(projectId: string, text: string): Promise<void>;
