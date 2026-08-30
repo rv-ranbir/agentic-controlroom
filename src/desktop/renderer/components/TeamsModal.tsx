@@ -47,10 +47,10 @@ export function TeamsModal({ onClose }: { onClose: () => void }) {
     try {
       for (const m of team.members) {
         if (m.source === "role") {
-          await addAgent(m.refId, undefined, undefined, false);
+          await addAgent(selectedProjectId, m.refId, undefined, undefined, false);
         } else {
           const entry = library.find((l) => l.id === m.refId);
-          if (entry) await addCustomAgent(entry.name, entry.systemPrompt, entry.model, entry.extraArgs, false);
+          if (entry) await addCustomAgent(selectedProjectId, entry.name, entry.systemPrompt, entry.model, entry.extraArgs, false);
         }
       }
       await refreshProjects();

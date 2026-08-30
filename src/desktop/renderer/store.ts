@@ -47,8 +47,8 @@ interface State {
   removeProject(id: string): Promise<void>;
   updateProjectBackend(id: string, backend: Project["backend"]): void;
   setZone(id: string, zone: Project["zone"]): void;
-  addAgent(roleId: string, model?: string, extraArgs?: string[], useWorktree?: boolean): Promise<void>;
-  addCustomAgent(name: string, systemPrompt: string, model?: string, extraArgs?: string[], useWorktree?: boolean): Promise<void>;
+  addAgent(projectId: string, roleId: string, model?: string, extraArgs?: string[], useWorktree?: boolean): Promise<void>;
+  addCustomAgent(projectId: string, name: string, systemPrompt: string, model?: string, extraArgs?: string[], useWorktree?: boolean): Promise<void>;
   removeAgent(agentId: string): Promise<void>;
   submitComposer(text: string): void;
   assignTask(agentId: string, text: string): void;
@@ -230,22 +230,18 @@ export const useStore = create<State>((set, get) => ({
     void api.updateProject({ id, zone });
   },
 
-  async addAgent(roleId, model, extraArgs, useWorktree) {
-    const s = get();
-    if (!s.selectedProjectId) return;
+  async addAgent(projectId, roleId, model, extraArgs, useWorktree) {
     try {
-      const p = await api.addAgent(s.selectedProjectId, roleId, model, extraArgs, useWorktree);
+      const p = await api.addAgent(projectId, roleId, model, extraArgs, useWorktree);
       if (p) set((st) => ({ projects: st.projects.map((x) => (x.id === p.id ? p : x)) }));
     } catch (err) {
       get().showToast(err instanceof Error ? err.message : String(err));
     }
   },
 
-  async addCustomAgent(name, systemPrompt, model, extraArgs, useWorktree) {
-    const s = get();
-    if (!s.selectedProjectId) return;
+  async addCustomAgent(projectId, name, systemPrompt, model, extraArgs, useWorktree) {
     try {
-      const p = await api.addCustomAgent(s.selectedProjectId, name, systemPrompt, model, extraArgs, useWorktree);
+      const p = await api.addCustomAgent(projectId, name, systemPrompt, model, extraArgs, useWorktree);
       if (p) set((st) => ({ projects: st.projects.map((x) => (x.id === p.id ? p : x)) }));
     } catch (err) {
       get().showToast(err instanceof Error ? err.message : String(err));

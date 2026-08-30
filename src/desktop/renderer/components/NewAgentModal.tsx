@@ -39,9 +39,12 @@ const ROLE_ICONS: Record<string, LucideIcon> = {
 
 export function NewAgentModal({ onClose }: { onClose: () => void }) {
   const roles = useStore((s) => s.roles);
+  const projects = useStore((s) => s.projects);
   const selectedProjectId = useStore((s) => s.selectedProjectId);
-  const project = useStore((s) => s.projects.find((p) => p.id === selectedProjectId));
   const { addAgent, addCustomAgent, updateProjectBackend, showToast, refreshProjects } = useStore.getState();
+
+  const [targetProjectId, setTargetProjectId] = useState<string | null>(selectedProjectId);
+  const project = projects.find((p) => p.id === targetProjectId) ?? null;
 
   const [ctab, setCtab] = useState<"template" | "library" | "custom">("template");
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
@@ -49,31 +52,15 @@ export function NewAgentModal({ onClose }: { onClose: () => void }) {
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set(["Core team"]));
   const [library, setLibrary] = useState<LibraryAgent[]>([]);
   const [selectedLibraryId, setSelectedLibraryId] = useState<string | null>(null);
-  const [saveToLibrary, setSaveToLibrary] = useState(false);
-  const [githubUrl, setGithubUrl] = useState("");
-  const [importingFromGithub, setImportingFromGithub] = useState(false);
 
   useEffect(() => { void api.listLibrary().then(setLibrary); }, []);
 
-  const importAgentFromGithub = async () => {
-    if (!githubUrl.trim()) return;
-    setImportingFromGithub(true);
-    try {
-      const entry = await api.importAgentFromGithub(githubUrl.trim());
-      setLibrary((l) => [...l, entry]);
-      setGithubUrl("");
-      showToast(`Imported agent "${entry.name}" to your library`);
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : String(err));
-    } finally {
-      setImportingFromGithub(false);
-    }
-  };
   const [cName, setCName] = useState("");
   const [cRules, setCRules] = useState("");
   const [skills, setSkills] = useState<string[]>([]);
   const [skillInput, setSkillInput] = useState("");
   const [engine, setEngine] = useState<string>(project?.backend ?? "claude");
+  useEffect(() => { if (project) setEngine(project.backend); }, [project?.id]);
   const [model, setModel] = useState("");
   const [modelCustom, setModelCustom] = useState("");
   const [ctx, setCtx] = useState<"standard" | "large">("standard");
@@ -88,6 +75,7 @@ export function NewAgentModal({ onClose }: { onClose: () => void }) {
   if (!project) return null;
 
   async function create() {
+    if (!project) return;
     if (engine === "codex") { showToast("Codex engine — not wired yet"); return; }
     if (engine !== project!.backend) updateProjectBackend(project!.id, engine as Project["backend"]);
     const finalModel = model === "custom" ? modelCustom.trim() : model;
@@ -99,18 +87,17 @@ export function NewAgentModal({ onClose }: { onClose: () => void }) {
       const rules = cRules.trim();
       const skillsLine = skills.length ? `Skills: ${skills.join(", ")}` : "";
       const systemPrompt = override || [rules, skillsLine].filter(Boolean).join("\n\n") || `You are ${name}.`;
-      await addCustomAgent(name, systemPrompt, finalModel || undefined, extraArgs, advWorktree);
-      if (saveToLibrary) await api.addToLibrary(name, systemPrompt, finalModel || undefined, extraArgs, skills.length ? skills : undefined);
+      await addCustomAgent(project.id, name, systemPrompt, finalModel || undefined, extraArgs, advWorktree);
     } else if (ctab === "library") {
       const entry = library.find((l) => l.id === selectedLibraryId);
       if (!entry) { showToast("Pick a library agent"); return; }
-      await addCustomAgent(entry.name, entry.systemPrompt, finalModel || entry.model, extraArgs ?? entry.extraArgs, advWorktree);
+      await addCustomAgent(project.id, entry.name, entry.systemPrompt, finalModel || entry.model, extraArgs ?? entry.extraArgs, advWorktree);
     } else if (override) {
       const role = roles.find((r) => r.id === selectedRoleId);
-      await addCustomAgent(role?.name ?? "Custom agent", override, finalModel || undefined, extraArgs, advWorktree);
+      await addCustomAgent(project.id, role?.name ?? "Custom agent", override, finalModel || undefined, extraArgs, advWorktree);
     } else {
       if (!selectedRoleId) { showToast("Pick a role"); return; }
-      await addAgent(selectedRoleId, finalModel || undefined, extraArgs, advWorktree);
+      await addAgent(project.id, selectedRoleId, finalModel || undefined, extraArgs, advWorktree);
     }
     await refreshProjects();
     onClose();
@@ -120,8 +107,15 @@ export function NewAgentModal({ onClose }: { onClose: () => void }) {
     <div className="dialogBackdrop open" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div id="modalBox" className="dialogBox">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h3>New agent <span className="dim" style={{ fontFamily: "var(--font-body)", fontSize: 13 }}>&mdash; adds to {project.name}</span></h3>
+          <h3>New agent</h3>
           <button className="pillBtn iconBtn ghostBtn" onClick={onClose}>&times;</button>
+        </div>
+
+        <div className="fField" style={{ marginBottom: 14 }}>
+          <span className="fLabel">Project</span>
+          <select className="fInput mono" value={targetProjectId ?? ""} onChange={(e) => setTargetProjectId(e.target.value)}>
+            {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
         </div>
 
         <div className="segGroup" style={{ marginBottom: 14 }}>
@@ -134,33 +128,11 @@ export function NewAgentModal({ onClose }: { onClose: () => void }) {
           <div className="fField">
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 9 }}>
               <span className="fLabel" style={{ marginBottom: 0 }}>Your agent library <span style={{ textTransform: "none", letterSpacing: 0 }}>&mdash; reusable in any project</span></span>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span className="dim mono" style={{ fontSize: 10.5 }}>{library.length} saved</span>
-                <button
-                  className="pillBtn ghostBtn mono"
-                  style={{ fontSize: 10 }}
-                  onClick={() => { setCtab("custom"); setSaveToLibrary(true); }}
-                >
-                  + new
-                </button>
-              </div>
-            </div>
-            <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
-              <input
-                className="fInput mono"
-                style={{ flex: 1 }}
-                placeholder="or paste a github.com/…/blob/…/agent.md URL"
-                value={githubUrl}
-                onChange={(e) => setGithubUrl(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") void importAgentFromGithub(); }}
-              />
-              <button className="pillBtn ghostBtn mono" disabled={importingFromGithub || !githubUrl.trim()} onClick={() => void importAgentFromGithub()}>
-                {importingFromGithub ? "importing…" : "import"}
-              </button>
+              <span className="dim mono" style={{ fontSize: 10.5 }}>{library.length} saved</span>
             </div>
             {library.length === 0 && (
               <div className="dim" style={{ fontSize: 12.5, padding: "12px 0" }}>
-                Nothing saved yet — click "+ new" above to define one.
+                Nothing saved yet — an admin can add agents to the library.
               </div>
             )}
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -299,10 +271,6 @@ export function NewAgentModal({ onClose }: { onClose: () => void }) {
                 }}
               />
             </div>
-            <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12, cursor: "pointer" }}>
-              <input type="checkbox" checked={saveToLibrary} onChange={(e) => setSaveToLibrary(e.target.checked)} />
-              Save to agent library (reusable in any project)
-            </label>
           </>
         )}
 
