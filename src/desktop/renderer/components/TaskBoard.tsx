@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { useStore } from "../store";
 import { colorFor, initials } from "../lib/agents";
 import type { Project, TaskItem } from "../types";
@@ -8,6 +8,20 @@ const COLUMNS: { id: TaskItem["status"]; label: string }[] = [
   { id: "in_progress", label: "In progress" },
   { id: "done", label: "Done" },
 ];
+
+// M10 phase 4a: sticky-note corkboard. Deterministic per-task tilt/color so a card
+// doesn't jump to a different look every refresh — hashed from the task id, not random.
+const NOTE_COLORS = ["#E8C468", "#D9917A", "#9DBB9A", "#8FA8C9"];
+const NOTE_TILTS = ["-2deg", "-1deg", "0deg", "1deg", "2deg", "-1.5deg"];
+function hashCode(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+function noteStyle(id: string): CSSProperties {
+  const h = hashCode(id);
+  return { "--note-color": NOTE_COLORS[h % NOTE_COLORS.length], "--tilt": NOTE_TILTS[h % NOTE_TILTS.length] } as CSSProperties;
+}
 
 export function TaskBoard() {
   const selectedProjectId = useStore((s) => s.selectedProjectId);
@@ -65,31 +79,31 @@ export function TaskBoard() {
         <div className="spacer" />
         <button className="pillBtn fillBtn mono" onClick={() => setFormOpen(true)}>+ task</button>
       </header>
-      <div style={{ flex: 1, minHeight: 0, display: "flex", gap: 14, padding: 16, overflowX: "auto" }}>
+      <div className="corkboard" style={{ flex: 1, minHeight: 0, display: "flex", gap: 14, padding: 16, overflowX: "auto" }}>
         {COLUMNS.map((col) => (
           <div key={col.id} style={{ width: 300, flexShrink: 0, display: "flex", flexDirection: "column", minHeight: 0 }}>
-            <div className="bucketHead" style={{ margin: "0 0 8px" }}>
+            <div className="bucketHead corkColHead">
               <span>{col.label}</span>
               <span className="n">{tasks.filter((t) => t.status === col.id).length}</span>
             </div>
-            <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 16, padding: "6px 4px" }}>
               {tasks.filter((t) => t.status === col.id).map((t) => {
                 const agent = project.agents.find((a) => a.id === t.assigneeAgentId);
                 return (
-                  <div key={t.id} style={{ background: "var(--deck)", border: "1px solid var(--rule)", borderRadius: 8, padding: 10 }}>
+                  <div key={t.id} className="stickyNote" style={noteStyle(t.id)}>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 6 }}>
-                      <span style={{ font: "600 12.5px/1.3 var(--font-body)" }}>{t.title}</span>
+                      <span className="stickyTitle">{t.title}</span>
                       <span className="pillBtn ghostBtn mono" style={{ padding: "1px 7px", cursor: "pointer" }} onClick={() => void remove(t)}>&times;</span>
                     </div>
-                    {t.description && <div className="dim" style={{ fontSize: 11.5, marginTop: 4 }}>{t.description}</div>}
+                    {t.description && <div className="stickyBody" style={{ fontSize: 11.5, marginTop: 4 }}>{t.description}</div>}
                     {!!t.attachments?.length && (
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 6 }}>
                         {t.attachments.map((path) => (
                           <span
                             key={path}
-                            className="mono dim"
+                            className="mono stickyMeta"
                             title={path}
-                            style={{ fontSize: 10, border: "1px solid var(--rule)", borderRadius: 999, padding: "2px 8px", cursor: "pointer" }}
+                            style={{ fontSize: 10, border: "1px solid rgba(42,36,32,.3)", borderRadius: 999, padding: "2px 8px", cursor: "pointer" }}
                             onClick={() => void api.openAttachment(path)}
                           >
                             &#128206; {path.split(/[\\/]/).pop()}
@@ -101,7 +115,7 @@ export function TaskBoard() {
                       {agent && <div className="monogram mono" style={{ width: 18, height: 18, fontSize: 8.5, background: colorFor(agent.id) }}>{initials(agent.name)}</div>}
                       <select
                         className="mono"
-                        style={{ background: "var(--sink)", color: "var(--ink)", border: "1px solid var(--rule)", borderRadius: 5, fontSize: 10, flex: 1 }}
+                        style={{ background: "rgba(0,0,0,.06)", color: "#2A2420", border: "1px solid rgba(42,36,32,.3)", borderRadius: 5, fontSize: 10, flex: 1 }}
                         value={t.assigneeAgentId ?? ""}
                         onChange={(e) => void setAssignee(t, e.target.value)}
                       >
@@ -119,7 +133,7 @@ export function TaskBoard() {
                         <button className="pillBtn fillBtn mono" style={{ fontSize: 10 }} onClick={() => send(t)}>send</button>
                       )}
                     </div>
-                    <div className="dim mono" style={{ fontSize: 9.5, marginTop: 6 }}>{t.createdBy}</div>
+                    <div className="mono stickyMeta" style={{ fontSize: 9.5, marginTop: 6 }}>{t.createdBy}</div>
                   </div>
                 );
               })}
