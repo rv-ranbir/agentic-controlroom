@@ -9,8 +9,9 @@ import { colorFor, initials } from "../lib/agents";
 import type { LibraryAgent, Project } from "../types";
 
 const ENGINES: { id: string; label: string }[] = [
-  { id: "cursor", label: "Cursor CLI" },
   { id: "claude", label: "Claude Code" },
+  { id: "cursor", label: "Cursor CLI" },
+  { id: "openrouter", label: "OpenRouter" },
   { id: "codex", label: "Codex" },
 ];
 const MODELS = [
@@ -63,6 +64,7 @@ export function NewAgentModal({ onClose }: { onClose: () => void }) {
   useEffect(() => { if (project) setEngine(project.backend); }, [project?.id]);
   const [model, setModel] = useState("");
   const [modelCustom, setModelCustom] = useState("");
+  useEffect(() => { if (engine === "openrouter" && !model) setModel("custom"); }, [engine]);
   const [ctx, setCtx] = useState<"standard" | "large">("standard");
   const [effort, setEffort] = useState<"medium" | "high">("medium");
   const [advOpenBody, setAdvOpenBody] = useState(false);

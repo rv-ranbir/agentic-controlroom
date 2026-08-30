@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/organic-786f58df-7aae-479f-b4c6-b07707d51e8a/styles.css">
+<script src="_ds/organic-786f58df-7aae-479f-b4c6-b07707d51e8a/_ds_bundle.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Spline+Sans+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#1B1814; --deck:#241F1A; --sink:#151210; --rule:#3A332B; --ink:#F0E7D6;
+  --signal:#D67F48; --live:#AEBF92;
+  --ink-70:rgba(240,231,214,.74); --ink-50:rgba(240,231,214,.5); --ink-34:rgba(240,231,214,.32); --ink-16:rgba(240,231,214,.14);
+  --mono:"Spline Sans Mono",ui-monospace,Menlo,monospace;
+  --plus:rgba(174,191,146,.13); --minus:rgba(214,127,72,.13);
+}
+body[data-theme="light"]{
+  --paper:#F5EAD8; --deck:#EBDDC5; --sink:#E2D2B6; --rule:#D0C2A6; --ink:#201E1D;
+  --signal:#B2622D; --live:#56633F;
+  --ink-70:rgba(32,30,29,.74); --ink-50:rgba(32,30,29,.5); --ink-34:rgba(32,30,29,.3); --ink-16:rgba(32,30,29,.12);
+  --plus:rgba(86,99,63,.13); --minus:rgba(178,98,45,.13);
+}
+body{margin:0;background:var(--paper);color:var(--ink);overflow:hidden;-webkit-font-smoothing:antialiased}
+a{color:var(--signal);text-decoration:none}
+a:hover{color:var(--ink)}
+@keyframes blink{50%{opacity:0}}
+@keyframes ringPulse{0%{box-shadow:0 0 0 0 rgba(214,127,72,.55)}70%{box-shadow:0 0 0 6px rgba(214,127,72,0)}100%{box-shadow:0 0 0 0 rgba(214,127,72,0)}}
+@keyframes reviewCountPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.6;transform:scale(1.14)}}
+@keyframes sevPulseStrong{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.7);opacity:.5}}
+@keyframes sevPulseSoft{0%,100%{opacity:1}50%{opacity:.3}}
+@keyframes sevBreath{0%,100%{opacity:.4}50%{opacity:1}}
+@keyframes needsRowGlow{0%,100%{box-shadow:inset 0 0 0 2px rgba(27,24,20,0)}50%{box-shadow:inset 0 0 0 2px rgba(27,24,20,.35)}}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:var(--ink-16);border-radius:9px}
+::-webkit-scrollbar-track{background:transparent}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</helmet>
+
+<div style="height:100vh;display:flex;flex-direction:column;background:var(--paper);font-family:var(--font-body);overflow:hidden">
+
+<header style="height:46px;flex:none;display:flex;align-items:center;gap:18px;padding:0 16px;border-bottom:1px solid var(--rule);background:var(--deck)">
+<div style="display:flex;align-items:center;gap:10px">
+<span style="width:9px;height:9px;border-radius:999px;background:var(--signal);flex:none"></span>
+<span style="font-family:var(--font-heading);font-size:16px;letter-spacing:-.01em;color:var(--ink)">AgentRoom</span>
+</div>
+<div style="width:1px;height:18px;background:var(--rule)"></div>
+<button onClick="{{ cycleProject }}" style="display:flex;align-items:center;gap:8px;background:transparent;border:1px solid var(--rule);border-radius:999px;padding:5px 12px;cursor:pointer;font:500 11.5px/1 var(--mono);color:var(--ink-70)" style-hover="border-color:var(--ink-50);color:var(--ink)">
+<span>{{ project }}</span><span style="color:var(--ink-34);font-size:9px">▾</span>
+</button>
+<span style="font:400 11px/1 var(--mono);color:var(--ink-34)">{{ branch }}</span>
+<div style="flex:1"></div>
+<span style="font:400 11px/1 var(--mono);color:var(--ink-50)">{{ toast }}</span>
+<div style="display:flex;align-items:center;gap:7px;padding:0 4px">
+<span style="font:500 10.5px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-34)">Blocked</span>
+<span style="min-width:20px;text-align:center;font:600 11.5px/1 var(--mono);color:{{ blockedColor }};background:{{ blockedBg }};border-radius:999px;padding:5px 8px;animation:{{ blockedAnim }}">{{ blockedCount }}</span>
+</div>
+<button onClick="{{ toggleTheme }}" style="font:500 10.5px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-50);background:transparent;border:1px solid var(--rule);border-radius:999px;padding:6px 12px;cursor:pointer" style-hover="color:var(--ink);border-color:var(--ink-50)">{{ themeLabel }}</button>
+</header>
+
+<div style="flex:1;display:flex;min-height:0">
+
+<aside style="width:284px;flex:none;background:var(--deck);border-right:1px solid var(--rule);display:flex;flex-direction:column;min-height:0">
+<div style="flex:1;overflow-y:auto;padding:4px 0 20px">
+<sc-for list="{{ buckets }}" as="b" hint-placeholder-count="5">
+<div>
+<div style="display:flex;align-items:center;justify-content:space-between;padding:16px 14px 7px;position:sticky;top:0;background:var(--deck);z-index:2">
+<span style="display:flex;align-items:center;gap:7px">
+<span style="{{ b.dotStyle }}"></span>
+<span style="font:500 10px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:{{ b.labelColor }}">{{ b.label }}</span>
+</span>
+<span style="{{ b.countStyle }}">{{ b.count }}</span>
+</div>
+<sc-for list="{{ b.rows }}" as="r" hint-placeholder-count="3">
+<div onClick="{{ r.select }}" onMouseEnter="{{ r.onEnter }}" onMouseLeave="{{ r.onLeave }}" style="{{ r.rowStyle }}" title="{{ r.title }}">
+<span style="{{ r.sevDotStyle }}"></span>
+<span style="{{ r.monoStyle }}">{{ r.mono }}</span>
+<span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
+<span style="{{ r.nameStyle }}">{{ r.nameLine }}</span>
+<span style="{{ r.titleStyle }}">{{ r.task }}</span>
+<span style="{{ r.subStyle }}">{{ r.sub }}</span>
+</span>
+<span style="position:relative;flex:none;width:46px;height:20px">
+<span style="{{ r.metaStyle }}">{{ r.meta }}</span>
+<span style="{{ r.actionsStyle }}">
+<button onClick="{{ r.togglePause }}" title="{{ r.pauseTitle }}" style="{{ r.actionBtnStyle }}" style-hover="opacity:1;background:var(--ink-16)">{{ r.pauseGlyph }}</button>
+<button onClick="{{ r.close }}" title="close" style="{{ r.actionBtnStyle }}" style-hover="opacity:1;background:var(--ink-16)">✕</button>
+</span>
+</span>
+</div>
+</sc-for>
+</div>
+</sc-for>
+</div>
+<div style="flex:none;border-top:1px solid var(--rule);padding:9px 14px;display:flex;align-items:center;justify-content:space-between">
+<span style="font:400 10px/1 var(--mono);color:var(--ink-34)">j / k · walk</span>
+<span style="font:400 10px/1 var(--mono);color:var(--ink-34)">{{ agentCount }} agents</span>
+</div>
+</aside>
+
+<div style="width:54px;flex:none;background:var(--paper);border-right:1px solid var(--rule);display:flex;flex-direction:column;min-height:0">
+<div style="flex:none;height:24px;display:flex;align-items:center;justify-content:center;border-bottom:1px solid var(--rule)"><span style="font:500 9px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--ink-34)">now</span></div>
+<canvas ref="{{ railRef }}" width="108" height="1200" style="flex:1;width:54px;min-height:0;display:block"></canvas>
+<div style="flex:none;height:22px;display:flex;align-items:center;justify-content:center;border-top:1px solid var(--rule)"><span style="font:400 9px/1 var(--mono);color:var(--ink-34)">1h</span></div>
+</div>
+
+<main style="flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--paper)">
+
+<div style="flex:none;border-bottom:1px solid var(--rule);padding:13px 20px 12px;display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap">
+<span style="{{ headMonoStyle }}">{{ sel.mono }}</span>
+<div style="flex:1;min-width:260px">
+<div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
+<span style="font:600 15px/1.2 var(--font-body);letter-spacing:-.015em;color:var(--ink)">{{ sel.task }}</span>
+<span style="{{ sel.identDotStyle }}"></span>
+<span style="font:400 11px/1.2 var(--mono);color:var(--ink-34)">{{ sel.name }} · {{ sel.repo }}</span>
+</div>
+<div style="display:flex;align-items:center;gap:9px;margin-top:6px">
+<span style="{{ sel.pipStyle }}"></span>
+<span style="font:500 10.5px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:{{ sel.stateColor }}">{{ sel.stateLabel }}</span>
+<span style="font:400 10.5px/1 var(--mono);color:var(--ink-34)">{{ sel.stat }}</span>
+</div>
+</div>
+<button onClick="{{ toggleRaw }}" style="{{ rawToggleStyle }}" style-hover="color:var(--ink);border-color:var(--ink-50)">{{ rawToggleLabel }}</button>
+<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;flex:none">
+<button onClick="{{ act.pause }}" style="font:500 10.5px/1 var(--mono);color:var(--ink-70);background:transparent;border:1px solid var(--rule);border-radius:999px;padding:7px 11px;cursor:pointer" style-hover="color:var(--ink);border-color:var(--ink-50)">{{ pauseLabel }}</button>
+<button onClick="{{ act.reassign }}" style="font:500 10.5px/1 var(--mono);color:var(--ink-70);background:transparent;border:1px solid var(--rule);border-radius:999px;padding:7px 11px;cursor:pointer" style-hover="color:var(--ink);border-color:var(--ink-50)">reassign</button>
+<button onClick="{{ act.fork }}" style="font:500 10.5px/1 var(--mono);color:var(--ink-70);background:transparent;border:1px solid var(--rule);border-radius:999px;padding:7px 11px;cursor:pointer" style-hover="color:var(--ink);border-color:var(--ink-50)">fork</button>
+<button onClick="{{ act.terminal }}" style="font:500 10.5px/1 var(--mono);color:var(--ink-70);background:transparent;border:1px solid var(--rule);border-radius:999px;padding:7px 11px;cursor:pointer" style-hover="color:var(--ink);border-color:var(--ink-50)">terminal ↗</button>
+<button onClick="{{ act.reviewed }}" style="{{ reviewedStyle }}" style-hover="opacity:.85">{{ reviewedLabel }}</button>
+</div>
+</div>
+
+<div ref="{{ streamRef }}" style="flex:1;overflow-y:auto;min-height:0;padding:24px 20px 32px">
+
+<sc-if value="{{ isRaw }}" hint-placeholder-val="{{ false }}">
+<pre style="margin:0;max-width:860px;font:400 12.5px/1.7 var(--mono);color:var(--ink-70);white-space:pre-wrap;word-break:break-word">{{ rawText }}</pre>
+</sc-if>
+
+<sc-if value="{{ isNotRaw }}" hint-placeholder-val="{{ true }}">
+<div style="max-width:860px;display:flex;flex-direction:column;gap:20px">
+<sc-for list="{{ blocks }}" as="bl" hint-placeholder-count="6">
+<div>
+
+<sc-if value="{{ bl.isUser }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;gap:12px">
+<span style="flex:none;width:52px;font:500 10px/1.7 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-34);padding-top:1px">you</span>
+<div style="flex:1;min-width:0;font:400 14px/1.6 var(--font-body);color:var(--ink);border-left:2px solid var(--ink-16);padding-left:14px;text-wrap:pretty">{{ bl.text }}</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ bl.isProse }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;gap:12px">
+<span style="flex:none;width:52px"></span>
+<div style="flex:1;min-width:0;font:400 14px/1.62 var(--font-body);color:var(--ink-70);text-wrap:pretty">{{ bl.text }}<span style="{{ bl.caretStyle }}"></span></div>
+</div>
+</sc-if>
+
+<sc-if value="{{ bl.isTool }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;gap:12px">
+<span style="flex:none;width:52px;font:400 10px/1.9 var(--mono);color:var(--ink-34);text-align:right;padding-right:2px">{{ bl.time }}</span>
+<div style="flex:1;min-width:0;background:var(--sink);border:1px solid var(--rule);border-radius:8px;overflow:hidden">
+<div style="display:flex;align-items:center;gap:10px;padding:9px 12px">
+<span style="font:600 12px/1.3 var(--mono);color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ bl.call }}</span>
+<span style="flex:1"></span>
+<span style="font:400 11px/1.3 var(--mono);color:var(--ink-50);white-space:nowrap">{{ bl.result }}</span>
+</div>
+<sc-if value="{{ bl.hasBody }}" hint-placeholder-val="{{ false }}">
+<div style="border-top:1px solid var(--rule);padding:9px 12px;font:400 11.5px/1.65 var(--mono);color:var(--ink-50);white-space:pre-wrap">{{ bl.body }}</div>
+</sc-if>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ bl.isDiff }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;gap:12px">
+<span style="flex:none;width:52px;font:400 10px/1.9 var(--mono);color:var(--ink-34);text-align:right;padding-right:2px">{{ bl.time }}</span>
+<div style="flex:1;min-width:0;background:var(--sink);border:1px solid var(--rule);border-radius:8px;overflow:hidden">
+<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--rule)">
+<span style="font:600 12px/1.3 var(--mono);color:var(--ink)">{{ bl.file }}</span>
+<span style="font:400 11px/1.3 var(--mono);color:var(--live)">{{ bl.plus }}</span>
+<span style="font:400 11px/1.3 var(--mono);color:var(--signal)">{{ bl.minus }}</span>
+<span style="flex:1"></span>
+<span style="font:400 10.5px/1.3 var(--mono);color:{{ bl.verdictColor }}">{{ bl.verdict }}</span>
+</div>
+<div style="padding:8px 0">
+<sc-for list="{{ bl.lines }}" as="ln" hint-placeholder-count="6">
+<div style="{{ ln.style }}"><span style="{{ ln.gutStyle }}">{{ ln.n }}</span>{{ ln.text }}</div>
+</sc-for>
+</div>
+<sc-if value="{{ bl.pending }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--rule);align-items:center">
+<button onClick="{{ bl.approve }}" style="font:600 11px/1 var(--mono);color:var(--paper);background:var(--live);border:none;border-radius:999px;padding:8px 15px;cursor:pointer" style-hover="opacity:.85">approve</button>
+<button onClick="{{ bl.reject }}" style="font:600 11px/1 var(--mono);color:var(--ink-70);background:transparent;border:1px solid var(--rule);border-radius:999px;padding:8px 15px;cursor:pointer" style-hover="color:var(--ink);border-color:var(--ink-50)">reject</button>
+<span style="font:400 10.5px/1 var(--mono);color:var(--ink-34)">⌘⏎ approves</span>
+</div>
+</sc-if>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ bl.isAsk }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;gap:12px">
+<span style="flex:none;width:52px;font:400 10px/1.9 var(--mono);color:var(--signal);text-align:right;padding-right:2px">{{ bl.time }}</span>
+<div style="flex:1;min-width:0;background:var(--signal);border-radius:8px;padding:14px 16px 13px;color:#1B1814">
+<div style="font:500 10px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;opacity:.7;margin-bottom:9px">Needs input</div>
+<div style="font:600 14.5px/1.5 var(--font-body);letter-spacing:-.01em;text-wrap:pretty">{{ bl.text }}</div>
+<div style="display:flex;gap:8px;margin-top:13px;flex-wrap:wrap">
+<sc-for list="{{ bl.choices }}" as="c" hint-placeholder-count="2">
+<button onClick="{{ c.pick }}" style="font:600 11.5px/1 var(--mono);color:#1B1814;background:rgba(27,24,20,.12);border:1px solid rgba(27,24,20,.3);border-radius:999px;padding:9px 14px;cursor:pointer" style-hover="background:rgba(27,24,20,.22)">{{ c.label }}</button>
+</sc-for>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ bl.isNote }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;gap:12px;align-items:center">
+<span style="flex:none;width:52px"></span>
+<span style="flex:none;font:400 10.5px/1 var(--mono);letter-spacing:.04em;color:var(--ink-34)">{{ bl.text }}</span>
+<span style="flex:1;height:1px;background:var(--rule)"></span>
+</div>
+</sc-if>
+
+</div>
+</sc-for>
+</div>
+</sc-if>
+
+</div>
+
+<div style="flex:none;border-top:1px solid var(--rule);background:var(--deck);padding:11px 20px 13px">
+<div style="max-width:860px;display:flex;align-items:flex-end;gap:10px">
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:7px">
+<input value="{{ draft }}" onChange="{{ onDraft }}" onKeyDown="{{ onComposerKey }}" placeholder="{{ placeholder }}" ref="{{ inputRef }}" style="width:100%;box-sizing:border-box;font:400 13.5px/1.4 var(--mono);color:var(--ink);background:var(--paper);border:1px solid var(--rule);border-radius:999px;padding:11px 16px;outline:none" style-focus="border-color:var(--signal)">
+<div style="display:flex;gap:14px;padding-left:4px">
+<span style="font:400 10px/1 var(--mono);color:var(--ink-34)">⏎ send</span>
+<span style="font:400 10px/1 var(--mono);color:var(--ink-34)">⌘⏎ approve</span>
+<span style="font:400 10px/1 var(--mono);color:var(--ink-34)">esc roster</span>
+</div>
+</div>
+<button onClick="{{ send }}" style="flex:none;font:600 11.5px/1 var(--mono);color:var(--paper);background:var(--ink);border:none;border-radius:999px;padding:12px 20px;cursor:pointer;margin-bottom:24px" style-hover="opacity:.85">send</button>
+</div>
+</div>
+
+</main>
+
+</div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;dark&quot;,&quot;light&quot;],&quot;default&quot;:&quot;dark&quot;,&quot;tsType&quot;:&quot;'dark'|'light'&quot;}}">
+const AGENTS = [
+  { id:1, mono:"BE", name:"Kestrel", task:"Rotate the JWT signing keys", repo:"auth-service", state:"needs", since:"2m", ident:"#8AA1C4" },
+  { id:2, mono:"SE", name:"Vireo", task:"Audit the OAuth scope grants", repo:"auth-service", state:"needs", since:"9m", ident:"#B98AC0" },
+  { id:3, mono:"FE", name:"Plover", task:"Extract the user list row", repo:"web-app", state:"review", since:"6m", ident:"#7FB0A6" },
+  { id:4, mono:"AR", name:"Merlin", task:"Split the billing module", repo:"payments-api", state:"review", since:"11m", ident:"#C6A366" },
+  { id:5, mono:"BE", name:"Sora", task:"Backfill the invoice index", repo:"payments-api", state:"review", since:"18m", ident:"#8AA1C4" },
+  { id:6, mono:"QA", name:"Snipe", task:"Chase the flaky checkout test", repo:"web-app", state:"active", since:"4m", ident:"#B4A6D6" },
+  { id:7, mono:"FE", name:"Wren", task:"Empty states for the inbox", repo:"web-app", state:"active", since:"12m", ident:"#7FB0A6" },
+  { id:8, mono:"DO", name:"Kite", task:"Cut the staging image size", repo:"infra", state:"active", since:"27m", ident:"#C48A8A" },
+  { id:9, mono:"BE", name:"Rook", task:"Retry queue for webhooks", repo:"payments-api", state:"active", since:"3m", ident:"#8AA1C4" },
+  { id:10, mono:"PM", name:"Crane", task:"Draft the sprint summary", repo:"docs", state:"seen", since:"22m", ident:"#A8A88A" },
+  { id:11, mono:"FE", name:"Finch", task:"Token contrast pass", repo:"web-app", state:"seen", since:"41m", ident:"#7FB0A6" },
+  { id:12, mono:"QA", name:"Teal", task:"Regression run 812", repo:"web-app", state:"seen", since:"55m", ident:"#B4A6D6" },
+  { id:13, mono:"DO", name:"Heron", task:"Pin the runner image", repo:"infra", state:"idle", since:"—", ident:"#C48A8A" },
+  { id:14, mono:"AR", name:"Ibis", task:"Unassigned", repo:"—", state:"idle", since:"—", ident:"#C6A366" }
+];
+
+const BUCKETS = [
+  { key:"needs", label:"Needs input" },
+  { key:"review", label:"To review" },
+  { key:"active", label:"Active" },
+  { key:"seen", label:"Seen" },
+  { key:"idle", label:"Inactive" }
+];
+
+const DIFF = [
+  { n:"41", t:" export function currentKey(): SigningKey {", k:"c" },
+  { n:"42", t:"-  return KEYS[0];", k:"m" },
+  { n:"42", t:"+  const active = KEYS.find(k => k.state === 'active');", k:"p" },
+  { n:"43", t:"+  if (!active) throw new KeyRotationError('no active key');", k:"p" },
+  { n:"44", t:"+  return active;", k:"p" },
+  { n:"45", t:" }", k:"c" },
+  { n:"46", t:"+", k:"p" },
+  { n:"47", t:"+export function verifyingKeys(): SigningKey[] {", k:"p" },
+  { n:"48", t:"+  return KEYS.filter(k => k.state !== 'retired');", k:"p" },
+  { n:"49", t:"+}", k:"p" }
+];
+
+const STREAMS = {
+  1: [
+    { kind:"user", text:"Rotate the JWT signing keys across auth-service. Old key stays valid while sessions drain." },
+    { kind:"tool", time:"09:14", call:"Read(src/auth/keys.ts)", result:"210 lines" },
+    { kind:"tool", time:"09:14", call:"Grep(\"JWT_SECRET\")", result:"6 matches · 4 files", body:"src/auth/keys.ts:12\nsrc/auth/verify.ts:8\nsrc/middleware/session.ts:34\nscripts/seed.ts:5" },
+    { kind:"prose", text:"Two of these read the secret at module load, so a rotation needs a process restart unless the lookup moves behind a getter. I've done that here and kept the retired keys available for verification only." },
+    { kind:"diff", time:"09:16", file:"src/auth/keys.ts", plus:"+42", minus:"−7", pending:true },
+    { kind:"ask", time:"09:17", text:"session.ts caches the decoded token for 15 minutes. Should the rotation force every cached session to re-verify immediately, or let the cache expire naturally?" , choices:["Force re-verify","Let it expire","Explain the risk"] }
+  ],
+  3: [
+    { kind:"user", text:"Pull the user list row out into its own component. Keep the props flat." },
+    { kind:"tool", time:"08:52", call:"Read(src/users/UserList.tsx)", result:"184 lines" },
+    { kind:"tool", time:"08:54", call:"Write(src/users/UserListRow.tsx)", result:"created · 61 lines" },
+    { kind:"prose", text:"Row extracted with flat props — no context reads, no object spreading. The list is 42 lines shorter and the row renders on its own in the test harness." },
+    { kind:"diff", time:"08:55", file:"src/users/UserList.tsx", plus:"+42", minus:"−7", pending:true },
+    { kind:"note", text:"waiting on review · 6m" }
+  ],
+  6: [
+    { kind:"user", text:"The checkout test fails maybe one run in nine. Find out why." },
+    { kind:"tool", time:"09:09", call:"Bash(pnpm test checkout --repeat 40)", result:"running · 31/40" },
+    { kind:"tool", time:"09:12", call:"Read(tests/checkout.spec.ts)", result:"96 lines" },
+    { kind:"prose", text:"Four failures in thirty-one runs, all on the same assertion. The test asserts on the total before the cart's debounced recalculation settles, so it's a race in the test rather than in the checkout itself. Reproducing it deterministically now by pinning the timer" }
+  ]
+};
+
+const GENERIC = (a) => [
+  { kind:"user", text:a.task + " — take it from here." },
+  { kind:"tool", time:"09:02", call:"Read(" + a.repo + "/README.md)", result:"ok" },
+  { kind:"prose", text:"Working through " + a.task.toLowerCase() + " in " + a.repo + "." }
+];
+
+const ROLE_NAMES = { BE:"Backend", FE:"Frontend", SE:"Security", QA:"QA", AR:"Architecture", DO:"DevOps", PM:"Product" };
+
+class Component extends DCLogic {
+  state = {
+    theme: "dark",
+    agents: AGENTS.map(a => ({ ...a })),
+    sel: 1,
+    draft: "",
+    toast: "",
+    typed: 0,
+    approved: {},
+    replies: {},
+    projectIx: 0,
+    raw: {},
+    hoverId: null
+  };
+
+  componentDidMount() {
+    document.body.dataset.theme = this.props.theme || this.state.theme;
+    this._key = (e) => this.onKey(e);
+    window.addEventListener("keydown", this._key);
+    this._tick = setInterval(() => this.setState(s => ({ typed: s.typed + 2 })), 55);
+    this.startRail();
+  }
+  componentDidUpdate() { document.body.dataset.theme = this.state.theme; }
+  componentWillUnmount() {
+    window.removeEventListener("keydown", this._key);
+    clearInterval(this._tick);
+    cancelAnimationFrame(this._raf);
+  }
+
+  onKey(e) {
+    const tag = (e.target.tagName || "").toLowerCase();
+    if (tag === "input") {
+      if (e.key === "Escape") { e.target.blur(); }
+      return;
+    }
+    if (e.key === "j" || e.key === "k") {
+      e.preventDefault();
+      const order = this.ordered().map(a => a.id);
+      const i = order.indexOf(this.state.sel);
+      const next = e.key === "j" ? Math.min(order.length - 1, i + 1) : Math.max(0, i - 1);
+      this.setState({ sel: order[next], typed: 0 });
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (this._input) this._input.focus();
+    }
+  }
+
+  ordered() {
+    const rank = { needs:0, review:1, active:2, seen:3, idle:4 };
+    return [...this.state.agents].sort((a,b) => rank[a.state] - rank[b.state] || a.id - b.id);
+  }
+
+  flash(msg) {
+    this.setState({ toast: msg });
+    clearTimeout(this._t);
+    this._t = setTimeout(() => this.setState({ toast: "" }), 2600);
+  }
+
+  setSel(id) { this.setState({ sel: id, typed: 0 }); }
+
+  removeAgent(id) {
+    const a = this.state.agents.find(x => x.id === id);
+    this.setState(s => {
+      const agents = s.agents.filter(x => x.id !== id);
+      const sel = s.sel === id ? (agents[0] ? agents[0].id : s.sel) : s.sel;
+      return { agents, sel, hoverId: null };
+    });
+    if (a) this.flash("Closed " + a.name);
+  }
+
+  patch(id, fields, msg) {
+    this.setState(s => ({ agents: s.agents.map(a => a.id === id ? { ...a, ...fields } : a) }));
+    if (msg) this.flash(msg);
+  }
+
+  startRail() {
+    const cv = this._rail; if (!cv) return;
+    const ctx = cv.getContext("2d");
+    const LANES = 14, W = cv.width;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const rate = i => (i < 2 ? 0.05 : i < 5 ? 0.03 : i < 9 ? 0.09 : i < 12 ? 0.012 : 0.002);
+    const ticks = [];
+    const H0 = cv.clientHeight * 2 || 1200;
+    for (let y = 0; y < H0; y += 4)
+      for (let l = 0; l < LANES; l++)
+        if (Math.random() < rate(l) * 2.4) ticks.push({ l, y, hot: l < 2 && Math.random() < 0.06 });
+    const lw = W / LANES;
+    const cssv = (n, f) => getComputedStyle(document.body).getPropertyValue(n).trim() || f;
+    const draw = () => {
+      const H = cv.height = Math.max(200, cv.clientHeight * 2);
+      ctx.clearRect(0, 0, W, H);
+      const c1 = cssv("--live", "#AEBF92"), c2 = cssv("--signal", "#D67F48"), ci = cssv("--ink", "#F0E7D6");
+      ctx.globalAlpha = 0.07; ctx.fillStyle = ci;
+      for (let l = 0; l < LANES; l++) ctx.fillRect(l * lw + lw / 2 - 0.5, 0, 1, H);
+      const selIx = this.ordered().findIndex(a => a.id === this.state.sel);
+      if (selIx >= 0) { ctx.globalAlpha = 0.05; ctx.fillStyle = ci; ctx.fillRect(selIx * lw, 0, lw, H); }
+      for (const t of ticks) {
+        if (t.y < 0 || t.y > H) continue;
+        ctx.globalAlpha = t.hot ? 0.95 : 0.14 + 0.55 * (1 - t.y / H);
+        ctx.fillStyle = t.hot ? c2 : c1;
+        ctx.fillRect(t.l * lw + 1.5, t.y, lw - 3, t.hot ? 4 : 2.5);
+      }
+      ctx.globalAlpha = 1;
+    };
+    if (reduce) { draw(); return; }
+    let last = performance.now();
+    const step = (now) => {
+      const dt = Math.min(60, now - last); last = now;
+      for (const t of ticks) t.y += dt * 0.013;
+      const H = cv.height || 1200;
+      const alive = ticks.filter(t => t.y <= H + 8);
+      ticks.length = 0; ticks.push(...alive);
+      for (let l = 0; l < LANES; l++)
+        if (Math.random() < rate(l)) ticks.push({ l, y: -3, hot: l < 2 && Math.random() < 0.05 });
+      draw();
+      this._raf = requestAnimationFrame(step);
+    };
+    this._raf = requestAnimationFrame(step);
+  }
+
+  renderVals() {
+    const st = this.state;
+    const S = {
+      needs:  { label:"Needs input", color:"var(--signal)" },
+      review: { label:"To review",   color:"var(--ink)" },
+      active: { label:"Active",      color:"var(--live)" },
+      seen:   { label:"Seen",        color:"var(--ink-50)" },
+      idle:   { label:"Inactive",    color:"var(--ink-34)" }
+    };
+    const sel = st.agents.find(a => a.id === st.sel) || st.agents[0];
+
+    const row = (a) => {
+      const on = a.id === st.sel;
+      const needs = a.state === "needs";
+      const edge = { needs:"transparent", review:"var(--ink)", active:"var(--live)", seen:"var(--rule)", idle:"transparent" }[a.state];
+      const dim = { needs:1, review:1, active:.74, seen:.5, idle:.32 }[a.state];
+      const hovered = st.hoverId === a.id && a.state !== "idle";
+      const base = {
+        display:"flex", alignItems:"center", gap:"11px", minHeight: a.state === "idle" ? "42px" : "62px",
+        padding:"0 12px 0 10px", cursor:"pointer", position:"relative",
+        boxShadow: "inset 2px 0 0 " + edge + (on && !needs ? ", inset 0 0 0 1px var(--ink-16)" : "")
+      };
+      if (needs) { base.background = "var(--signal)"; base.color = "#1B1814"; base.boxShadow = on ? "inset 0 0 0 2px var(--ink)" : "none"; base.animation = on ? "none" : "needsRowGlow 2.1s ease-in-out infinite"; }
+      else { base.color = "var(--ink)"; base.opacity = dim; if (on) base.background = "var(--ink-16)"; }
+      const meta = needs ? "reply ⏎" : a.state === "review" ? "+42 −7" : a.state === "active" ? a.since : a.state === "seen" ? "✓" : "";
+      const sevDot = needs
+        ? { width:"5px", height:"5px", borderRadius:"999px", flex:"none", background:"#1B1814", animation:"sevPulseStrong 1.2s ease-in-out infinite" }
+        : a.state === "review"
+        ? { width:"5px", height:"5px", borderRadius:"999px", flex:"none", background:"var(--signal)", animation:"sevPulseSoft 2.1s ease-in-out infinite" }
+        : a.state === "active"
+        ? { width:"5px", height:"5px", borderRadius:"999px", flex:"none", background:"var(--live)", animation:"sevBreath 1.7s ease-in-out infinite" }
+        : { display:"none" };
+      const actionBtnStyle = {
+        width:"20px", height:"20px", display:"inline-flex", alignItems:"center", justifyContent:"center",
+        borderRadius:"999px", border:"1px solid " + (needs ? "rgba(27,24,20,.35)" : "var(--rule)"), background:"transparent",
+        color:"inherit", cursor:"pointer", font:"11px/1 var(--mono)", opacity:.85, padding:0
+      };
+      return {
+        mono: a.mono, ident: a.ident, task: a.state === "idle" ? a.name + " · idle" : a.task,
+        nameLine: a.name + " · " + (ROLE_NAMES[a.mono] || a.mono),
+        sub: a.state === "idle" ? "" : a.repo + " · " + (needs ? "asked " + a.since + " ago" : a.state === "review" ? "done " + a.since + " ago" : a.state === "active" ? "1,2" + a.id + "4 tok/s" : "reviewed " + a.since + " ago"),
+        meta, title: a.name + " — " + a.task,
+        select: () => this.setSel(a.id),
+        onEnter: () => this.setState(s => s.hoverId === a.id ? null : ({ hoverId: a.id })),
+        onLeave: () => this.setState(s => s.hoverId === a.id ? ({ hoverId: null }) : null),
+        rowStyle: base,
+        sevDotStyle: sevDot,
+        monoStyle: { font:"600 10.5px/1 var(--mono)", letterSpacing:".06em", width:"21px", flex:"none", boxShadow:"inset 0 -2px 0 " + a.ident, paddingBottom:"1px" },
+        nameStyle: { font:"500 9.5px/1 var(--mono)", letterSpacing:".03em", opacity: needs ? .78 : .55, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", display: a.state === "idle" ? "none" : "block" },
+        titleStyle: { font:(needs ? "700" : "600") + " 12.5px/1.15 var(--font-body)", letterSpacing:"-.01em", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" },
+        subStyle: { font:"400 10.5px/1 var(--mono)", opacity: needs ? .75 : .62, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", display: a.state === "idle" ? "none" : "block" },
+        metaStyle: { font:(needs ? "600" : "400") + " 10.5px/1 var(--mono)", position:"absolute", right:0, top:"50%",
+          color: needs ? "inherit" : a.state === "active" ? "var(--live)" : "inherit",
+          opacity: hovered ? 0 : (needs ? 1 : .7), transform:"translateY(-50%)", pointerEvents: hovered ? "none" : "auto",
+          transition:"opacity .16s ease" },
+        actionsStyle: { position:"absolute", right:0, top:"50%", display:"flex", gap:"4px",
+          opacity: hovered ? 1 : 0, transform: "translate(" + (hovered ? "0" : "6px") + ",-50%)",
+          pointerEvents: hovered ? "auto" : "none", transition:"opacity .16s ease, transform .16s ease" },
+        actionBtnStyle,
+        pauseGlyph: a.state === "idle" ? "▶" : "⏸",
+        pauseTitle: a.state === "idle" ? "resume" : "pause",
+        togglePause: (e) => { e.stopPropagation(); this.patch(a.id, { state: a.state === "idle" ? "active" : "idle" }, a.name + (a.state === "idle" ? " resumed" : " paused")); },
+        close: (e) => { e.stopPropagation(); this.removeAgent(a.id); }
+      };
+    };
+
+    const buckets = BUCKETS.map(b => {
+      const rows = st.agents.filter(a => a.state === b.key);
+      const base = { font:"600 10px/1 var(--mono)", minWidth:"18px", height:"18px", display:"inline-flex", alignItems:"center", justifyContent:"center", borderRadius:"999px", padding:"0 5px" };
+      const countStyle = b.key === "needs"
+        ? { ...base, background:"var(--signal)", color:"#1B1814", animation:"ringPulse 1.7s ease-out infinite" }
+        : b.key === "review"
+        ? { ...base, background:"transparent", color:"var(--ink)", boxShadow:"inset 0 0 0 1px var(--ink-34)", animation:"reviewCountPulse 2.3s ease-in-out infinite" }
+        : { font:"400 10px/1 var(--mono)", color:"var(--ink-34)" };
+      const dotStyle = b.key === "active"
+        ? { width:"5px", height:"5px", borderRadius:"999px", background:"var(--live)", animation:"sevBreath 1.7s ease-in-out infinite" }
+        : { display:"none" };
+      return { label:b.label, count:rows.length, labelColor: b.key === "needs" ? "var(--signal)" : b.key === "idle" || b.key === "seen" ? "var(--ink-34)" : "var(--ink-50)", countStyle, dotStyle, rows: rows.map(row) };
+    }).filter(b => b.count > 0);
+
+    const isRawView = !!st.raw[sel.id];
+    const rawSource = (STREAMS[sel.id] || GENERIC(sel)).slice();
+    const rawText = rawSource.map(b => {
+      if (b.kind === "user") return "> " + b.text;
+      if (b.kind === "tool") return "$ " + b.call + "\n  " + b.result + (b.body ? "\n" + b.body.split("\n").map(l => "  " + l).join("\n") : "");
+      if (b.kind === "diff") return "--- " + b.file + " " + b.plus + " " + b.minus + "\n" + DIFF.map(d => d.t).join("\n");
+      if (b.kind === "ask") return "? " + b.text;
+      if (b.kind === "note") return "· " + b.text;
+      return b.text;
+    }).join("\n\n");
+
+    const raw = rawSource;
+    const extraReply = st.replies[sel.id];
+    if (extraReply) raw.push({ kind:"user", text: extraReply }, { kind:"prose", text:"Understood — applying that now and re-running the auth suite." });
+
+    const approved = st.approved[sel.id];
+    const blocks = raw.map((b, i) => {
+      const o = { isUser:false, isProse:false, isTool:false, isDiff:false, isAsk:false, isNote:false, ...b };
+      o["is" + b.kind.charAt(0).toUpperCase() + b.kind.slice(1)] = true;
+      if (b.kind === "prose") {
+        const live = sel.state === "active" && i === raw.length - 1;
+        o.text = live ? b.text.slice(0, Math.min(b.text.length, 8 + (st.typed % (b.text.length + 40)))) : b.text;
+        o.caretStyle = live ? { display:"inline-block", width:"7px", height:"14px", background:"var(--live)", marginLeft:"3px", verticalAlign:"-2px", animation:"blink 1s steps(1) infinite" } : { display:"none" };
+      }
+      if (b.kind === "tool") { o.hasBody = !!b.body; o.body = b.body || ""; }
+      if (b.kind === "diff") {
+        o.pending = b.pending && !approved;
+        o.verdict = approved === "yes" ? "approved" : approved === "no" ? "rejected" : "awaiting review";
+        o.verdictColor = approved === "yes" ? "var(--live)" : approved === "no" ? "var(--signal)" : "var(--ink-34)";
+        o.approve = () => { this.setState(s => ({ approved: { ...s.approved, [sel.id]:"yes" } })); this.patch(sel.id, { state:"seen", since:"just now" }, "Approved · " + sel.name + " merged to " + this.projectBranch()); };
+        o.reject = () => { this.setState(s => ({ approved: { ...s.approved, [sel.id]:"no" } })); this.patch(sel.id, { state:"active", since:"0m" }, "Rejected · " + sel.name + " reworking"); };
+        o.lines = DIFF.map(d => ({
+          n: d.n, text: d.t,
+          style: { font:"400 11.5px/1.75 var(--mono)", whiteSpace:"pre", display:"flex", gap:"12px", padding:"0 12px",
+                   color: d.k === "p" ? "var(--ink)" : d.k === "m" ? "var(--ink-50)" : "var(--ink-50)",
+                   background: d.k === "p" ? "var(--plus)" : d.k === "m" ? "var(--minus)" : "transparent" },
+          gutStyle: { width:"22px", flex:"none", textAlign:"right", color:"var(--ink-34)", userSelect:"none" }
+        }));
+      }
+      if (b.kind === "ask") {
+        o.choices = (b.choices || []).map(label => ({ label, pick: () => this.reply(label) }));
+      }
+      return o;
+    });
+
+    const projects = ["payments-api", "web-app", "infra"];
+    const branches = ["main ✓ clean", "feat/keys ↑3", "main ✓ clean"];
+    const blocked = st.agents.filter(a => a.state === "needs").length;
+
+    return {
+      themeLabel: st.theme === "dark" ? "Light" : "Dark",
+      toggleTheme: () => this.setState(s => ({ theme: s.theme === "dark" ? "light" : "dark" })),
+      project: projects[st.projectIx], branch: branches[st.projectIx],
+      cycleProject: () => this.setState(s => ({ projectIx: (s.projectIx + 1) % 3 })),
+      toast: st.toast,
+      blockedCount: blocked,
+      blockedColor: blocked ? "#1B1814" : "var(--ink-34)",
+      blockedBg: blocked ? "var(--signal)" : "transparent",
+      blockedAnim: blocked ? "ringPulse 1.7s ease-out infinite" : "none",
+      agentCount: st.agents.length,
+      buckets, blocks,
+      isRaw: isRawView, isNotRaw: !isRawView, rawText,
+      toggleRaw: () => this.setState(s => ({ raw: { ...s.raw, [sel.id]: !s.raw[sel.id] } })),
+      rawToggleLabel: isRawView ? "structured" : "raw",
+      rawToggleStyle: { flex:"none", font:"500 10px/1 var(--mono)", letterSpacing:".06em", textTransform:"uppercase", color:"var(--ink-50)", background:"transparent", border:"1px solid var(--rule)", borderRadius:"999px", padding:"7px 11px", cursor:"pointer", alignSelf:"flex-start" },
+      railRef: (el) => { this._rail = el; },
+      streamRef: (el) => { this._stream = el; },
+      inputRef: (el) => { this._input = el; },
+      sel: {
+        mono: sel.mono, name: sel.name, task: sel.task, repo: sel.repo,
+        stateLabel: S[sel.state].label, stateColor: S[sel.state].color,
+        stat: sel.state === "active" ? "1,284 tok/s · 4m elapsed · sonnet" : sel.state === "needs" ? "waiting " + sel.since + " · sonnet" : sel.state === "review" ? "finished " + sel.since + " ago · sonnet" : "sonnet",
+        pipStyle: { width:"7px", height:"7px", borderRadius:"999px", flex:"none", background:S[sel.state].color },
+        identDotStyle: { width:"6px", height:"6px", borderRadius:"999px", flex:"none", background: sel.ident, alignSelf:"center" }
+      },
+      headMonoStyle: { font:"600 12px/1 var(--mono)", letterSpacing:".06em", color:"var(--ink)", border:"1px solid var(--rule)", borderRadius:"999px", padding:"9px 10px", flex:"none" },
+      pauseLabel: sel.state === "idle" ? "resume" : "pause",
+      reviewedLabel: sel.state === "seen" ? "reviewed ✓" : "mark reviewed",
+      reviewedStyle: { font:"600 10.5px/1 var(--mono)", color: sel.state === "seen" ? "var(--ink-34)" : "var(--paper)", background: sel.state === "seen" ? "transparent" : "var(--ink)", border: sel.state === "seen" ? "1px solid var(--rule)" : "1px solid transparent", borderRadius:"999px", padding:"7px 11px", cursor:"pointer" },
+      act: {
+        pause: () => this.patch(sel.id, { state: sel.state === "idle" ? "active" : "idle" }, sel.name + (sel.state === "idle" ? " resumed" : " paused")),
+        reassign: () => this.flash("Reassign " + sel.name + " — pick a task"),
+        fork: () => this.flash("Forked " + sel.name + " · new agent at this turn"),
+        terminal: () => this.flash("Opening " + sel.name + " in a full terminal"),
+        reviewed: () => this.patch(sel.id, { state:"seen", since:"just now" }, sel.name + " marked reviewed")
+      },
+      draft: st.draft,
+      placeholder: sel.state === "needs" ? "Answer " + sel.name + "…" : "Message " + sel.name + "…",
+      onDraft: (e) => this.setState({ draft: e.target.value }),
+      onComposerKey: (e) => {
+        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); this.setState(s => ({ approved: { ...s.approved, [sel.id]:"yes" } })); this.patch(sel.id, { state:"seen", since:"just now" }, "Approved · " + sel.name); }
+        else if (e.key === "Enter") { e.preventDefault(); this.reply(st.draft); }
+      },
+      send: () => this.reply(st.draft)
+    };
+  }
+
+  projectBranch() { return ["main","feat/keys","main"][this.state.projectIx]; }
+
+  reply(text) {
+    const t = (text || "").trim();
+    if (!t) return;
+    const id = this.state.sel;
+    this.setState(s => ({ replies: { ...s.replies, [id]: t }, draft: "" }));
+    this.patch(id, { state:"active", since:"0m" }, "Replied — " + (this.state.agents.find(a => a.id === id) || {}).name + " resumed");
+  }
+}
+
+</script>
+</body>
+</html>

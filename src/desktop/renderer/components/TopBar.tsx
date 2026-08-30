@@ -89,8 +89,9 @@ export function TopBar() {
                 onClick={(e) => e.stopPropagation()}
                 onChange={(e) => updateProjectBackend(p.id, e.target.value as Project["backend"])}
               >
-                <option value="cursor">cursor</option>
                 <option value="claude">claude</option>
+                <option value="cursor">cursor</option>
+                <option value="openrouter">openrouter</option>
               </select>
             </div>
           ))}

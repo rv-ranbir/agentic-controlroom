@@ -13,7 +13,7 @@ export interface Project {
   id: string;
   name: string;
   path: string;
-  backend: "cursor" | "claude";
+  backend: "cursor" | "claude" | "openrouter";
   model?: string;
   agents: AgentRef[];
   repoUrl?: string;
@@ -156,7 +156,7 @@ export interface DesktopApi {
   removeSecret(projectId: string, key: string): Promise<string[]>;
   setAgentModel(projectId: string, agentId: string, model: string): Promise<AgentRef>;
   listAccounts(): Promise<{ id: string; provider: string; name: string; envKeys: string[] }[]>;
-  addAccount(provider: "claude" | "cursor", name: string, env: Record<string, string>): Promise<{ id: string; provider: string; name: string; envKeys: string[] }[]>;
+  addAccount(provider: "claude" | "cursor" | "openrouter", name: string, env: Record<string, string>): Promise<{ id: string; provider: string; name: string; envKeys: string[] }[]>;
   removeAccount(id: string): Promise<{ id: string; provider: string; name: string; envKeys: string[] }[]>;
   setActiveAccount(projectId: string, accountId?: string): Promise<Project>;
   onQuotaEvent(cb: (e: { projectId: string; agentId: string }) => void): () => void;

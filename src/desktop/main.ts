@@ -10,6 +10,7 @@ import { randomUUID } from "node:crypto";
 import { ChatLog, type ChatMessage } from "../chatroom/log.js";
 import { CursorCliBackend } from "../backend/cursorCliBackend.js";
 import { ClaudeCliBackend } from "../backend/claudeCliBackend.js";
+import { OpenRouterBackend } from "../backend/openRouterBackend.js";
 import type { AgentBackend, RoleConfig } from "../backend/agentBackend.js";
 import { runRoom } from "../orchestrator/orchestrator.js";
 import { runMeeting } from "../orchestrator/meeting.js";
@@ -31,7 +32,7 @@ interface Project {
   id: string;
   name: string;
   path: string;
-  backend: "cursor" | "claude";
+  backend: "cursor" | "claude" | "openrouter";
   model?: string;
   agents?: AgentRef[];
   repoUrl?: string; // present when this room was created by cloning a repository
@@ -695,7 +696,7 @@ function prependMemory<T extends { systemPrompt: string }>(role: T, project: Pro
 // project can switch which login/key an agent spawns with once a provider's
 // quota is hit. Agentic Control Room can't reliably auto-detect *which* account failed
 // or auto-switch mid-run — it surfaces the option and lets the user pick.
-interface Account { id: string; provider: "claude" | "cursor"; name: string; env: StoredSecret[] }
+interface Account { id: string; provider: "claude" | "cursor" | "openrouter"; name: string; env: StoredSecret[] }
 
 function accountsFile(): string {
   return join(app.getPath("userData"), "accounts.json");
@@ -717,7 +718,7 @@ function listAccountsSafe(): { id: string; provider: string; name: string; envKe
   return loadAccounts().map((a) => ({ id: a.id, provider: a.provider, name: a.name, envKeys: a.env.map((e) => e.key) }));
 }
 
-function addAccount(provider: "claude" | "cursor", name: string, env: Record<string, string>): void {
+function addAccount(provider: "claude" | "cursor" | "openrouter", name: string, env: Record<string, string>): void {
   const list = loadAccounts();
   list.push({
     id: randomUUID(),
@@ -924,13 +925,14 @@ function notifyNeedsInput(project: Project, agentId: string): void {
 }
 
 function makeBackend(project: Project, agent?: AgentRef): AgentBackend {
-  assertAllowedBin(project.backend === "claude" ? (process.env.CLAUDE_BIN ?? "claude") : (process.env.CURSOR_AGENT_BIN ?? "cursor-agent"));
   const opts = {
     cwd: agent?.worktreePath ?? project.path,
     model: agent?.model || project.model || undefined,
     extraArgs: agent?.extraArgs,
     env: { ...process.env, ...resolveSecretsEnv(project.id), ...resolveAccountEnv(project.activeAccountId) } as Record<string, string>,
   };
+  if (project.backend === "openrouter") return new OpenRouterBackend(opts);
+  assertAllowedBin(project.backend === "claude" ? (process.env.CLAUDE_BIN ?? "claude") : (process.env.CURSOR_AGENT_BIN ?? "cursor-agent"));
   return project.backend === "claude" ? new ClaudeCliBackend(opts) : new CursorCliBackend(opts);
 }
 
@@ -1110,6 +1112,7 @@ function ptyKey(projectId: string, agentId: string): string {
 }
 
 function startPty(project: Project, agentId: string): { alreadyRunning: boolean } {
+  if (project.backend === "openrouter") throw new Error("OpenRouter has no interactive CLI — the terminal pane only works with the Cursor or Claude Code backends.");
   const key = ptyKey(project.id, agentId);
   if (ptySessions.has(key)) return { alreadyRunning: true };
   const bin = project.backend === "claude" ? (process.env.CLAUDE_BIN ?? "claude") : (process.env.CURSOR_AGENT_BIN ?? "cursor-agent");
@@ -1572,7 +1575,7 @@ app.whenReady().then(() => {
 
   ipcMain.handle("accounts:list", () => listAccountsSafe());
 
-  ipcMain.handle("accounts:add", (_e, { provider, name, env }: { provider: "claude" | "cursor"; name: string; env: Record<string, string> }) => {
+  ipcMain.handle("accounts:add", (_e, { provider, name, env }: { provider: "claude" | "cursor" | "openrouter"; name: string; env: Record<string, string> }) => {
     addAccount(provider, name, env);
     return listAccountsSafe();
   });

@@ -17,7 +17,7 @@ npm install && npm run app
 
 Three panes: **projects** rail (add any local folder, several projects run in parallel, running badge per project) | **room** (agent roster with live state dots, chatroom, task input, backend picker) | **live activity** (streaming tool calls / work lines from each agent as it edits code, filterable per agent).
 
-Backends per project: **Claude Code** (default, your Claude subscription via `claude` CLI) or **Cursor** (your Cursor login via `cursor-agent`). Both stream live activity via `--output-format stream-json`. Projects persist in the app's user-data dir; right-click a project to remove it.
+Backends per project: **Claude Code** (default, your Claude subscription via `claude` CLI), **Cursor** (your Cursor login via `cursor-agent`), or **OpenRouter** (any model it hosts, via a plain API call — add an `OPENROUTER_API_KEY` account credential and pick "Custom" as the model to enter a model slug like `anthropic/claude-3.5-sonnet`). The two CLI backends stream live activity via `--output-format stream-json`; OpenRouter is a single non-streaming HTTP call and has no interactive terminal pane, since there's no CLI to attach to. Projects persist in the app's user-data dir; right-click a project to remove it.
 
 ## Usage — Cursor extension
 

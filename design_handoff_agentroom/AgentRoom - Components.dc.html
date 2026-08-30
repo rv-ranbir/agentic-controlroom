@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/organic-786f58df-7aae-479f-b4c6-b07707d51e8a/styles.css">
+<script src="_ds/organic-786f58df-7aae-479f-b4c6-b07707d51e8a/_ds_bundle.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Spline+Sans+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#1B1814; --deck:#241F1A; --sink:#151210; --rule:#3A332B; --ink:#F0E7D6;
+  --signal:#D67F48; --live:#AEBF92;
+  --ink-70:rgba(240,231,214,.74); --ink-50:rgba(240,231,214,.5); --ink-34:rgba(240,231,214,.32); --ink-16:rgba(240,231,214,.14);
+  --mono:"Spline Sans Mono",ui-monospace,Menlo,monospace;
+  --plus:rgba(174,191,146,.13); --minus:rgba(214,127,72,.13);
+}
+[data-panel="light"]{
+  --paper:#F5EAD8; --deck:#EBDDC5; --sink:#E2D2B6; --rule:#D0C2A6; --ink:#201E1D;
+  --signal:#B2622D; --live:#56633F;
+  --ink-70:rgba(32,30,29,.74); --ink-50:rgba(32,30,29,.5); --ink-34:rgba(32,30,29,.3); --ink-16:rgba(32,30,29,.12);
+  --plus:rgba(86,99,63,.13); --minus:rgba(178,98,45,.13);
+}
+body{margin:0;background:#0F0D0B;color:var(--ink);-webkit-font-smoothing:antialiased}
+</style>
+</helmet>
+
+<div style="min-height:100vh;background:#0F0D0B;padding:48px 40px 100px;font-family:var(--font-body)">
+<div style="max-width:1400px;margin:0 auto">
+
+<div style="margin-bottom:44px">
+<div style="font:500 10.5px/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--signal);margin-bottom:14px">Component sheet</div>
+<h1 style="font-family:var(--font-heading);font-size:38px;line-height:1;letter-spacing:-.02em;margin:0;color:#F0E7D6">Every state, side by side</h1>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:28px">
+
+<div data-panel="dark" style="background:var(--paper);border-radius:12px;padding:28px">
+<div style="font:500 10px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-34);margin-bottom:18px">Dark</div>
+
+<div style="font:500 10px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-50);margin-bottom:10px">Agent row · five states</div>
+<div style="background:var(--deck);border:1px solid var(--rule);border-radius:8px;overflow:hidden;margin-bottom:26px">
+<sc-for list="{{ rows }}" as="r" hint-placeholder-count="5">
+<div style="{{ r.rowStyle }}">
+<span style="{{ r.monoStyle }}">{{ r.mono }}</span>
+<span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
+<span style="{{ r.titleStyle }}">{{ r.task }}</span>
+<span style="{{ r.subStyle }}">{{ r.sub }}</span>
+</span>
+<span style="{{ r.metaStyle }}">{{ r.meta }}</span>
+</div>
+</sc-for>
+</div>
+
+<div style="font:500 10px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-50);margin-bottom:10px">Tool call block</div>
+<div style="background:var(--sink);border:1px solid var(--rule);border-radius:8px;overflow:hidden;margin-bottom:26px">
+<div style="display:flex;align-items:center;gap:10px;padding:9px 12px">
+<span style="font:600 12px/1.3 var(--mono);color:var(--ink)">Grep("JWT_SECRET")</span><span style="flex:1"></span><span style="font:400 11px/1.3 var(--mono);color:var(--ink-50)">6 matches · 4 files</span>
+</div>
+<div style="border-top:1px solid var(--rule);padding:9px 12px;font:400 11.5px/1.65 var(--mono);color:var(--ink-50);white-space:pre-wrap">src/auth/keys.ts:12
+src/auth/verify.ts:8</div>
+</div>
+
+<div style="font:500 10px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-50);margin-bottom:10px">Needs-input block</div>
+<div style="background:var(--signal);border-radius:8px;padding:14px 16px 13px;color:#1B1814;margin-bottom:26px">
+<div style="font:500 10px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;opacity:.7;margin-bottom:9px">Needs input</div>
+<div style="font:600 14.5px/1.5 var(--font-body);letter-spacing:-.01em">Force re-verify cached sessions, or let them expire naturally?</div>
+</div>
+
+<div style="font:500 10px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-50);margin-bottom:10px">Status indicator</div>
+<div style="display:flex;gap:18px;margin-bottom:26px">
+<sc-for list="{{ indicators }}" as="i" hint-placeholder-count="5">
+<span style="display:flex;align-items:center;gap:7px"><span style="{{ i.pipStyle }}"></span><span style="font:500 10.5px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:{{ i.color }}">{{ i.label }}</span></span>
+</sc-for>
+</div>
+
+<div style="font:500 10px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-50);margin-bottom:10px">Composer</div>
+<div style="background:var(--deck);border:1px solid var(--rule);border-radius:999px;padding:11px 16px;font:400 13.5px/1.4 var(--mono);color:var(--ink-34)">Message Kestrel…</div>
+</div>
+
+<div data-panel="light" style="background:var(--paper);border-radius:12px;padding:28px">
+<div style="font:500 10px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-34);margin-bottom:18px">Light</div>
+
+<div style="font:500 10px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-50);margin-bottom:10px">Agent row · five states</div>
+<div style="background:var(--deck);border:1px solid var(--rule);border-radius:8px;overflow:hidden;margin-bottom:26px">
+<sc-for list="{{ rows }}" as="r" hint-placeholder-count="5">
+<div style="{{ r.rowStyle }}">
+<span style="{{ r.monoStyle }}">{{ r.mono }}</span>
+<span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
+<span style="{{ r.titleStyle }}">{{ r.task }}</span>
+<span style="{{ r.subStyle }}">{{ r.sub }}</span>
+</span>
+<span style="{{ r.metaStyle }}">{{ r.meta }}</span>
+</div>
+</sc-for>
+</div>
+
+<div style="font:500 10px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-50);margin-bottom:10px">Tool call block</div>
+<div style="background:var(--sink);border:1px solid var(--rule);border-radius:8px;overflow:hidden;margin-bottom:26px">
+<div style="display:flex;align-items:center;gap:10px;padding:9px 12px">
+<span style="font:600 12px/1.3 var(--mono);color:var(--ink)">Grep("JWT_SECRET")</span><span style="flex:1"></span><span style="font:400 11px/1.3 var(--mono);color:var(--ink-50)">6 matches · 4 files</span>
+</div>
+<div style="border-top:1px solid var(--rule);padding:9px 12px;font:400 11.5px/1.65 var(--mono);color:var(--ink-50);white-space:pre-wrap">src/auth/keys.ts:12
+src/auth/verify.ts:8</div>
+</div>
+
+<div style="font:500 10px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-50);margin-bottom:10px">Needs-input block</div>
+<div style="background:var(--signal);border-radius:8px;padding:14px 16px 13px;color:#1B1814;margin-bottom:26px">
+<div style="font:500 10px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;opacity:.7;margin-bottom:9px">Needs input</div>
+<div style="font:600 14.5px/1.5 var(--font-body);letter-spacing:-.01em">Force re-verify cached sessions, or let them expire naturally?</div>
+</div>
+
+<div style="font:500 10px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-50);margin-bottom:10px">Status indicator</div>
+<div style="display:flex;gap:18px;margin-bottom:26px">
+<sc-for list="{{ indicators }}" as="i" hint-placeholder-count="5">
+<span style="display:flex;align-items:center;gap:7px"><span style="{{ i.pipStyle }}"></span><span style="font:500 10.5px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:{{ i.color }}">{{ i.label }}</span></span>
+</sc-for>
+</div>
+
+<div style="font:500 10px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-50);margin-bottom:10px">Composer</div>
+<div style="background:var(--deck);border:1px solid var(--rule);border-radius:999px;padding:11px 16px;font:400 13.5px/1.4 var(--mono);color:var(--ink-34)">Message Kestrel…</div>
+</div>
+
+</div>
+</div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{}">
+const STATES = [
+  { key:"needs", mono:"BE", task:"Rotate the JWT signing keys", sub:"auth-service · asked 2m ago", meta:"reply ⏎" },
+  { key:"review", mono:"FE", task:"Extract the user list row", sub:"web-app · done 6m ago", meta:"+42 −7" },
+  { key:"active", mono:"QA", task:"Chase the flaky checkout test", sub:"web-app · 1,284 tok/s", meta:"4m" },
+  { key:"seen", mono:"DO", task:"Pin the runner image", sub:"infra · reviewed 22m ago", meta:"✓" },
+  { key:"idle", mono:"AR", task:"Ibis · idle", sub:"", meta:"" }
+];
+
+class Component extends DCLogic {
+  renderVals() {
+    const rows = STATES.map(a => {
+      const needs = a.key === "needs";
+      const edge = { needs:"transparent", review:"var(--ink)", active:"var(--live)", seen:"var(--rule)", idle:"transparent" }[a.key];
+      const dim = { needs:1, review:1, active:.74, seen:.5, idle:.32 }[a.key];
+      const base = { display:"flex", alignItems:"center", gap:"11px", minHeight: a.key === "idle" ? "42px" : "50px", padding:"0 12px 0 10px", boxShadow:"inset 2px 0 0 " + edge };
+      if (needs) { base.background = "var(--signal)"; base.color = "#1B1814"; base.boxShadow = "none"; }
+      else { base.color = "var(--ink)"; base.opacity = dim; }
+      return {
+        mono: a.mono, task: a.task, sub: a.sub, meta: a.meta,
+        rowStyle: base,
+        monoStyle: { font:"600 10.5px/1 var(--mono)", letterSpacing:".06em", width:"21px", flex:"none" },
+        titleStyle: { font:(needs?"700":"600") + " 12.5px/1.15 var(--font-body)", letterSpacing:"-.01em", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" },
+        subStyle: { font:"400 10.5px/1 var(--mono)", opacity: needs ? .75 : .62, display: a.key === "idle" ? "none" : "block" },
+        metaStyle: { font:(needs?"600":"400") + " 10.5px/1 var(--mono)", flex:"none", color: a.key === "active" ? "var(--live)" : "inherit" }
+      };
+    });
+    const indicators = [
+      { label:"needs input", color:"var(--signal)" },
+      { label:"to review", color:"var(--ink)" },
+      { label:"active", color:"var(--live)" },
+      { label:"seen", color:"var(--ink-50)" },
+      { label:"inactive", color:"var(--ink-34)" }
+    ].map(i => ({ ...i, pipStyle:{ width:"7px", height:"7px", borderRadius:"999px", background:i.color, flex:"none" } }));
+    return { rows, indicators };
+  }
+}
+
+</script>
+</body>
+</html>

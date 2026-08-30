@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/organic-786f58df-7aae-479f-b4c6-b07707d51e8a/styles.css">
+<script src="_ds/organic-786f58df-7aae-479f-b4c6-b07707d51e8a/_ds_bundle.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Spline+Sans+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#1B1814; --deck:#241F1A; --sink:#151210; --rule:#3A332B; --ink:#F0E7D6;
+  --signal:#D67F48; --live:#AEBF92;
+  --ink-70:rgba(240,231,214,.74); --ink-50:rgba(240,231,214,.5); --ink-34:rgba(240,231,214,.32); --ink-16:rgba(240,231,214,.14);
+  --mono:"Spline Sans Mono",ui-monospace,Menlo,monospace;
+}
+body[data-theme="light"]{
+  --paper:#F5EAD8; --deck:#EBDDC5; --sink:#E2D2B6; --rule:#D0C2A6; --ink:#201E1D;
+  --signal:#B2622D; --live:#56633F;
+  --ink-70:rgba(32,30,29,.74); --ink-50:rgba(32,30,29,.5); --ink-34:rgba(32,30,29,.3); --ink-16:rgba(32,30,29,.12);
+}
+body{margin:0;background:var(--paper);color:var(--ink);overflow:hidden;-webkit-font-smoothing:antialiased}
+a{color:var(--signal);text-decoration:none}
+a:hover{color:var(--ink)}
+</style>
+</helmet>
+
+<div style="height:100vh;display:flex;flex-direction:column;background:var(--paper);font-family:var(--font-body);overflow:hidden">
+
+<header style="flex:none;display:flex;align-items:center;gap:12px;padding:20px 32px 0">
+<span style="width:9px;height:9px;border-radius:999px;background:var(--signal)"></span>
+<span style="font-family:var(--font-heading);font-size:16px;letter-spacing:-.01em;color:var(--ink)">AgentRoom</span>
+<div style="flex:1"></div>
+<button onClick="{{ toggleTheme }}" style="font:500 10.5px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-50);background:transparent;border:1px solid var(--rule);border-radius:999px;padding:6px 12px;cursor:pointer" style-hover="color:var(--ink);border-color:var(--ink-50)">{{ themeLabel }}</button>
+</header>
+
+<div style="flex:1;overflow-y:auto;min-height:0;display:flex;justify-content:center;padding:52px 32px 60px">
+<div style="width:100%;max-width:760px">
+
+<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:10px">
+<h1 style="font-family:var(--font-heading);font-size:44px;line-height:1;letter-spacing:-.02em;margin:0;color:var(--ink)">{{ greeting }}</h1>
+<button onClick="{{ openNewAgent }}" style="flex:none;font:600 11.5px/1 var(--mono);color:var(--paper);background:var(--ink);border:none;border-radius:999px;padding:11px 18px;cursor:pointer;margin-top:8px" style-hover="opacity:.85">+ new agent</button>
+</div>
+<p style="font:400 15.5px/1.5 var(--font-body);color:var(--ink-70);margin:0 0 40px;max-width:52ch;text-wrap:pretty">{{ subline }}</p>
+
+<div style="display:flex;gap:10px;margin-bottom:36px">
+<button onClick="{{ tabLocal }}" style="{{ tabLocalStyle }}">Local folder</button>
+<button onClick="{{ tabRepo }}" style="{{ tabRepoStyle }}">Repository</button>
+</div>
+
+<sc-if value="{{ isLocal }}" hint-placeholder-val="{{ true }}">
+<div style="background:var(--deck);border:1px solid var(--rule);border-radius:12px;padding:28px;display:flex;flex-direction:column;gap:16px">
+<div onDragOver="{{ onDragOver }}" onDrop="{{ onDrop }}" style="{{ dropStyle }}">
+<span style="font:400 13px/1 var(--mono);color:var(--ink-50)">drop a folder, or</span>
+<button onClick="{{ browse }}" style="font:600 11.5px/1 var(--mono);color:var(--paper);background:var(--ink);border:none;border-radius:999px;padding:9px 16px;cursor:pointer" style-hover="opacity:.85">browse…</button>
+</div>
+<div style="display:flex;flex-direction:column;gap:1px;background:var(--rule);border-radius:8px;overflow:hidden;border:1px solid var(--rule)">
+<sc-for list="{{ recents }}" as="r" hint-placeholder-count="3">
+<button onClick="{{ r.open }}" style="display:flex;align-items:center;gap:12px;background:var(--paper);border:none;padding:13px 14px;cursor:pointer;text-align:left;width:100%;box-sizing:border-box" style-hover="background:var(--ink-16)">
+<span style="font:500 10.5px/1 var(--mono);color:var(--ink-34);width:18px;flex:none">{{ r.icon }}</span>
+<span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
+<span style="font:600 13.5px/1.2 var(--font-body);color:var(--ink)">{{ r.name }}</span>
+<span style="font:400 11px/1 var(--mono);color:var(--ink-34)">{{ r.path }}</span>
+</span>
+<span style="font:400 10.5px/1 var(--mono);color:var(--ink-34)">{{ r.meta }}</span>
+</button>
+</sc-for>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isRepo }}" hint-placeholder-val="{{ false }}">
+<div style="background:var(--deck);border:1px solid var(--rule);border-radius:12px;padding:28px;display:flex;flex-direction:column;gap:16px">
+<div style="display:flex;gap:10px">
+<input value="{{ repoUrl }}" onChange="{{ onRepoUrl }}" placeholder="github.com/org/repo" style="flex:1;box-sizing:border-box;font:400 13.5px/1.4 var(--mono);color:var(--ink);background:var(--paper);border:1px solid var(--rule);border-radius:8px;padding:11px 14px;outline:none" style-focus="border-color:var(--signal)">
+<button onClick="{{ connect }}" style="font:600 11.5px/1 var(--mono);color:var(--paper);background:var(--ink);border:none;border-radius:8px;padding:0 18px;cursor:pointer" style-hover="opacity:.85">connect</button>
+</div>
+<p style="font:400 12.5px/1.6 var(--font-body);color:var(--ink-50);margin:0;text-wrap:pretty">Agents will branch, commit and open pull requests against this repository. You'll be asked to authorize once, per repo.</p>
+<div style="display:flex;flex-direction:column;gap:1px;background:var(--rule);border-radius:8px;overflow:hidden;border:1px solid var(--rule)">
+<sc-for list="{{ orgRepos }}" as="r" hint-placeholder-count="3">
+<button onClick="{{ r.open }}" style="display:flex;align-items:center;gap:12px;background:var(--paper);border:none;padding:13px 14px;cursor:pointer;text-align:left;width:100%;box-sizing:border-box" style-hover="background:var(--ink-16)">
+<span style="flex:1;min-width:0;font:600 13.5px/1.2 var(--font-body);color:var(--ink)">{{ r.name }}</span>
+<span style="font:400 11px/1 var(--mono);color:var(--ink-34)">{{ r.visibility }}</span>
+</button>
+</sc-for>
+</div>
+</div>
+</sc-if>
+
+<div style="margin-top:44px;padding-top:28px;border-top:1px solid var(--rule)">
+<div style="font:500 10px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-34);margin-bottom:14px">Open rooms</div>
+<div style="display:flex;flex-direction:column;gap:1px;background:var(--rule);border-radius:8px;overflow:hidden;border:1px solid var(--rule)">
+<sc-for list="{{ rooms }}" as="rm" hint-placeholder-count="2">
+<button onClick="{{ rm.open }}" style="display:flex;align-items:center;gap:13px;background:var(--deck);border:none;padding:14px 14px;cursor:pointer;text-align:left;width:100%;box-sizing:border-box" style-hover="background:var(--ink-16)">
+<span style="{{ rm.pipStyle }}"></span>
+<span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
+<span style="font:600 13.5px/1.2 var(--font-body);color:var(--ink)">{{ rm.name }}</span>
+<span style="font:400 11px/1 var(--mono);color:var(--ink-34)">{{ rm.agents }} agents · {{ rm.branch }}</span>
+</span>
+<span style="{{ rm.badgeStyle }}">{{ rm.badge }}</span>
+</button>
+</sc-for>
+</div>
+</div>
+
+</div>
+</div>
+
+<sc-if value="{{ isNewAgentOpen }}" hint-placeholder-val="{{ false }}">
+<div onClick="{{ closeNewAgent }}" style="position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:10;padding:40px">
+<div onClick="{{ stop }}" style="width:560px;max-width:100%;max-height:100%;overflow-y:auto;background:var(--deck);border:1px solid var(--rule);border-radius:12px">
+
+<div style="display:flex;align-items:flex-start;justify-content:space-between;padding:22px 24px 18px;border-bottom:1px solid var(--rule)">
+<div>
+<div style="font:600 17px/1.2 var(--font-body);letter-spacing:-.01em;color:var(--ink)">New agent</div>
+<div style="font:400 11px/1 var(--mono);color:var(--ink-34);margin-top:4px;letter-spacing:.06em;text-transform:uppercase">Added to {{ project }}</div>
+</div>
+<button onClick="{{ closeNewAgent }}" style="font:400 18px/1 var(--font-body);color:var(--ink-34);background:transparent;border:none;cursor:pointer;padding:0" style-hover="color:var(--ink)">×</button>
+</div>
+
+<div style="padding:22px 24px;display:flex;flex-direction:column;gap:22px">
+
+<div>
+<div style="font:500 10px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-50);margin-bottom:9px">Name</div>
+<input value="{{ na.name }}" onChange="{{ na.onName }}" placeholder="e.g. Kestrel" style="width:100%;box-sizing:border-box;font:400 14px/1.4 var(--font-body);color:var(--ink);background:var(--paper);border:1px solid var(--rule);border-radius:8px;padding:11px 13px;outline:none" style-focus="border-color:var(--signal)">
+</div>
+
+<div>
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:9px">
+<span style="font:500 10px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-50)">Agent template</span>
+<span style="font:400 10.5px/1 var(--mono);color:var(--ink-34)">{{ na.roleCount }} available</span>
+</div>
+<input value="{{ na.roleSearch }}" onChange="{{ na.onRoleSearch }}" placeholder="Search templates by name or skill…" style="width:100%;box-sizing:border-box;font:400 13px/1.4 var(--font-body);color:var(--ink);background:var(--paper);border:1px solid var(--rule);border-radius:8px;padding:10px 12px;outline:none;margin-bottom:12px" style-focus="border-color:var(--signal)">
+
+<sc-for list="{{ na.roleGroups }}" as="g" hint-placeholder-count="3">
+<div style="margin-bottom:12px">
+<div style="font:500 9.5px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-34);margin-bottom:7px">{{ g.label }} <span style="color:var(--ink-34)">· {{ g.count }}</span></div>
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:7px">
+<sc-for list="{{ g.roles }}" as="r" hint-placeholder-count="4">
+<button onClick="{{ r.pick }}" style="{{ r.style }}" style-hover="border-color:var(--ink-50)">
+<span style="font:600 12px/1 var(--mono);letter-spacing:.05em;color:var(--ink)">{{ r.mono }}</span>
+<span style="font:400 10px/1.3 var(--font-body);color:var(--ink-50)">{{ r.label }}</span>
+</button>
+</sc-for>
+</div>
+</div>
+</sc-for>
+
+<button onClick="{{ na.pickCustomRole }}" style="{{ na.customRoleStyle }}" style-hover="border-color:var(--signal)">
+<span style="font:600 12.5px/1 var(--font-body);color:var(--ink)">+ Custom agent</span>
+<span style="font:400 11px/1.4 var(--font-body);color:var(--ink-50)">Define your own rules and skills instead of a template</span>
+</button>
+
+<sc-if value="{{ na.isCustomRole }}" hint-placeholder-val="{{ false }}">
+<div style="margin-top:12px;padding:14px;background:var(--paper);border:1px solid var(--rule);border-radius:8px;display:flex;flex-direction:column;gap:12px">
+<div>
+<div style="font:500 10px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-50);margin-bottom:7px">Custom role label</div>
+<input value="{{ na.customLabel }}" onChange="{{ na.onCustomLabel }}" placeholder="e.g. Release Manager" style="width:100%;box-sizing:border-box;font:400 13px/1.4 var(--font-body);color:var(--ink);background:var(--deck);border:1px solid var(--rule);border-radius:8px;padding:9px 12px;outline:none" style-focus="border-color:var(--signal)">
+</div>
+<div>
+<div style="font:500 10px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-50);margin-bottom:7px">Rules — how it should behave</div>
+<textarea value="{{ na.customRules }}" onChange="{{ na.onCustomRules }}" placeholder="e.g. Never touch main directly. Always write a test before a fix. Ask before deleting a migration." rows="3" style="width:100%;box-sizing:border-box;resize:vertical;font:400 12.5px/1.5 var(--font-body);color:var(--ink);background:var(--deck);border:1px solid var(--rule);border-radius:8px;padding:9px 12px;outline:none" style-focus="border-color:var(--signal)"></textarea>
+</div>
+<div>
+<div style="font:500 10px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-50);margin-bottom:7px">Skills</div>
+<div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:8px">
+<sc-for list="{{ na.skillChips }}" as="s" hint-placeholder-count="3">
+<span style="display:flex;align-items:center;gap:6px;font:500 11px/1 var(--mono);color:var(--ink-70);background:var(--ink-16);border-radius:999px;padding:6px 6px 6px 11px">{{ s.label }}<button onClick="{{ s.remove }}" style="background:transparent;border:none;color:var(--ink-34);cursor:pointer;font:400 13px/1 var(--font-body);padding:0 4px">×</button></span>
+</sc-for>
+</div>
+<input value="{{ na.skillDraft }}" onChange="{{ na.onSkillDraft }}" onKeyDown="{{ na.onSkillKey }}" placeholder="Type a skill and press Enter — e.g. Postgres migrations" style="width:100%;box-sizing:border-box;font:400 12.5px/1.4 var(--font-body);color:var(--ink);background:var(--deck);border:1px solid var(--rule);border-radius:8px;padding:9px 12px;outline:none" style-focus="border-color:var(--signal)">
+</div>
+</div>
+</sc-if>
+</div>
+
+<div>
+<div style="font:500 10px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-50);margin-bottom:9px">Engine</div>
+<div style="display:flex;gap:8px;flex-wrap:wrap">
+<sc-for list="{{ na.engines }}" as="e" hint-placeholder-count="3">
+<button onClick="{{ e.pick }}" style="{{ e.style }}">{{ e.label }}</button>
+</sc-for>
+</div>
+</div>
+
+<div>
+<div style="font:500 10px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-50);margin-bottom:9px">Model</div>
+<div style="display:flex;gap:8px;flex-wrap:wrap">
+<sc-for list="{{ na.models }}" as="m" hint-placeholder-count="4">
+<button onClick="{{ m.pick }}" style="{{ m.style }}">
+<span style="display:block">{{ m.label }}</span>
+<span style="display:block;font:400 10px/1 var(--mono);color:var(--ink-34);margin-top:3px">{{ m.hint }}</span>
+</button>
+</sc-for>
+</div>
+<sc-if value="{{ na.isCustomModel }}" hint-placeholder-val="{{ false }}">
+<input value="{{ na.customModel }}" onChange="{{ na.onCustomModel }}" placeholder="Model id — e.g. gpt-5.2-codex or a self-hosted endpoint name" style="width:100%;box-sizing:border-box;margin-top:8px;font:400 12.5px/1.4 var(--mono);color:var(--ink);background:var(--paper);border:1px solid var(--rule);border-radius:8px;padding:9px 12px;outline:none" style-focus="border-color:var(--signal)">
+</sc-if>
+</div>
+
+<div>
+<div style="font:500 10px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-50);margin-bottom:9px">Identity color</div>
+<div style="display:flex;align-items:center;gap:10px">
+<sc-for list="{{ na.colors }}" as="c" hint-placeholder-count="8">
+<button onClick="{{ c.pick }}" style="{{ c.style }}"></button>
+</sc-for>
+</div>
+<p style="font:400 11.5px/1.5 var(--font-body);color:var(--ink-34);margin:9px 0 0">Tints this agent's role monogram and terminal accent everywhere it appears — never its state.</p>
+</div>
+
+<div style="display:flex;gap:20px">
+<div style="flex:1">
+<div style="font:500 10px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-50);margin-bottom:9px">Context window</div>
+<div style="display:flex;gap:8px">
+<sc-for list="{{ na.context }}" as="c" hint-placeholder-count="2">
+<button onClick="{{ c.pick }}" style="{{ c.style }}">{{ c.label }}</button>
+</sc-for>
+</div>
+</div>
+<div style="flex:1">
+<div style="font:500 10px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-50);margin-bottom:9px">Reasoning effort</div>
+<div style="display:flex;gap:8px">
+<sc-for list="{{ na.effort }}" as="e" hint-placeholder-count="3">
+<button onClick="{{ e.pick }}" style="{{ e.style }}">{{ e.label }}</button>
+</sc-for>
+</div>
+</div>
+</div>
+
+<div>
+<button onClick="{{ na.toggleAdvanced }}" style="display:flex;align-items:center;gap:7px;background:transparent;border:none;padding:0;cursor:pointer;font:500 10px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-50)" style-hover="color:var(--ink)">
+<span>{{ na.advancedCaret }}</span><span>Advanced options</span>
+</button>
+<sc-if value="{{ na.advancedOpen }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:16px;margin-top:16px;padding-top:16px;border-top:1px solid var(--rule)">
+
+<label style="display:flex;align-items:flex-start;gap:11px;cursor:pointer">
+<input type="checkbox" checked="{{ na.autoOpen }}" onChange="{{ na.onAutoOpen }}" style="margin-top:2px;accent-color:var(--signal)">
+<span>
+<span style="display:block;font:600 12.5px/1.3 var(--font-body);color:var(--ink)">Open right away</span>
+<span style="display:block;font:400 11.5px/1.5 var(--font-body);color:var(--ink-34)">Launches the agent's terminal as soon as it's created, instead of waiting in Inactive.</span>
+</span>
+</label>
+
+<label style="display:flex;align-items:flex-start;gap:11px;cursor:pointer">
+<input type="checkbox" checked="{{ na.worktree }}" onChange="{{ na.onWorktree }}" style="margin-top:2px;accent-color:var(--signal)">
+<span>
+<span style="display:block;font:600 12.5px/1.3 var(--font-body);color:var(--ink)">New worktree per agent</span>
+<span style="display:block;font:400 11.5px/1.5 var(--font-body);color:var(--ink-34)">Its own git worktree and branch, so it can run alongside other agents without sharing a checkout.</span>
+</span>
+</label>
+
+<label style="display:flex;align-items:flex-start;gap:11px;cursor:pointer">
+<input type="checkbox" checked="{{ na.browser }}" onChange="{{ na.onBrowser }}" style="margin-top:2px;accent-color:var(--signal)">
+<span>
+<span style="display:block;font:600 12.5px/1.3 var(--font-body);color:var(--ink)">Browser access</span>
+<span style="display:block;font:400 11.5px/1.5 var(--font-body);color:var(--ink-34)">Lets this agent drive an embedded browser — navigate, click, type, screenshot.</span>
+</span>
+</label>
+
+<div>
+<div style="font:500 10px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-50);margin-bottom:9px">CLI flags <span style="color:var(--ink-34);text-transform:none;letter-spacing:0">(optional)</span></div>
+<input value="{{ na.cliFlags }}" onChange="{{ na.onCliFlags }}" placeholder="--dangerously-skip-permissions --enable-auto-mode" style="width:100%;box-sizing:border-box;font:400 12.5px/1.4 var(--mono);color:var(--ink);background:var(--paper);border:1px solid var(--rule);border-radius:8px;padding:10px 12px;outline:none" style-focus="border-color:var(--signal)">
+</div>
+
+<div>
+<div style="font:500 10px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-50);margin-bottom:9px">System prompt <span style="color:var(--ink-34);text-transform:none;letter-spacing:0">(optional — inherits the role default)</span></div>
+<textarea value="{{ na.systemPrompt }}" onChange="{{ na.onSystemPrompt }}" placeholder="Select a role above to preview its default prompt" rows="3" style="width:100%;box-sizing:border-box;resize:vertical;font:400 12.5px/1.5 var(--font-body);color:var(--ink);background:var(--paper);border:1px solid var(--rule);border-radius:8px;padding:10px 12px;outline:none" style-focus="border-color:var(--signal)"></textarea>
+</div>
+
+</div>
+</sc-if>
+</div>
+
+</div>
+
+<div style="display:flex;justify-content:flex-end;gap:8px;padding:16px 24px;border-top:1px solid var(--rule)">
+<button onClick="{{ closeNewAgent }}" style="font:500 11.5px/1 var(--mono);color:var(--ink-70);background:transparent;border:1px solid var(--rule);border-radius:999px;padding:10px 16px;cursor:pointer" style-hover="color:var(--ink);border-color:var(--ink-50)">cancel</button>
+<button onClick="{{ na.create }}" style="{{ na.createStyle }}">{{ na.createLabel }}</button>
+</div>
+
+</div>
+</div>
+</sc-if>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;dark&quot;,&quot;light&quot;],&quot;default&quot;:&quot;dark&quot;,&quot;tsType&quot;:&quot;'dark'|'light'&quot;}}">
+const ROLE_GROUPS = [
+  { label:"Core team", roles:[["FE","Frontend"],["BE","Backend"],["QA","QA"],["DO","DevOps"],["SE","Security"],["AR","Architect"],["PM","PM"],["FS","Full-stack"]] },
+  { label:"Specialists", roles:[["ML","ML engineer"],["DB","Data engineer"],["MO","Mobile"],["UX","UX writer"],["A11","Accessibility"],["PF","Performance"],["I18","Localization"]] },
+  { label:"Community", roles:[["TW","Tech writer"],["SR","SRE"],["GR","Growth"],["SU","Support triage"]] }
+];
+const ENGINES = ["Claude Code","Codex","Cursor"];
+const MODELS = [["Opus","most capable"],["Sonnet","balanced"],["Haiku","fastest"],["Custom…","your own model id"]];
+const IDENT_COLORS = ["#8AA1C4","#B98AC0","#7FB0A6","#C6A366","#B4A6D6","#C48A8A","#A8A88A","#D67F48"];
+
+class Component extends DCLogic {
+  state = {
+    theme: "dark", tab: "local", repoUrl: "", dragOver: false,
+    newAgentOpen: false, naName: "", naRole: "FE", naEngine: "Claude Code", naModel: "Sonnet", naColor: IDENT_COLORS[0],
+    naContext: "200K", naEffort: "Default", naAdvanced: false, naAutoOpen: false, naWorktree: true, naBrowser: false,
+    naCliFlags: "", naSystemPrompt: "",
+    naRoleSearch: "", naCustomRole: false, naCustomLabel: "", naCustomRules: "",
+    naSkills: [], naSkillDraft: "", naCustomModel: ""
+  };
+
+  componentDidMount() { document.body.dataset.theme = this.props.theme || this.state.theme; }
+  componentDidUpdate() { document.body.dataset.theme = this.state.theme; }
+  flash(msg) { this.setState({ toast: msg }); clearTimeout(this._t); this._t = setTimeout(() => this.setState({ toast:"" }), 2600); }
+
+  renderVals() {
+    const st = this.state;
+    const tabStyle = (on) => ({
+      font: "500 11.5px/1 var(--mono)", letterSpacing:".04em", color: on ? "var(--paper)" : "var(--ink-70)",
+      background: on ? "var(--ink)" : "transparent", border: "1px solid " + (on ? "transparent" : "var(--rule)"),
+      borderRadius:"999px", padding:"9px 16px", cursor:"pointer"
+    });
+    return {
+      themeLabel: st.theme === "dark" ? "Light" : "Dark",
+      toggleTheme: () => this.setState(s => ({ theme: s.theme === "dark" ? "light" : "dark" })),
+      greeting: "Open a project",
+      subline: "AgentRoom needs a codebase to put agents to work in — a folder on this machine, or a repository it can branch and open pull requests against.",
+      isLocal: st.tab === "local", isRepo: st.tab === "repo",
+      tabLocal: () => this.setState({ tab:"local" }), tabRepo: () => this.setState({ tab:"repo" }),
+      tabLocalStyle: tabStyle(st.tab === "local"), tabRepoStyle: tabStyle(st.tab === "repo"),
+      dropStyle: {
+        display:"flex", alignItems:"center", justifyContent:"space-between", gap:"14px",
+        border: "1px dashed " + (st.dragOver ? "var(--signal)" : "var(--rule)"), borderRadius:"8px",
+        padding:"20px 18px", background: st.dragOver ? "var(--ink-16)" : "transparent"
+      },
+      onDragOver: (e) => { e.preventDefault(); if (!st.dragOver) this.setState({ dragOver:true }); },
+      onDrop: (e) => { e.preventDefault(); this.setState({ dragOver:false }); },
+      browse: () => {},
+      recents: [
+        { icon:"◆", name:"payments-api", path:"~/dev/payments-api", meta:"opened 2h ago", open: () => {} },
+        { icon:"◆", name:"web-app", path:"~/dev/web-app", meta:"opened yesterday", open: () => {} },
+        { icon:"◆", name:"infra", path:"~/dev/infra", meta:"opened 4d ago", open: () => {} }
+      ],
+      repoUrl: st.repoUrl, onRepoUrl: (e) => this.setState({ repoUrl: e.target.value }),
+      connect: () => {},
+      orgRepos: [
+        { name:"acme/payments-api", visibility:"private", open: () => {} },
+        { name:"acme/web-app", visibility:"private", open: () => {} },
+        { name:"acme/infra", visibility:"private", open: () => {} }
+      ],
+      project: "payments-api",
+      stop: (e) => e.stopPropagation(),
+      isNewAgentOpen: st.newAgentOpen,
+      openNewAgent: () => this.setState({ newAgentOpen: true }),
+      closeNewAgent: () => this.setState({ newAgentOpen: false }),
+      na: (() => {
+        const q = st.naRoleSearch.trim().toLowerCase();
+        const roleGroups = ROLE_GROUPS.map(g => {
+          const roles = g.roles.filter(([mono, label]) => !q || label.toLowerCase().includes(q) || mono.toLowerCase().includes(q));
+          return { label: g.label, count: roles.length, roles: roles.map(([mono, label]) => {
+            const on = !st.naCustomRole && st.naRole === mono;
+            return { mono, label, pick: () => this.setState({ naRole: mono, naCustomRole: false }),
+              style: { display:"flex", flexDirection:"column", alignItems:"center", gap:"5px", padding:"11px 5px", background: on ? "var(--ink-16)" : "var(--paper)", border:"1px solid " + (on ? "var(--ink-50)" : "var(--rule)"), borderRadius:"8px", cursor:"pointer" } };
+          }) };
+        }).filter(g => g.roles.length);
+        const roleCount = ROLE_GROUPS.reduce((n, g) => n + g.roles.length, 0);
+        return {
+        name: st.naName, onName: (e) => this.setState({ naName: e.target.value }),
+        roleSearch: st.naRoleSearch, onRoleSearch: (e) => this.setState({ naRoleSearch: e.target.value }),
+        roleCount, roleGroups,
+        isCustomRole: st.naCustomRole,
+        pickCustomRole: () => this.setState({ naCustomRole: true }),
+        customRoleStyle: { width:"100%", textAlign:"left", display:"flex", flexDirection:"column", gap:"2px", padding:"11px 13px", background: st.naCustomRole ? "var(--ink-16)" : "transparent", border:"1px dashed " + (st.naCustomRole ? "var(--signal)" : "var(--rule)"), borderRadius:"8px", cursor:"pointer" },
+        customLabel: st.naCustomLabel, onCustomLabel: (e) => this.setState({ naCustomLabel: e.target.value }),
+        customRules: st.naCustomRules, onCustomRules: (e) => this.setState({ naCustomRules: e.target.value }),
+        skillChips: st.naSkills.map((label, i) => ({ label, remove: () => this.setState(s => ({ naSkills: s.naSkills.filter((_, j) => j !== i) })) })),
+        skillDraft: st.naSkillDraft, onSkillDraft: (e) => this.setState({ naSkillDraft: e.target.value }),
+        onSkillKey: (e) => {
+          if (e.key === "Enter" && e.target.value.trim()) {
+            e.preventDefault();
+            this.setState(s => ({ naSkills: [...s.naSkills, e.target.value.trim()], naSkillDraft: "" }));
+          }
+        },
+        engines: ENGINES.map(label => {
+          const on = st.naEngine === label;
+          return { label, pick: () => this.setState({ naEngine: label }),
+            style: { font:"500 11.5px/1 var(--mono)", color: on ? "var(--paper)" : "var(--ink-70)", background: on ? "var(--ink)" : "transparent", border:"1px solid " + (on ? "transparent" : "var(--rule)"), borderRadius:"999px", padding:"9px 15px", cursor:"pointer" } };
+        }),
+        models: MODELS.map(([label, hint]) => {
+          const on = st.naModel === label;
+          return { label, hint, pick: () => this.setState({ naModel: label }),
+            style: { textAlign:"left", font:"600 12px/1.3 var(--font-body)", color: on ? "var(--ink)" : "var(--ink-70)", background: on ? "var(--ink-16)" : "var(--paper)", border:"1px solid " + (on ? "var(--ink-50)" : "var(--rule)"), borderRadius:"8px", padding:"9px 13px", cursor:"pointer" } };
+        }),
+        isCustomModel: st.naModel === "Custom…",
+        customModel: st.naCustomModel, onCustomModel: (e) => this.setState({ naCustomModel: e.target.value }),
+        colors: IDENT_COLORS.map(hex => {
+          const on = st.naColor === hex;
+          return { pick: () => this.setState({ naColor: hex }),
+            style: { width:"26px", height:"26px", borderRadius:"999px", background:hex, border: on ? "2px solid var(--ink)" : "2px solid transparent", boxShadow: on ? "0 0 0 2px var(--deck)" : "none", cursor:"pointer", padding:0 } };
+        }),
+        context: ["200K","1M"].map(label => {
+          const on = st.naContext === label;
+          return { label, pick: () => this.setState({ naContext: label }),
+            style: { flex:"1", font:"600 11.5px/1 var(--mono)", color: on ? "var(--paper)" : "var(--ink-70)", background: on ? "var(--ink)" : "transparent", border:"1px solid " + (on ? "transparent" : "var(--rule)"), borderRadius:"999px", padding:"9px", cursor:"pointer" } };
+        }),
+        effort: ["Default","High","Max"].map(label => {
+          const on = st.naEffort === label;
+          return { label, pick: () => this.setState({ naEffort: label }),
+            style: { flex:"1", font:"600 11px/1 var(--mono)", color: on ? "var(--paper)" : "var(--ink-70)", background: on ? "var(--ink)" : "transparent", border:"1px solid " + (on ? "transparent" : "var(--rule)"), borderRadius:"999px", padding:"9px", cursor:"pointer" } };
+        }),
+        advancedOpen: st.naAdvanced, advancedCaret: st.naAdvanced ? "▾" : "▸",
+        toggleAdvanced: () => this.setState(s => ({ naAdvanced: !s.naAdvanced })),
+        autoOpen: st.naAutoOpen, onAutoOpen: (e) => this.setState({ naAutoOpen: e.target.checked }),
+        worktree: st.naWorktree, onWorktree: (e) => this.setState({ naWorktree: e.target.checked }),
+        browser: st.naBrowser, onBrowser: (e) => this.setState({ naBrowser: e.target.checked }),
+        cliFlags: st.naCliFlags, onCliFlags: (e) => this.setState({ naCliFlags: e.target.value }),
+        systemPrompt: st.naSystemPrompt, onSystemPrompt: (e) => this.setState({ naSystemPrompt: e.target.value }),
+        create: () => { this.setState({ newAgentOpen:false }); this.flash((st.naName || "New agent") + " created"); },
+        createLabel: "create agent",
+        createStyle: { font:"600 11.5px/1 var(--mono)", color:"var(--paper)", background:"var(--ink)", border:"none", borderRadius:"999px", padding:"10px 18px", cursor:"pointer" }
+      };})(),
+      rooms: [
+        { name:"payments-api", agents:5, branch:"feat/keys ↑3", badge:"2 blocked", badgeStyle:{ font:"600 10px/1 var(--mono)", color:"#1B1814", background:"var(--signal)", borderRadius:"999px", padding:"5px 9px" }, pipStyle:{ width:"7px", height:"7px", borderRadius:"999px", background:"var(--signal)", flex:"none" }, open: () => {} },
+        { name:"web-app", agents:6, branch:"main ✓ clean", badge:"1 to review", badgeStyle:{ font:"600 10px/1 var(--mono)", color:"var(--ink-70)", background:"var(--ink-16)", borderRadius:"999px", padding:"5px 9px" }, pipStyle:{ width:"7px", height:"7px", borderRadius:"999px", background:"var(--ink)", flex:"none" }, open: () => {} }
+      ]
+    };
+  }
+}
+
+</script>
+</body>
+</html>

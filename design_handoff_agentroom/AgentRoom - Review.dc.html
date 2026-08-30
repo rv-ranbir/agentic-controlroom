@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/organic-786f58df-7aae-479f-b4c6-b07707d51e8a/styles.css">
+<script src="_ds/organic-786f58df-7aae-479f-b4c6-b07707d51e8a/_ds_bundle.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Spline+Sans+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#1B1814; --deck:#241F1A; --sink:#151210; --rule:#3A332B; --ink:#F0E7D6;
+  --signal:#D67F48; --live:#AEBF92;
+  --ink-70:rgba(240,231,214,.74); --ink-50:rgba(240,231,214,.5); --ink-34:rgba(240,231,214,.32); --ink-16:rgba(240,231,214,.14);
+  --mono:"Spline Sans Mono",ui-monospace,Menlo,monospace;
+  --plus:rgba(174,191,146,.13); --minus:rgba(214,127,72,.13);
+}
+body[data-theme="light"]{
+  --paper:#F5EAD8; --deck:#EBDDC5; --sink:#E2D2B6; --rule:#D0C2A6; --ink:#201E1D;
+  --signal:#B2622D; --live:#56633F;
+  --ink-70:rgba(32,30,29,.74); --ink-50:rgba(32,30,29,.5); --ink-34:rgba(32,30,29,.3); --ink-16:rgba(32,30,29,.12);
+  --plus:rgba(86,99,63,.13); --minus:rgba(178,98,45,.13);
+}
+body{margin:0;background:var(--paper);color:var(--ink);overflow:hidden;-webkit-font-smoothing:antialiased}
+@keyframes reviewApprovePulse{0%,100%{box-shadow:0 0 0 0 rgba(174,191,146,.45)}50%{box-shadow:0 0 0 6px rgba(174,191,146,0)}}
+@keyframes sevPulseSoft{0%,100%{opacity:1}50%{opacity:.3}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</helmet>
+
+<div style="height:100vh;display:flex;flex-direction:column;background:var(--paper);font-family:var(--font-body);overflow:hidden">
+
+<header style="flex:none;height:46px;display:flex;align-items:center;gap:14px;padding:0 20px;border-bottom:1px solid var(--rule);background:var(--deck)">
+<button onClick="{{ back }}" style="font:500 11.5px/1 var(--mono);color:var(--ink-50);background:transparent;border:none;cursor:pointer;padding:6px 0" style-hover="color:var(--ink)">← room</button>
+<div style="width:1px;height:18px;background:var(--rule)"></div>
+<span style="font:600 12px/1 var(--mono);color:var(--ink);border:1px solid var(--rule);border-radius:999px;padding:6px 10px">{{ agent.mono }}</span>
+<span style="font:600 13.5px/1 var(--font-body);color:var(--ink)">{{ agent.name }}</span>
+<span style="font:400 11px/1 var(--mono);color:var(--ink-34)">{{ agent.repo }} · {{ agent.branch }}</span>
+<div style="flex:1"></div>
+<button onClick="{{ toggleTheme }}" style="font:500 10.5px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-50);background:transparent;border:1px solid var(--rule);border-radius:999px;padding:6px 12px;cursor:pointer" style-hover="color:var(--ink);border-color:var(--ink-50)">{{ themeLabel }}</button>
+</header>
+
+<div style="flex:1;display:flex;min-height:0">
+
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;border-right:1px solid var(--rule);min-height:0">
+<div style="flex:none;padding:16px 20px 14px;border-bottom:1px solid var(--rule)">
+<div style="font:600 15px/1.3 var(--font-body);letter-spacing:-.01em;color:var(--ink);margin-bottom:6px;display:flex;align-items:center;gap:9px"><span style="{{ pendingDotStyle }}"></span>{{ agent.task }}</div>
+<div style="display:flex;gap:10px;align-items:center">
+<span style="font:400 11px/1 var(--mono);color:var(--live)">{{ agent.plus }}</span>
+<span style="font:400 11px/1 var(--mono);color:var(--signal)">{{ agent.minus }}</span>
+<span style="font:400 11px/1 var(--mono);color:var(--ink-34)">{{ agent.files }} files</span>
+</div>
+</div>
+<div style="flex:1;overflow-y:auto;min-height:0;padding:16px 0">
+<sc-for list="{{ files }}" as="f" hint-placeholder-count="3">
+<div>
+<div style="display:flex;align-items:center;gap:10px;padding:9px 20px;background:var(--sink);border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);position:sticky;top:0">
+<span style="font:600 12px/1.3 var(--mono);color:var(--ink)">{{ f.path }}</span>
+<span style="font:400 11px/1.3 var(--mono);color:var(--live)">{{ f.plus }}</span>
+<span style="font:400 11px/1.3 var(--mono);color:var(--signal)">{{ f.minus }}</span>
+</div>
+<div style="padding:6px 0 14px">
+<sc-for list="{{ f.lines }}" as="ln" hint-placeholder-count="6">
+<div style="{{ ln.style }}"><span style="{{ ln.gutStyle }}">{{ ln.n }}</span>{{ ln.text }}</div>
+</sc-for>
+</div>
+</div>
+</sc-for>
+</div>
+</div>
+
+<div style="width:380px;flex:none;display:flex;flex-direction:column;min-height:0;background:var(--deck)">
+<div style="flex:none;padding:14px 18px;border-bottom:1px solid var(--rule)">
+<span style="font:500 10px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-50)">Conversation</span>
+</div>
+<div style="flex:1;overflow-y:auto;min-height:0;padding:16px 18px;display:flex;flex-direction:column;gap:16px">
+<sc-for list="{{ convo }}" as="c" hint-placeholder-count="4">
+<div style="{{ c.wrapStyle }}">
+<div style="font:500 9.5px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-34);margin-bottom:5px">{{ c.who }}</div>
+<div style="font:400 13px/1.55 var(--font-body);color:var(--ink-70);text-wrap:pretty">{{ c.text }}</div>
+</div>
+</sc-for>
+</div>
+<div style="flex:none;border-top:1px solid var(--rule);padding:14px 18px;display:flex;flex-direction:column;gap:9px">
+<div style="display:flex;gap:8px">
+<button onClick="{{ approve }}" style="{{ approveStyle }}" style-hover="opacity:.85">{{ approveLabel }}</button>
+<button onClick="{{ reject }}" style="flex:1;font:600 11.5px/1 var(--mono);color:var(--ink-70);background:transparent;border:1px solid var(--rule);border-radius:999px;padding:10px;cursor:pointer" style-hover="color:var(--ink);border-color:var(--ink-50)">reject</button>
+</div>
+<span style="font:400 10px/1 var(--mono);color:var(--ink-34);text-align:center">{{ verdict }}</span>
+</div>
+</div>
+
+</div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;dark&quot;,&quot;light&quot;],&quot;default&quot;:&quot;dark&quot;,&quot;tsType&quot;:&quot;'dark'|'light'&quot;}}">
+const FILES = [
+  { path:"src/auth/keys.ts", plus:"+42", minus:"−7", lines:[
+    { n:"41", t:" export function currentKey(): SigningKey {", k:"c" },
+    { n:"42", t:"-  return KEYS[0];", k:"m" },
+    { n:"42", t:"+  const active = KEYS.find(k => k.state === 'active');", k:"p" },
+    { n:"43", t:"+  if (!active) throw new KeyRotationError('no active key');", k:"p" },
+    { n:"44", t:"+  return active;", k:"p" },
+    { n:"45", t:" }", k:"c" }
+  ]},
+  { path:"src/auth/verify.ts", plus:"+9", minus:"−2", lines:[
+    { n:"8", t:" const keys = verifyingKeys();", k:"c" },
+    { n:"9", t:"-const key = keys[0];", k:"m" },
+    { n:"9", t:"+for (const key of keys) {", k:"p" },
+    { n:"10", t:"+  if (verify(token, key)) return true;", k:"p" },
+    { n:"11", t:"+}", k:"p" }
+  ]}
+];
+
+const CONVO = [
+  { who:"you", text:"Rotate the JWT signing keys across auth-service. Old key stays valid while sessions drain." },
+  { who:"kestrel", text:"Two callers read the secret at module load, so I moved the lookup behind a getter and kept retired keys available for verification only." },
+  { who:"kestrel", text:"session.ts caches decoded tokens for 15 minutes — should the rotation force those caches to re-verify, or let them expire naturally?" }
+];
+
+class Component extends DCLogic {
+  state = { theme: "dark", verdict: "" };
+  componentDidMount() { document.body.dataset.theme = this.props.theme || this.state.theme; }
+  componentDidUpdate() { document.body.dataset.theme = this.state.theme; }
+
+  renderVals() {
+    const st = this.state;
+    return {
+      themeLabel: st.theme === "dark" ? "Light" : "Dark",
+      toggleTheme: () => this.setState(s => ({ theme: s.theme === "dark" ? "light" : "dark" })),
+      back: () => {},
+      agent: { mono:"BE", name:"Kestrel", repo:"auth-service", branch:"feat/keys", task:"Rotate the JWT signing keys", plus:"+51", minus:"−9", files:2 },
+      files: FILES.map(f => ({
+        path: f.path, plus: f.plus, minus: f.minus,
+        lines: f.lines.map(d => ({
+          n: d.n, text: d.t,
+          style: { font:"400 11.5px/1.75 var(--mono)", whiteSpace:"pre", display:"flex", gap:"12px", padding:"0 20px",
+                   color:"var(--ink)",
+                   background: d.k === "p" ? "var(--plus)" : d.k === "m" ? "var(--minus)" : "transparent" },
+          gutStyle: { width:"22px", flex:"none", textAlign:"right", color:"var(--ink-34)", userSelect:"none" }
+        }))
+      })),
+      convo: CONVO.map(c => ({
+        who: c.who, text: c.text,
+        wrapStyle: c.who === "you" ? { borderLeft:"2px solid var(--ink-16)", paddingLeft:"12px" } : {}
+      })),
+      approveLabel: st.verdict === "approved" ? "approved ✓" : "approve",
+      approveStyle: { flex:1, font:"600 11.5px/1 var(--mono)", color:"var(--paper)", background:"var(--live)", border:"none", borderRadius:"999px", padding:"10px", cursor:"pointer", animation: st.verdict ? "none" : "reviewApprovePulse 1.8s ease-out infinite" },
+      pendingDotStyle: st.verdict ? { display:"none" } : { width:"6px", height:"6px", borderRadius:"999px", background:"var(--signal)", flex:"none", animation:"sevPulseSoft 2s ease-in-out infinite" },
+      approve: () => this.setState({ verdict:"approved" }),
+      reject: () => this.setState({ verdict:"rejected" }),
+      verdict: st.verdict === "approved" ? "Merged to main" : st.verdict === "rejected" ? "Sent back to Kestrel" : "⌘⏎ approves"
+    };
+  }
+}
+
+</script>
+</body>
+</html>

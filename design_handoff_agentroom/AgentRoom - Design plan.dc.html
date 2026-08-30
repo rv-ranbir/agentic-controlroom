@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/organic-786f58df-7aae-479f-b4c6-b07707d51e8a/styles.css">
+<script src="_ds/organic-786f58df-7aae-479f-b4c6-b07707d51e8a/_ds_bundle.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Spline+Sans+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#1B1814; --deck:#241F1A; --rule:#3A332B; --ink:#F0E7D6;
+  --signal:#D67F48; --live:#AEBF92;
+  --ink-70:rgba(240,231,214,.74); --ink-50:rgba(240,231,214,.5); --ink-34:rgba(240,231,214,.32);
+  --mono:"Spline Sans Mono",ui-monospace,Menlo,monospace;
+}
+body[data-theme="light"]{
+  --paper:#F5EAD8; --deck:#EBDDC5; --rule:#D0C2A6; --ink:#201E1D;
+  --signal:#B2622D; --live:#56633F;
+  --ink-70:rgba(32,30,29,.74); --ink-50:rgba(32,30,29,.5); --ink-34:rgba(32,30,29,.3);
+}
+body{margin:0;background:var(--paper);color:var(--ink);-webkit-font-smoothing:antialiased}
+a{color:var(--signal);text-decoration:none;border-bottom:1px solid currentColor}
+a:hover{color:var(--ink)}
+@keyframes caret{50%{opacity:.1}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</helmet>
+
+<div style="min-height:100vh;background:var(--paper);padding:0 0 120px">
+
+<div style="max-width:1080px;margin:0 auto;padding:0 48px">
+
+<header style="padding:72px 0 0;display:flex;align-items:flex-start;justify-content:space-between;gap:40px">
+<div>
+<div style="font:500 10.5px/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--signal);margin-bottom:18px">Design plan · before anything gets built</div>
+<h1 style="font-family:var(--font-heading);font-size:52px;line-height:.98;letter-spacing:-.02em;margin:0 0 18px;color:var(--ink)">AgentRoom</h1>
+<p style="font:400 17px/1.5 var(--font-body);color:var(--ink-70);max-width:46ch;margin:0;text-wrap:pretty">A supervision position for fourteen agents working in parallel. It answers one question — <span style="color:var(--ink)">who is blocked on me?</span> — and treats everything else as secondary.</p>
+</div>
+<button onClick="{{ toggleTheme }}" style="flex:none;font:500 11px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-70);background:transparent;border:1px solid var(--rule);border-radius:999px;padding:11px 18px;cursor:pointer;margin-top:34px" style-hover="border-color:var(--ink-50);color:var(--ink)">{{ themeLabel }}</button>
+</header>
+
+<div style="height:1px;background:var(--rule);margin:64px 0 0"></div>
+
+<section style="padding:56px 0 0;display:grid;grid-template-columns:180px 1fr;gap:48px;align-items:start">
+<h2 style="font:500 10.5px/1.4 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-50);margin:4px 0 0">Where I stand</h2>
+<div style="display:flex;flex-direction:column;gap:22px;max-width:62ch">
+<p style="font:400 15px/1.62 var(--font-body);color:var(--ink-70);margin:0;text-wrap:pretty">Your brief rules out warm cream with terracotta, and the design system bound to this project <em style="color:var(--ink);font-style:normal">is</em> warm cream with terracotta. I'm not abandoning it — I'm inverting it. Organic's warm neutral ramp goes deep and becomes the paper; its sage becomes the voice of ordinary work; its terracotta is spent in exactly one place, on one state, as a fill rather than an accent. Nothing else in the room is saturated. That is a different garment cut from the same cloth, and it happens to solve the state problem for free.</p>
+<p style="font:400 15px/1.62 var(--font-body);color:var(--ink-70);margin:0;text-wrap:pretty">I couldn't reach the attached <code style="font:400 13.5px var(--mono);color:var(--ink)">agent-room</code> folder from here, so state names and roles come from your brief and the three screenshots. If the real spec names them differently, that's a find-and-replace, not a redesign.</p>
+<p style="font:400 15px/1.62 var(--font-body);color:var(--ink-70);margin:0;text-wrap:pretty">Assuming: fourteen agents, both themes designed properly, a simulated live stream, and the seven row actions you picked — reply, approve, pause, reassign, fork, open terminal, mark reviewed.</p>
+</div>
+</section>
+
+<div style="height:1px;background:var(--rule);margin:56px 0 0"></div>
+
+<section style="padding:56px 0 0;display:grid;grid-template-columns:180px 1fr;gap:48px;align-items:start">
+<h2 style="font:500 10.5px/1.4 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-50);margin:4px 0 0">Palette<br><span style="color:var(--ink-34)">six values</span></h2>
+<div>
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--rule);border:1px solid var(--rule);border-radius:var(--radius-sm);overflow:hidden">
+
+<div style="background:var(--paper);padding:26px 20px 22px;display:flex;flex-direction:column;gap:44px">
+<div style="width:26px;height:26px;border-radius:999px;background:#1B1814;border:1px solid var(--rule)"></div>
+<div><div style="font:600 13px/1.2 var(--font-body);color:var(--ink)">Paper</div><div style="font:400 11px/1.5 var(--mono);color:var(--ink-50);margin-top:4px">#1B1814 / #F5EAD8</div><div style="font:400 12px/1.45 var(--font-body);color:var(--ink-50);margin-top:8px">Warm dark, not blue-black. The room's ground.</div></div>
+</div>
+
+<div style="background:var(--paper);padding:26px 20px 22px;display:flex;flex-direction:column;gap:44px">
+<div style="width:26px;height:26px;border-radius:999px;background:#241F1A;border:1px solid var(--rule)"></div>
+<div><div style="font:600 13px/1.2 var(--font-body);color:var(--ink)">Deck</div><div style="font:400 11px/1.5 var(--mono);color:var(--ink-50);margin-top:4px">#241F1A / #EBDDC5</div><div style="font:400 12px/1.45 var(--font-body);color:var(--ink-50);margin-top:8px">Roster and composer sit one step up from paper.</div></div>
+</div>
+
+<div style="background:var(--paper);padding:26px 20px 22px;display:flex;flex-direction:column;gap:44px">
+<div style="width:26px;height:26px;border-radius:999px;background:#3A332B;border:1px solid var(--rule)"></div>
+<div><div style="font:600 13px/1.2 var(--font-body);color:var(--ink)">Rule</div><div style="font:400 11px/1.5 var(--mono);color:var(--ink-50);margin-top:4px">#3A332B / #D0C2A6</div><div style="font:400 12px/1.45 var(--font-body);color:var(--ink-50);margin-top:8px">Every division is a hairline. No card borders, no fills.</div></div>
+</div>
+
+<div style="background:var(--paper);padding:26px 20px 22px;display:flex;flex-direction:column;gap:44px">
+<div style="width:26px;height:26px;border-radius:999px;background:#F0E7D6"></div>
+<div><div style="font:600 13px/1.2 var(--font-body);color:var(--ink)">Ink</div><div style="font:400 11px/1.5 var(--mono);color:var(--ink-50);margin-top:4px">#F0E7D6 / #201E1D</div><div style="font:400 12px/1.45 var(--font-body);color:var(--ink-50);margin-top:8px">Off-white with warmth in it. Four luminance steps do all the state work.</div></div>
+</div>
+
+<div style="background:var(--paper);padding:26px 20px 22px;display:flex;flex-direction:column;gap:44px">
+<div style="width:26px;height:26px;border-radius:999px;background:#D67F48"></div>
+<div><div style="font:600 13px/1.2 var(--font-body);color:var(--ink)">Signal</div><div style="font:400 11px/1.5 var(--mono);color:var(--ink-50);margin-top:4px">#D67F48 / #B2622D</div><div style="font:400 12px/1.45 var(--font-body);color:var(--ink-50);margin-top:8px">Appears on needs-input rows and nowhere else. Not on buttons, not on chrome.</div></div>
+</div>
+
+<div style="background:var(--paper);padding:26px 20px 22px;display:flex;flex-direction:column;gap:44px">
+<div style="width:26px;height:26px;border-radius:999px;background:#AEBF92"></div>
+<div><div style="font:600 13px/1.2 var(--font-body);color:var(--ink)">Live</div><div style="font:400 11px/1.5 var(--mono);color:var(--ink-50);margin-top:4px">#AEBF92 / #56633F</div><div style="font:400 12px/1.45 var(--font-body);color:var(--ink-50);margin-top:8px">Sage. Work happening, tests passing, the rail's normal tick.</div></div>
+</div>
+
+</div>
+<p style="font:400 13.5px/1.6 var(--font-body);color:var(--ink-50);margin:20px 0 0;max-width:64ch;text-wrap:pretty">Signal and live are the only two saturated values, and they never occupy the same channel: signal is a <em style="font-style:normal;color:var(--ink-70)">fill</em> behind text, live is a <em style="font-style:normal;color:var(--ink-70)">mark</em> two pixels wide. You can't confuse them at any distance.</p>
+</div>
+</section>
+
+<div style="height:1px;background:var(--rule);margin:56px 0 0"></div>
+
+<section style="padding:56px 0 0;display:grid;grid-template-columns:180px 1fr;gap:48px;align-items:start">
+<h2 style="font:500 10.5px/1.4 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-50);margin:4px 0 0">Type<br><span style="color:var(--ink-34)">code face first</span></h2>
+<div style="display:flex;flex-direction:column;gap:0">
+
+<div style="padding:0 0 32px;border-bottom:1px solid var(--rule)">
+<div style="display:flex;align-items:baseline;gap:14px;margin-bottom:14px"><span style="font:500 10.5px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--signal)">01 · code</span><span style="font:600 15px/1 var(--font-body);color:var(--ink)">Spline Sans Mono</span></div>
+<div style="font:400 19px/1.5 var(--mono);color:var(--ink);letter-spacing:-.01em">Edit(src/auth/rotate.ts) → 42 lines · 1,284 tok/s</div>
+<p style="font:400 13.5px/1.6 var(--font-body);color:var(--ink-50);margin:12px 0 0;max-width:60ch;text-wrap:pretty">Chosen first, because it's on screen more than the other two combined. Humanist rather than geometric, low stroke contrast so it doesn't glitter at 13px over eight hours, and narrow enough to hold a 100-column diff. Not JetBrains Mono, not Plex — those are the reflex, and this reader would notice.</p>
+</div>
+
+<div style="padding:32px 0;border-bottom:1px solid var(--rule)">
+<div style="display:flex;align-items:baseline;gap:14px;margin-bottom:14px"><span style="font:500 10.5px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--signal)">02 · ui</span><span style="font:600 15px/1 var(--font-body);color:var(--ink)">Figtree</span></div>
+<div style="font:600 19px/1.4 var(--font-body);letter-spacing:-.015em;color:var(--ink)">Rotate the JWT signing keys · Needs input · 4 to review</div>
+<p style="font:400 13.5px/1.6 var(--font-body);color:var(--ink-50);margin:12px 0 0;max-width:60ch;text-wrap:pretty">Organic's body face, kept. Its rounded terminals agree with the mono's humanism, and at 12.5px with tightened tracking it stays crisp in a 280px roster. Chrome, labels, task names — never terminal content.</p>
+</div>
+
+<div style="padding:32px 0">
+<div style="display:flex;align-items:baseline;gap:14px;margin-bottom:14px"><span style="font:500 10.5px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--signal)">03 · display</span><span style="font:600 15px/1 var(--font-body);color:var(--ink)">Caprasimo</span></div>
+<div style="font-family:var(--font-heading);font-size:40px;line-height:1;letter-spacing:-.02em;color:var(--ink)">Nobody needs you.</div>
+<p style="font:400 13.5px/1.6 var(--font-body);color:var(--ink-50);margin:14px 0 0;max-width:60ch;text-wrap:pretty">Organic's display voice, and the one loud thing in the system — which is why it only appears when the room is quiet. Empty states, the launcher wordmark, and the moment the needs-input bucket clears. Its warmth is the reward for having no work; the working interface never shows it.</p>
+</div>
+
+</div>
+</section>
+
+<div style="height:1px;background:var(--rule);margin:56px 0 0"></div>
+
+<section style="padding:56px 0 0">
+<div style="display:grid;grid-template-columns:180px 1fr;gap:48px;align-items:start;margin-bottom:36px">
+<h2 style="font:500 10.5px/1.4 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-50);margin:4px 0 0">The state system<br><span style="color:var(--ink-34)">the actual answer</span></h2>
+<div style="max-width:62ch;display:flex;flex-direction:column;gap:18px">
+<p style="font:400 15px/1.62 var(--font-body);color:var(--ink-70);margin:0;text-wrap:pretty">The lever is <span style="color:var(--ink)">figure and ground, then luminance decay</span> — not hue.</p>
+<p style="font:400 15px/1.62 var(--font-body);color:var(--ink-70);margin:0;text-wrap:pretty">Needs input is the only state that is <span style="color:var(--ink)">filled</span>. Every other row is ink on paper; a blocked row inverts into a solid plate. Figure/ground inversion is the loudest signal available and it costs no colour, so it doesn't degrade as the roster grows: six plates means six things need you, which is the truth. The other four states are the same neutral at descending ink strength — 100, 74, 50, 32 percent — so the roster reads top-to-bottom as a fade. Bright means yours. Dim means handled.</p>
+</div>
+</div>
+
+<div style="display:flex;gap:36px;flex-wrap:wrap;align-items:flex-start">
+
+<div style="flex:none;width:340px">
+<div style="font:500 10.5px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--ink-34);margin-bottom:12px">Five states, at size</div>
+<div style="background:var(--deck);border:1px solid var(--rule);border-radius:var(--radius-sm);overflow:hidden">
+
+<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 14px 8px"><span style="font:500 10px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--signal)">Needs input</span><span style="font:400 10px/1 var(--mono);color:var(--ink-34)">1</span></div>
+<div style="display:flex;align-items:center;gap:11px;height:50px;padding:0 12px;background:var(--signal);color:#1B1814">
+<span style="font:600 10.5px/1 var(--mono);letter-spacing:.06em;width:21px;flex:none">BE</span>
+<span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
+<span style="font:700 12.5px/1.15 var(--font-body);letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Rotate the JWT signing keys</span>
+<span style="font:400 10.5px/1 var(--mono);opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">auth-service · asked 2m ago</span>
+</span>
+<span style="font:600 10.5px/1 var(--mono);flex:none">reply ⏎</span>
+</div>
+
+<div style="display:flex;align-items:center;justify-content:space-between;padding:16px 14px 8px"><span style="font:500 10px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-50)">To review</span><span style="font:400 10px/1 var(--mono);color:var(--ink-34)">1</span></div>
+<div style="display:flex;align-items:center;gap:11px;height:50px;padding:0 12px 0 10px;border-left:2px solid var(--ink);color:var(--ink)">
+<span style="font:600 10.5px/1 var(--mono);letter-spacing:.06em;width:21px;flex:none">FE</span>
+<span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
+<span style="font:600 12.5px/1.15 var(--font-body);letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Extract the user list row</span>
+<span style="font:400 10.5px/1 var(--mono);color:var(--ink-50);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">web-app · done 6m ago</span>
+</span>
+<span style="font:400 10.5px/1 var(--mono);flex:none;color:var(--ink-70)">+42 −7</span>
+</div>
+
+<div style="display:flex;align-items:center;justify-content:space-between;padding:16px 14px 8px"><span style="font:500 10px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-50)">Active</span><span style="font:400 10px/1 var(--mono);color:var(--ink-34)">1</span></div>
+<div style="display:flex;align-items:center;gap:11px;height:50px;padding:0 12px 0 10px;border-left:2px solid var(--live);color:var(--ink-70)">
+<span style="font:600 10.5px/1 var(--mono);letter-spacing:.06em;width:21px;flex:none">QA</span>
+<span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
+<span style="font:600 12.5px/1.15 var(--font-body);letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Chase the flaky checkout test</span>
+<span style="font:400 10.5px/1 var(--mono);color:var(--ink-50);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">web-app · 1,284 tok/s</span>
+</span>
+<span style="font:400 10.5px/1 var(--mono);flex:none;color:var(--live)">4m</span>
+</div>
+
+<div style="display:flex;align-items:center;justify-content:space-between;padding:16px 14px 8px"><span style="font:500 10px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-34)">Seen</span><span style="font:400 10px/1 var(--mono);color:var(--ink-34)">1</span></div>
+<div style="display:flex;align-items:center;gap:11px;height:50px;padding:0 12px 0 10px;border-left:2px solid var(--rule);color:var(--ink-50)">
+<span style="font:600 10.5px/1 var(--mono);letter-spacing:.06em;width:21px;flex:none">DO</span>
+<span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
+<span style="font:600 12.5px/1.15 var(--font-body);letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Pin the runner image</span>
+<span style="font:400 10.5px/1 var(--mono);color:var(--ink-34);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">infra · reviewed 22m ago</span>
+</span>
+<span style="font:400 11px/1 var(--mono);flex:none;color:var(--ink-34)">✓</span>
+</div>
+
+<div style="display:flex;align-items:center;justify-content:space-between;padding:16px 14px 8px"><span style="font:500 10px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-34)">Inactive</span><span style="font:400 10px/1 var(--mono);color:var(--ink-34)">1</span></div>
+<div style="display:flex;align-items:center;gap:11px;height:44px;padding:0 12px;color:var(--ink-34)">
+<span style="font:600 10.5px/1 var(--mono);letter-spacing:.06em;width:21px;flex:none">PM</span>
+<span style="flex:1;min-width:0;font:400 12.5px/1.15 var(--font-body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Architect · idle</span>
+</div>
+<div style="height:10px"></div>
+
+</div>
+<p style="font:400 12.5px/1.55 var(--font-body);color:var(--ink-50);margin:14px 0 0;text-wrap:pretty">Note what the left edge does: solid ink for review, sage for active, hairline for seen, nothing for inactive. Structure carries the distinction; the blocked row doesn't need an edge because it <em style="font-style:normal;color:var(--ink-70)">is</em> the edge.</p>
+</div>
+
+<div style="flex:none;width:340px">
+<div style="font:500 10.5px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--ink-34);margin-bottom:12px">Fourteen rows · squint test</div>
+<div style="display:flex;gap:14px;align-items:flex-start">
+
+<div style="flex:1;min-width:0;background:var(--deck);border:1px solid var(--rule);border-radius:var(--radius-sm);overflow:hidden;padding:6px 0">
+<sc-for list="{{ roster }}" as="r" hint-placeholder-count="14">
+<div style="{{ r.rowStyle }}">
+<span style="{{ r.plateStyle }}"></span>
+<span style="{{ r.barStyle }}"></span>
+</div>
+</sc-for>
+</div>
+
+<div style="flex:1;min-width:0;background:var(--deck);border:1px solid var(--rule);border-radius:var(--radius-sm);overflow:hidden;padding:6px 0;filter:blur(3.4px)">
+<sc-for list="{{ roster }}" as="r" hint-placeholder-count="14">
+<div style="{{ r.rowStyle }}">
+<span style="{{ r.plateStyle }}"></span>
+<span style="{{ r.barStyle }}"></span>
+</div>
+</sc-for>
+</div>
+
+</div>
+<p style="font:400 12.5px/1.55 var(--font-body);color:var(--ink-50);margin:14px 0 0;text-wrap:pretty">Left: the roster at fourteen. Right: the same thing out of focus, which is what it looks like from across the room. Two blocked rows survive the blur. Nothing else does — and nothing else should.</p>
+</div>
+
+</div>
+
+<div style="display:grid;grid-template-columns:180px 1fr;gap:48px;align-items:start;margin-top:48px;padding-top:36px;border-top:1px solid var(--rule)">
+<h2 style="font:500 10.5px/1.4 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-50);margin:4px 0 0">Role, the second channel</h2>
+<div style="max-width:62ch">
+<p style="font:400 15px/1.62 var(--font-body);color:var(--ink-70);margin:0 0 20px;text-wrap:pretty">Role never gets a colour, because colour is spoken for. Role is a two-letter monogram in a fixed slot at the row's left edge, set in the code face — and critically it inherits the row's ink strength, so it <span style="color:var(--ink)">rides on</span> state rather than competing with it. A dim role is a dim row. Seven letterforms are learned in a day and then read faster than any icon.</p>
+<div style="display:flex;gap:1px;background:var(--rule);border:1px solid var(--rule);border-radius:var(--radius-sm);overflow:hidden">
+<div style="flex:1;background:var(--paper);padding:14px 0 12px;text-align:center"><div style="font:600 13px/1 var(--mono);letter-spacing:.06em;color:var(--ink)">FE</div><div style="font:400 10px/1.3 var(--font-body);color:var(--ink-34);margin-top:6px">Frontend</div></div>
+<div style="flex:1;background:var(--paper);padding:14px 0 12px;text-align:center"><div style="font:600 13px/1 var(--mono);letter-spacing:.06em;color:var(--ink)">BE</div><div style="font:400 10px/1.3 var(--font-body);color:var(--ink-34);margin-top:6px">Backend</div></div>
+<div style="flex:1;background:var(--paper);padding:14px 0 12px;text-align:center"><div style="font:600 13px/1 var(--mono);letter-spacing:.06em;color:var(--ink)">QA</div><div style="font:400 10px/1.3 var(--font-body);color:var(--ink-34);margin-top:6px">QA</div></div>
+<div style="flex:1;background:var(--paper);padding:14px 0 12px;text-align:center"><div style="font:600 13px/1 var(--mono);letter-spacing:.06em;color:var(--ink)">DO</div><div style="font:400 10px/1.3 var(--font-body);color:var(--ink-34);margin-top:6px">DevOps</div></div>
+<div style="flex:1;background:var(--paper);padding:14px 0 12px;text-align:center"><div style="font:600 13px/1 var(--mono);letter-spacing:.06em;color:var(--ink)">SE</div><div style="font:400 10px/1.3 var(--font-body);color:var(--ink-34);margin-top:6px">Security</div></div>
+<div style="flex:1;background:var(--paper);padding:14px 0 12px;text-align:center"><div style="font:600 13px/1 var(--mono);letter-spacing:.06em;color:var(--ink)">AR</div><div style="font:400 10px/1.3 var(--font-body);color:var(--ink-34);margin-top:6px">Architect</div></div>
+<div style="flex:1;background:var(--paper);padding:14px 0 12px;text-align:center"><div style="font:600 13px/1 var(--mono);letter-spacing:.06em;color:var(--ink)">PM</div><div style="font:400 10px/1.3 var(--font-body);color:var(--ink-34);margin-top:6px">PM</div></div>
+</div>
+</div>
+</div>
+
+</section>
+
+<div style="height:1px;background:var(--rule);margin:56px 0 0"></div>
+
+<section style="padding:56px 0 0;display:grid;grid-template-columns:180px 1fr;gap:48px;align-items:start">
+<h2 style="font:500 10.5px/1.4 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-50);margin:4px 0 0">Signature<br><span style="color:var(--signal)">the Rail</span></h2>
+<div>
+<div style="display:flex;gap:36px;align-items:flex-start;flex-wrap:wrap">
+<div style="flex:none;background:var(--deck);border:1px solid var(--rule);border-radius:var(--radius-sm);padding:12px">
+<canvas ref="{{ railRef }}" width="120" height="600" style="display:block;width:60px;height:300px"></canvas>
+</div>
+<div style="flex:1;min-width:300px;max-width:52ch;display:flex;flex-direction:column;gap:18px">
+<p style="font:400 15px/1.62 var(--font-body);color:var(--ink-70);margin:0;text-wrap:pretty">One narrow column, full window height, between the roster and the stream. Every agent owns a permanent lane in it. When an agent emits, a tick appears in its lane at <em style="font-style:normal;color:var(--ink)">now</em> and drifts downward as time passes — so the rail is a strip chart of the whole room, newest at the top, the day accumulating below.</p>
+<p style="font:400 15px/1.62 var(--font-body);color:var(--ink-70);margin:0;text-wrap:pretty">It does four jobs with one gesture: you see the room is populated and working; you see who's been grinding versus who just woke; you learn where each agent lives spatially; and by mid-afternoon the day is a visible record you can scroll back through. A tick turns terracotta at the instant an agent blocks — so a question announces itself on the rail before you've looked at the roster.</p>
+<p style="font:400 13.5px/1.6 var(--font-body);color:var(--ink-50);margin:0;text-wrap:pretty">Under reduced motion it stops drifting and renders the same history as a static chart. It is the only moving thing in the interface.</p>
+</div>
+</div>
+</div>
+</section>
+
+<div style="height:1px;background:var(--rule);margin:56px 0 0"></div>
+
+<section style="padding:56px 0 0;display:grid;grid-template-columns:180px 1fr;gap:48px;align-items:start">
+<h2 style="font:500 10.5px/1.4 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-50);margin:4px 0 0">Layout</h2>
+<div>
+<div style="display:flex;gap:1px;background:var(--rule);border:1px solid var(--rule);border-radius:var(--radius-sm);height:260px;overflow:hidden">
+<div style="width:120px;background:var(--deck);padding:12px;display:flex;flex-direction:column;justify-content:space-between"><span style="font:500 9.5px/1.4 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-50)">Roster<br>280px<br><span style="color:var(--ink-34)">bucketed</span></span><span style="font:400 9.5px/1.4 var(--mono);color:var(--ink-34)">j / k</span></div>
+<div style="width:26px;background:var(--paper);display:flex;align-items:center;justify-content:center"><span style="font:500 9.5px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--signal);writing-mode:vertical-rl">Rail</span></div>
+<div style="flex:1;background:var(--paper);display:flex;flex-direction:column">
+<div style="height:40px;border-bottom:1px solid var(--rule);display:flex;align-items:center;padding:0 14px"><span style="font:500 9.5px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-50)">Agent header · model · actions</span></div>
+<div style="flex:1;display:flex;align-items:center;justify-content:center"><span style="font:500 9.5px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-34)">Stream — block vocabulary</span></div>
+<div style="height:56px;border-top:1px solid var(--rule);display:flex;align-items:center;padding:0 14px;background:var(--deck)"><span style="font:500 9.5px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-50)">Composer</span></div>
+</div>
+<div style="width:96px;background:var(--deck);padding:12px"><span style="font:500 9.5px/1.4 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-34)">Changes<br>collapsed</span></div>
+</div>
+<p style="font:400 13.5px/1.6 var(--font-body);color:var(--ink-50);margin:18px 0 0;max-width:64ch;text-wrap:pretty">Three columns and no chrome above them but a thin project bar. The stream owns the space; the roster is narrow enough that fourteen rows and their bucket headers fit at 125% scaling without scrolling. Focus is a 2px signal outline on the row, and <code style="font:400 12.5px var(--mono);color:var(--ink-70)">j</code> / <code style="font:400 12.5px var(--mono);color:var(--ink-70)">k</code> walk it — the mouse is optional throughout.</p>
+</div>
+</section>
+
+<div style="height:1px;background:var(--rule);margin:56px 0 0"></div>
+
+<section style="padding:56px 0 0;display:grid;grid-template-columns:180px 1fr;gap:48px;align-items:start">
+<h2 style="font:500 10.5px/1.4 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-50);margin:4px 0 0">Next</h2>
+<div style="max-width:62ch">
+<ol style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:16px;counter-reset:n">
+<li style="display:flex;gap:16px;font:400 15px/1.55 var(--font-body);color:var(--ink-70)"><span style="font:500 11px/1.6 var(--mono);color:var(--signal);flex:none;width:20px">01</span><span>The room, built — fourteen agents, live stream, block vocabulary, the rail, full keyboard.</span></li>
+<li style="display:flex;gap:16px;font:400 15px/1.55 var(--font-body);color:var(--ink-70)"><span style="font:500 11px/1.6 var(--mono);color:var(--ink-34);flex:none;width:20px">02</span><span>Launcher and review pane, including opening a project from a local folder or a repo.</span></li>
+<li style="display:flex;gap:16px;font:400 15px/1.55 var(--font-body);color:var(--ink-70)"><span style="font:500 11px/1.6 var(--mono);color:var(--ink-34);flex:none;width:20px">03</span><span>Component sheet — every row state, tool block, indicator and composer, in both themes.</span></li>
+</ol>
+<p style="font:400 14px/1.6 var(--font-body);color:var(--ink-50);margin:28px 0 0;text-wrap:pretty">Say go and I'll build the room. If the terracotta plate is the part you want to argue about, that's the right thing to argue about — tell me now rather than after three screens exist.</p>
+</div>
+</section>
+
+</div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;dark&quot;,&quot;light&quot;],&quot;default&quot;:&quot;dark&quot;,&quot;tsType&quot;:&quot;'dark'|'light'&quot;}}">
+const NAMES=[["BE","needs"],["SE","needs"],["FE","review"],["AR","review"],["BE","review"],["QA","active"],["FE","active"],["DO","active"],["BE","active"],["PM","seen"],["FE","seen"],["QA","seen"],["DO","idle"],["AR","idle"]];
+
+class Component extends DCLogic {
+  state = { theme: "dark" };
+
+  componentDidMount() {
+    document.body.dataset.theme = this.props.theme || this.state.theme;
+    this.startRail();
+  }
+  componentDidUpdate() { document.body.dataset.theme = this.state.theme; }
+  componentWillUnmount() { cancelAnimationFrame(this._raf); }
+
+  startRail() {
+    const cv = this._rail; if (!cv) return;
+    const ctx = cv.getContext("2d");
+    const LANES = 14, W = cv.width, H = cv.height;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const ticks = [];
+    for (let y = 0; y < H; y += 3) {
+      for (let l = 0; l < LANES; l++) {
+        if (Math.random() < (l < 9 ? 0.16 : 0.03)) ticks.push({ l, y, hot: Math.random() < 0.012 });
+      }
+    }
+    const ink = () => getComputedStyle(document.body).getPropertyValue("--live").trim() || "#AEBF92";
+    const hot = () => getComputedStyle(document.body).getPropertyValue("--signal").trim() || "#D67F48";
+    const lw = W / LANES;
+    const draw = () => {
+      ctx.clearRect(0, 0, W, H);
+      const c1 = ink(), c2 = hot();
+      for (const t of ticks) {
+        if (t.y < 0 || t.y > H) continue;
+        ctx.globalAlpha = t.hot ? 0.95 : 0.16 + 0.5 * (1 - t.y / H);
+        ctx.fillStyle = t.hot ? c2 : c1;
+        ctx.fillRect(t.l * lw + 1, t.y, lw - 2, t.hot ? 3 : 2);
+      }
+      ctx.globalAlpha = 1;
+    };
+    if (reduce) { draw(); return; }
+    let last = performance.now();
+    const step = (now) => {
+      const dt = now - last; last = now;
+      for (const t of ticks) t.y += dt * 0.014;
+      const alive = ticks.filter(t => t.y <= H);
+      ticks.length = 0; ticks.push(...alive);
+      for (let l = 0; l < LANES; l++) {
+        if (Math.random() < (l < 9 ? 0.05 : 0.008)) ticks.push({ l, y: -2, hot: Math.random() < 0.02 });
+      }
+      draw();
+      this._raf = requestAnimationFrame(step);
+    };
+    this._raf = requestAnimationFrame(step);
+  }
+
+  renderVals() {
+    const ROW = { display: "flex", alignItems: "center", gap: "8px", height: "26px", padding: "0 9px 0 7px" };
+    const PLATE = { width: "44px", height: "14px", borderRadius: "2px", flex: "none" };
+    const BAR = { flex: "1", height: "5px", borderRadius: "2px" };
+    const S = {
+      needs: { row: { background: "var(--signal)" }, plate: { background: "#1B1814", opacity: .85 }, bar: { background: "#1B1814", opacity: .45 } },
+      review:{ row: { boxShadow: "inset 2px 0 0 var(--ink)" }, plate: { background: "var(--ink)", opacity: .9 }, bar: { background: "var(--ink)", opacity: .42 } },
+      active:{ row: { boxShadow: "inset 2px 0 0 var(--live)" }, plate: { background: "var(--ink)", opacity: .6 }, bar: { background: "var(--ink)", opacity: .28 } },
+      seen:  { row: { boxShadow: "inset 2px 0 0 var(--rule)" }, plate: { background: "var(--ink)", opacity: .36 }, bar: { background: "var(--ink)", opacity: .18 } },
+      idle:  { row: {}, plate: { background: "var(--ink)", opacity: .2 }, bar: { background: "var(--ink)", opacity: .1 } }
+    };
+    return {
+      themeLabel: this.state.theme === "dark" ? "Light" : "Dark",
+      toggleTheme: () => this.setState(s => ({ theme: s.theme === "dark" ? "light" : "dark" })),
+      railRef: (el) => { this._rail = el; },
+      roster: NAMES.map(([mono, st], i) => ({
+        mono, i,
+        rowStyle: { ...ROW, ...S[st].row },
+        plateStyle: { ...PLATE, ...S[st].plate },
+        barStyle: { ...BAR, ...S[st].bar }
+      }))
+    };
+  }
+}
+
+</script>
+</body>
+</html>

@@ -80,7 +80,7 @@ contextBridge.exposeInMainWorld("api", {
   removeSecret: (projectId: string, key: string) => ipcRenderer.invoke("secrets:remove", { projectId, key }),
   setAgentModel: (projectId: string, agentId: string, model: string) => ipcRenderer.invoke("agents:setModel", { projectId, agentId, model }),
   listAccounts: () => ipcRenderer.invoke("accounts:list"),
-  addAccount: (provider: "claude" | "cursor", name: string, env: Record<string, string>) => ipcRenderer.invoke("accounts:add", { provider, name, env }),
+  addAccount: (provider: "claude" | "cursor" | "openrouter", name: string, env: Record<string, string>) => ipcRenderer.invoke("accounts:add", { provider, name, env }),
   removeAccount: (id: string) => ipcRenderer.invoke("accounts:remove", { id }),
   setActiveAccount: (projectId: string, accountId?: string) => ipcRenderer.invoke("accounts:setActive", { projectId, accountId }),
   onQuotaEvent: (cb: (e: { projectId: string; agentId: string }) => void) => {
