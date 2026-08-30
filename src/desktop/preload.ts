@@ -40,8 +40,10 @@ contextBridge.exposeInMainWorld("api", {
   startMeeting: (projectId: string, agentIds: string[], topic: string, rounds: number) =>
     ipcRenderer.invoke("room:meeting", { projectId, agentIds, topic, rounds }),
   listTasks: (projectId: string) => ipcRenderer.invoke("tasks:list", projectId),
-  createTask: (projectId: string, title: string, description: string, assigneeAgentId: string | undefined, createdBy: string) =>
-    ipcRenderer.invoke("tasks:create", { projectId, title, description, assigneeAgentId, createdBy }),
+  createTask: (projectId: string, title: string, description: string, assigneeAgentId: string | undefined, createdBy: string, attachments?: string[]) =>
+    ipcRenderer.invoke("tasks:create", { projectId, title, description, assigneeAgentId, createdBy, attachments }),
+  pickAttachment: () => ipcRenderer.invoke("attachments:pick"),
+  openAttachment: (path: string) => ipcRenderer.invoke("attachments:open", path),
   updateTask: (projectId: string, id: string, patch: Record<string, unknown>) => ipcRenderer.invoke("tasks:update", { projectId, id, patch }),
   removeTask: (projectId: string, id: string) => ipcRenderer.invoke("tasks:remove", { projectId, id }),
   listDir: (path: string, sub: string) => ipcRenderer.invoke("fs:list", { path, sub }),

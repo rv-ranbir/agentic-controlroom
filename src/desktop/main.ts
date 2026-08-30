@@ -1,4 +1,4 @@
-import { app, BrowserWindow, desktopCapturer, dialog, ipcMain, Notification, safeStorage, screen } from "electron";
+import { app, BrowserWindow, desktopCapturer, dialog, ipcMain, Notification, safeStorage, screen, shell } from "electron";
 import { basename, join, relative, resolve, sep } from "node:path";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -326,7 +326,8 @@ interface TaskItem {
   description: string;
   status: "todo" | "in_progress" | "done";
   assigneeAgentId?: string;
-  createdBy: "pm" | "sm" | "user";
+  createdBy: string; // "pm" | "sm" | "user" | an agent's own name — free text, not a closed set (PM/SM are just agents too)
+  attachments?: string[]; // absolute file paths (screenshots, design files) — evidence attached to the task
   createdAt: string;
 }
 
@@ -1363,14 +1364,20 @@ app.whenReady().then(() => {
     saveTeams(loadTeams().filter((t) => t.id !== id));
   });
 
+  ipcMain.handle("attachments:pick", async () => {
+    const res = await dialog.showOpenDialog(win!, { properties: ["openFile"] });
+    return res.canceled ? null : res.filePaths[0];
+  });
+  ipcMain.handle("attachments:open", (_e, path: string) => shell.openPath(path));
+
   ipcMain.handle("tasks:list", (_e, projectId: string) => {
     const project = loadProjects().find((p) => p.id === projectId);
     return project ? loadTasks(project) : [];
   });
-  ipcMain.handle("tasks:create", (_e, { projectId, title, description, assigneeAgentId, createdBy }: { projectId: string; title: string; description: string; assigneeAgentId?: string; createdBy: TaskItem["createdBy"] }) => {
+  ipcMain.handle("tasks:create", (_e, { projectId, title, description, assigneeAgentId, createdBy, attachments }: { projectId: string; title: string; description: string; assigneeAgentId?: string; createdBy: TaskItem["createdBy"]; attachments?: string[] }) => {
     const project = loadProjects().find((p) => p.id === projectId);
     if (!project) throw new Error("Project not found");
-    const task: TaskItem = { id: randomUUID(), title, description, status: "todo", assigneeAgentId, createdBy, createdAt: new Date().toISOString() };
+    const task: TaskItem = { id: randomUUID(), title, description, status: "todo", assigneeAgentId, createdBy, attachments, createdAt: new Date().toISOString() };
     const tasks = loadTasks(project);
     tasks.push(task);
     saveTasks(project, tasks);

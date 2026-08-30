@@ -82,6 +82,21 @@ export function TaskBoard() {
                       <span className="pillBtn ghostBtn mono" style={{ padding: "1px 7px", cursor: "pointer" }} onClick={() => void remove(t)}>&times;</span>
                     </div>
                     {t.description && <div className="dim" style={{ fontSize: 11.5, marginTop: 4 }}>{t.description}</div>}
+                    {!!t.attachments?.length && (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 6 }}>
+                        {t.attachments.map((path) => (
+                          <span
+                            key={path}
+                            className="mono dim"
+                            title={path}
+                            style={{ fontSize: 10, border: "1px solid var(--rule)", borderRadius: 999, padding: "2px 8px", cursor: "pointer" }}
+                            onClick={() => void api.openAttachment(path)}
+                          >
+                            &#128206; {path.split(/[\\/]/).pop()}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                     <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
                       {agent && <div className="monogram mono" style={{ width: 18, height: 18, fontSize: 8.5, background: colorFor(agent.id) }}>{initials(agent.name)}</div>}
                       <select
@@ -118,15 +133,38 @@ export function TaskBoard() {
   );
 }
 
-function NewTaskModal({ project, onClose, onCreated }: { project: Project; onClose: () => void; onCreated: () => void }) {
+export function NewTaskModal({ project, onClose, onCreated, defaultReportedBy, defaultAssignee }: {
+  project: Project; onClose: () => void; onCreated: () => void; defaultReportedBy?: string; defaultAssignee?: string;
+}) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [assignee, setAssignee] = useState("");
-  const [createdBy, setCreatedBy] = useState<"pm" | "sm" | "user">("pm");
+  const [assignee, setAssignee] = useState(defaultAssignee ?? "");
+  const [createdBy, setCreatedBy] = useState<string>(defaultReportedBy ?? "pm");
+  const [attachments, setAttachments] = useState<string[]>([]);
+  const [pathInput, setPathInput] = useState("");
+  const [capturing, setCapturing] = useState(false);
+
+  const addScreenshot = async () => {
+    setCapturing(true);
+    try {
+      const path = await api.captureScreenshot(project.id, assignee || undefined);
+      setAttachments((a) => [...a, path]);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error(err);
+    } finally {
+      setCapturing(false);
+    }
+  };
+
+  const addFile = async () => {
+    const path = await api.pickAttachment();
+    if (path) setAttachments((a) => [...a, path]);
+  };
 
   const create = async () => {
     if (!title.trim()) return;
-    await api.createTask(project.id, title.trim(), description.trim(), assignee || undefined, createdBy);
+    await api.createTask(project.id, title.trim(), description.trim(), assignee || undefined, createdBy, attachments.length ? attachments : undefined);
     onCreated();
     onClose();
   };
@@ -151,10 +189,39 @@ function NewTaskModal({ project, onClose, onCreated }: { project: Project; onClo
           </select>
         </div>
         <div className="fField"><span className="fLabel">Created by</span>
-          <div className="segGroup">
-            {(["pm", "sm", "user"] as const).map((r) => (
-              <div key={r} className={`segOpt${createdBy === r ? " on" : ""}`} onClick={() => setCreatedBy(r)}>{r.toUpperCase()}</div>
-            ))}
+          {defaultReportedBy ? (
+            <div className="dim mono" style={{ fontSize: 12 }}>{defaultReportedBy}</div>
+          ) : (
+            <div className="segGroup">
+              {(["pm", "sm", "user"] as const).map((r) => (
+                <div key={r} className={`segOpt${createdBy === r ? " on" : ""}`} onClick={() => setCreatedBy(r)}>{r.toUpperCase()}</div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="fField">
+          <span className="fLabel">Attachments &mdash; <span style={{ textTransform: "none", letterSpacing: 0 }}>evidence, design files</span></span>
+          {attachments.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 8 }}>
+              {attachments.map((p, i) => (
+                <div key={i} className="mono dim" style={{ display: "flex", justifyContent: "space-between", fontSize: 11, gap: 8 }}>
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p}</span>
+                  <span style={{ cursor: "pointer", flexShrink: 0 }} onClick={() => setAttachments((a) => a.filter((_, j) => j !== i))}>&times;</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <div style={{ display: "flex", gap: 6 }}>
+            <input
+              className="fInput mono"
+              style={{ flex: 1 }}
+              placeholder="paste a file path, or…"
+              value={pathInput}
+              onChange={(e) => setPathInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && pathInput.trim()) { setAttachments((a) => [...a, pathInput.trim()]); setPathInput(""); } }}
+            />
+            <button className="pillBtn ghostBtn mono" disabled={capturing} onClick={() => void addScreenshot()}>{capturing ? "…" : "+ screenshot"}</button>
+            <button className="pillBtn ghostBtn mono" onClick={() => void addFile()}>+ file</button>
           </div>
         </div>
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>

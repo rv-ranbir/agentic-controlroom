@@ -57,7 +57,8 @@ export interface TaskItem {
   description: string;
   status: "todo" | "in_progress" | "done";
   assigneeAgentId?: string;
-  createdBy: "pm" | "sm" | "user";
+  createdBy: string;
+  attachments?: string[];
   createdAt: string;
 }
 
@@ -122,7 +123,9 @@ export interface DesktopApi {
   removeTeam(id: string): Promise<void>;
   startMeeting(projectId: string, agentIds: string[], topic: string, rounds: number): Promise<void>;
   listTasks(projectId: string): Promise<TaskItem[]>;
-  createTask(projectId: string, title: string, description: string, assigneeAgentId: string | undefined, createdBy: TaskItem["createdBy"]): Promise<TaskItem>;
+  createTask(projectId: string, title: string, description: string, assigneeAgentId: string | undefined, createdBy: TaskItem["createdBy"], attachments?: string[]): Promise<TaskItem>;
+  pickAttachment(): Promise<string | null>;
+  openAttachment(path: string): Promise<void>;
   updateTask(projectId: string, id: string, patch: Partial<TaskItem>): Promise<TaskItem>;
   removeTask(projectId: string, id: string): Promise<void>;
   listDir(projectPath: string, sub: string): Promise<{ name: string; path: string; isDir: boolean }[]>;

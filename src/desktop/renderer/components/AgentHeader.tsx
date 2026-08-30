@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { useStore } from "../store";
 import type { Bucket } from "../types";
 import { bucketOf, colorFor, CONTEXT_WARN_CHARS, elapsedLabel, initials, transcriptSize } from "../lib/agents";
 import { useNow } from "../lib/useNow";
+import { NewTaskModal } from "./TaskBoard";
 
 const PIP_COLOR: Record<Bucket, string> = {
   needs: "var(--signal)", review: "var(--ink)", active: "var(--live)", seen: "var(--rule)", idle: "var(--ink-34)",
@@ -29,6 +31,7 @@ export function AgentHeader({ onOpenReview, agentId, interactive = true }: { onO
   const messages = useStore((s) => s.messages);
   const modelSuggestion = useStore((s) => s.modelSuggestion);
   const { togglePaused, markReviewed, toggleRawMode, showToast, showView, bumpAgentModel, dismissModelSuggestion } = useStore.getState();
+  const [taskModalOpen, setTaskModalOpen] = useState(false);
 
   if (!project) {
     return (
@@ -62,6 +65,14 @@ export function AgentHeader({ onOpenReview, agentId, interactive = true }: { onO
 
   return (
     <div id="agentHeader">
+      {taskModalOpen && (
+        <NewTaskModal
+          project={project}
+          defaultReportedBy={agent?.name}
+          onClose={() => setTaskModalOpen(false)}
+          onCreated={() => showToast(`Task filed by ${agent?.name ?? "agent"}`)}
+        />
+      )}
       <div className="monogram mono" style={{ background: colorFor(selectedAgent) }}>{agent ? initials(agent.name) : "?"}</div>
       <div className="ahInfo">
         <div className="ahTitleRow">
@@ -94,6 +105,7 @@ export function AgentHeader({ onOpenReview, agentId, interactive = true }: { onO
           <button className="pillBtn ghostBtn mono" onClick={() => showToast("Reassign — not wired yet")}>reassign</button>
           <button className="pillBtn ghostBtn mono" onClick={() => showToast("Fork — not wired yet")}>fork</button>
           <button className="pillBtn ghostBtn mono" onClick={() => showView("terminal")}>terminal ↗</button>
+          <button className="pillBtn ghostBtn mono" onClick={() => setTaskModalOpen(true)}>+ task</button>
           {bucket === "review" && (
             <button className="pillBtn fillBtn mono" onClick={() => { markReviewed(selectedAgent); showToast(`Marked reviewed · ${agent?.name}`); }}>
               mark-reviewed
