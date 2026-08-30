@@ -30,6 +30,10 @@ contextBridge.exposeInMainWorld("api", {
   getCommits: (projectId: string) => ipcRenderer.invoke("room:commits", projectId),
   getCommitDiff: (projectId: string, agentId: string, sha: string) => ipcRenderer.invoke("room:commitDiff", { projectId, agentId, sha }),
   postBroadcast: (projectId: string, text: string) => ipcRenderer.invoke("room:post", { projectId, text }),
+  listLibrary: () => ipcRenderer.invoke("library:list"),
+  addToLibrary: (name: string, systemPrompt: string, model: string | undefined, extraArgs: string[] | undefined, skillIds: string[] | undefined) =>
+    ipcRenderer.invoke("library:add", { name, systemPrompt, model, extraArgs, skillIds }),
+  removeFromLibrary: (id: string) => ipcRenderer.invoke("library:remove", id),
   startMeeting: (projectId: string, agentIds: string[], topic: string, rounds: number) =>
     ipcRenderer.invoke("room:meeting", { projectId, agentIds, topic, rounds }),
   listTasks: (projectId: string) => ipcRenderer.invoke("tasks:list", projectId),

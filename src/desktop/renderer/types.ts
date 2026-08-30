@@ -30,6 +30,16 @@ export interface Msg {
   message: string;
 }
 
+export interface LibraryAgent {
+  id: string;
+  name: string;
+  systemPrompt: string;
+  model?: string;
+  extraArgs?: string[];
+  skillIds?: string[];
+  createdAt: string;
+}
+
 export interface TaskItem {
   id: string;
   title: string;
@@ -93,6 +103,9 @@ export interface DesktopApi {
   getCommits(projectId: string): Promise<CommitRecord[]>;
   getCommitDiff(projectId: string, agentId: string, sha: string): Promise<DiffResult>;
   postBroadcast(projectId: string, text: string): Promise<void>;
+  listLibrary(): Promise<LibraryAgent[]>;
+  addToLibrary(name: string, systemPrompt: string, model: string | undefined, extraArgs: string[] | undefined, skillIds: string[] | undefined): Promise<LibraryAgent>;
+  removeFromLibrary(id: string): Promise<void>;
   startMeeting(projectId: string, agentIds: string[], topic: string, rounds: number): Promise<void>;
   listTasks(projectId: string): Promise<TaskItem[]>;
   createTask(projectId: string, title: string, description: string, assigneeAgentId: string | undefined, createdBy: TaskItem["createdBy"]): Promise<TaskItem>;

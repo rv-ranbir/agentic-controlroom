@@ -264,6 +264,33 @@ function getDiff(path: string): DiffResult {
   }
 }
 
+// ── Global agent library (M9): custom agent configs reusable across any project ──
+interface LibraryAgent {
+  id: string;
+  name: string;
+  systemPrompt: string;
+  model?: string;
+  extraArgs?: string[];
+  skillIds?: string[];
+  createdAt: string;
+}
+
+function libraryFile(): string {
+  return join(app.getPath("userData"), "agent-library.json");
+}
+
+function loadLibrary(): LibraryAgent[] {
+  try {
+    return JSON.parse(readFileSync(libraryFile(), "utf8"));
+  } catch {
+    return [];
+  }
+}
+
+function saveLibrary(list: LibraryAgent[]): void {
+  writeFileSync(libraryFile(), JSON.stringify(list, null, 2));
+}
+
 // ── Task board (M9): PM/SM creates tasks, assigns to agents ────────
 interface TaskItem {
   id: string;
@@ -1282,6 +1309,18 @@ app.whenReady().then(() => {
     const project = loadProjects().find((p) => p.id === projectId);
     if (!project) throw new Error("Project not found");
     wiredLog(project).post("user", "user", text);
+  });
+
+  ipcMain.handle("library:list", () => loadLibrary());
+  ipcMain.handle("library:add", (_e, { name, systemPrompt, model, extraArgs, skillIds }: { name: string; systemPrompt: string; model?: string; extraArgs?: string[]; skillIds?: string[] }) => {
+    const list = loadLibrary();
+    const entry: LibraryAgent = { id: randomUUID(), name, systemPrompt, model, extraArgs, skillIds, createdAt: new Date().toISOString() };
+    list.push(entry);
+    saveLibrary(list);
+    return entry;
+  });
+  ipcMain.handle("library:remove", (_e, id: string) => {
+    saveLibrary(loadLibrary().filter((a) => a.id !== id));
   });
 
   ipcMain.handle("tasks:list", (_e, projectId: string) => {

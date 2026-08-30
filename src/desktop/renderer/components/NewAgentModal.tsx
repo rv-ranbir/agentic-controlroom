@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Accessibility, Activity, Award, Bot, BrainCircuit, ClipboardList, Compass, Database, FileText,
   FlaskConical, Gauge, Infinity as InfinityIcon, Languages, Layers, LayoutPanelLeft, LifeBuoy, Lock,
@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { useStore } from "../store";
 import { colorFor, initials } from "../lib/agents";
-import type { Project } from "../types";
+import type { LibraryAgent, Project } from "../types";
 
 const ENGINES: { id: string; label: string }[] = [
   { id: "cursor", label: "Cursor CLI" },
@@ -43,9 +43,14 @@ export function NewAgentModal({ onClose }: { onClose: () => void }) {
   const project = useStore((s) => s.projects.find((p) => p.id === selectedProjectId));
   const { addAgent, addCustomAgent, updateProjectBackend, showToast, refreshProjects } = useStore.getState();
 
-  const [ctab, setCtab] = useState<"template" | "custom">("template");
+  const [ctab, setCtab] = useState<"template" | "library" | "custom">("template");
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
   const [roleSearch, setRoleSearch] = useState("");
+  const [library, setLibrary] = useState<LibraryAgent[]>([]);
+  const [selectedLibraryId, setSelectedLibraryId] = useState<string | null>(null);
+  const [saveToLibrary, setSaveToLibrary] = useState(false);
+
+  useEffect(() => { void api.listLibrary().then(setLibrary); }, []);
   const [cName, setCName] = useState("");
   const [cRules, setCRules] = useState("");
   const [skills, setSkills] = useState<string[]>([]);
@@ -77,6 +82,11 @@ export function NewAgentModal({ onClose }: { onClose: () => void }) {
       const skillsLine = skills.length ? `Skills: ${skills.join(", ")}` : "";
       const systemPrompt = override || [rules, skillsLine].filter(Boolean).join("\n\n") || `You are ${name}.`;
       await addCustomAgent(name, systemPrompt, finalModel || undefined, extraArgs, advWorktree);
+      if (saveToLibrary) await api.addToLibrary(name, systemPrompt, finalModel || undefined, extraArgs, skills.length ? skills : undefined);
+    } else if (ctab === "library") {
+      const entry = library.find((l) => l.id === selectedLibraryId);
+      if (!entry) { showToast("Pick a library agent"); return; }
+      await addCustomAgent(entry.name, entry.systemPrompt, finalModel || entry.model, extraArgs ?? entry.extraArgs, advWorktree);
     } else if (override) {
       const role = roles.find((r) => r.id === selectedRoleId);
       await addCustomAgent(role?.name ?? "Custom agent", override, finalModel || undefined, extraArgs, advWorktree);
@@ -98,8 +108,54 @@ export function NewAgentModal({ onClose }: { onClose: () => void }) {
 
         <div className="segGroup" style={{ marginBottom: 14 }}>
           <div className={`segOpt${ctab === "template" ? " on" : ""}`} onClick={() => setCtab("template")}>From template</div>
+          <div className={`segOpt${ctab === "library" ? " on" : ""}`} onClick={() => setCtab("library")}>From library</div>
           <div className={`segOpt${ctab === "custom" ? " on" : ""}`} onClick={() => setCtab("custom")}>Custom</div>
         </div>
+
+        {ctab === "library" && (
+          <div className="fField">
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 9 }}>
+              <span className="fLabel" style={{ marginBottom: 0 }}>Your agent library</span>
+              <span className="dim mono" style={{ fontSize: 10.5 }}>{library.length} saved</span>
+            </div>
+            {library.length === 0 && (
+              <div className="dim" style={{ fontSize: 12.5, padding: "12px 0" }}>
+                Nothing saved yet — create a Custom agent and check "save to library" to reuse it in other projects.
+              </div>
+            )}
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {library.map((l) => {
+                const on = selectedLibraryId === l.id;
+                return (
+                  <div
+                    key={l.id}
+                    onClick={() => setSelectedLibraryId(l.id)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 10, padding: "9px 11px", cursor: "pointer",
+                      background: on ? "var(--ink-16)" : "var(--paper)", border: `1px solid ${on ? "var(--ink-50)" : "var(--rule)"}`, borderRadius: 8,
+                    }}
+                  >
+                    <div className="monogram mono" style={{ width: 24, height: 24, fontSize: 9.5, flexShrink: 0, background: colorFor(l.id) }}>{initials(l.name)}</div>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ font: "600 12.5px/1.3 var(--font-body)", color: "var(--ink)" }}>{l.name}</div>
+                      <div className="dim" style={{ fontSize: 11, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{l.systemPrompt}</div>
+                    </div>
+                    <button
+                      className="pillBtn ghostBtn mono"
+                      style={{ fontSize: 10, flexShrink: 0 }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void api.removeFromLibrary(l.id).then(() => setLibrary((ls) => ls.filter((x) => x.id !== l.id)));
+                      }}
+                    >
+                      remove
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {ctab === "template" && (
           <div className="fField">
@@ -185,6 +241,10 @@ export function NewAgentModal({ onClose }: { onClose: () => void }) {
                 }}
               />
             </div>
+            <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12, cursor: "pointer" }}>
+              <input type="checkbox" checked={saveToLibrary} onChange={(e) => setSaveToLibrary(e.target.checked)} />
+              Save to agent library (reusable in any project)
+            </label>
           </>
         )}
 
