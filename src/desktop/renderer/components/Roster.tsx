@@ -1,8 +1,9 @@
-import type { CSSProperties } from "react";
+import { useState, type CSSProperties } from "react";
 import { useStore } from "../store";
 import type { Bucket } from "../types";
 import { bucketOf, colorFor, elapsedLabel, initials } from "../lib/agents";
 import { useNow } from "../lib/useNow";
+import { TeamsModal } from "./TeamsModal";
 
 const BUCKETS: [Bucket, string][] = [
   ["needs", "Needs input"],
@@ -33,14 +34,17 @@ export function Roster({ onAddAgent }: { onAddAgent: () => void }) {
   const localSeen = useStore((s) => s.localSeen);
   const localForceActive = useStore((s) => s.localForceActive);
   const { selectAgent, toggleSplit, showView } = useStore.getState();
+  const [teamsOpen, setTeamsOpen] = useState(false);
 
   return (
     <aside id="roster">
       <div id="rosterTop">
         <button className="pillBtn ghostBtn mono" title="Back to launcher" onClick={() => showView("launcher")}>&larr;</button>
         <span className="mono dim" style={{ fontSize: 10, letterSpacing: ".1em", textTransform: "uppercase" }}>Agents</span>
+        <button className="pillBtn ghostBtn mono" onClick={() => setTeamsOpen(true)}>+ team</button>
         <button className="pillBtn ghostBtn mono" onClick={onAddAgent}>+ agent</button>
       </div>
+      {teamsOpen && <TeamsModal onClose={() => setTeamsOpen(false)} />}
       <div id="rosterList">
         {!project && <div className="rosterEmpty">Select a project.</div>}
         {project && project.agents.length === 0 && <div className="rosterEmpty">No agents yet. Click + agent.</div>}

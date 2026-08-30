@@ -291,6 +291,34 @@ function saveLibrary(list: LibraryAgent[]): void {
   writeFileSync(libraryFile(), JSON.stringify(list, null, 2));
 }
 
+// ── Teams (M9): predefined agent bundles, addable to any project in one go ──
+interface TeamMember {
+  source: "role" | "library"; // roles/*.md, or an agent-library.json entry
+  refId: string;
+}
+interface Team {
+  id: string;
+  name: string;
+  members: TeamMember[];
+  createdAt: string;
+}
+
+function teamsFile(): string {
+  return join(app.getPath("userData"), "teams.json");
+}
+
+function loadTeams(): Team[] {
+  try {
+    return JSON.parse(readFileSync(teamsFile(), "utf8"));
+  } catch {
+    return [];
+  }
+}
+
+function saveTeams(list: Team[]): void {
+  writeFileSync(teamsFile(), JSON.stringify(list, null, 2));
+}
+
 // ── Task board (M9): PM/SM creates tasks, assigns to agents ────────
 interface TaskItem {
   id: string;
@@ -1321,6 +1349,18 @@ app.whenReady().then(() => {
   });
   ipcMain.handle("library:remove", (_e, id: string) => {
     saveLibrary(loadLibrary().filter((a) => a.id !== id));
+  });
+
+  ipcMain.handle("teams:list", () => loadTeams());
+  ipcMain.handle("teams:add", (_e, { name, members }: { name: string; members: TeamMember[] }) => {
+    const list = loadTeams();
+    const entry: Team = { id: randomUUID(), name, members, createdAt: new Date().toISOString() };
+    list.push(entry);
+    saveTeams(list);
+    return entry;
+  });
+  ipcMain.handle("teams:remove", (_e, id: string) => {
+    saveTeams(loadTeams().filter((t) => t.id !== id));
   });
 
   ipcMain.handle("tasks:list", (_e, projectId: string) => {

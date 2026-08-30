@@ -40,6 +40,17 @@ export interface LibraryAgent {
   createdAt: string;
 }
 
+export interface TeamMember {
+  source: "role" | "library";
+  refId: string;
+}
+export interface Team {
+  id: string;
+  name: string;
+  members: TeamMember[];
+  createdAt: string;
+}
+
 export interface TaskItem {
   id: string;
   title: string;
@@ -106,6 +117,9 @@ export interface DesktopApi {
   listLibrary(): Promise<LibraryAgent[]>;
   addToLibrary(name: string, systemPrompt: string, model: string | undefined, extraArgs: string[] | undefined, skillIds: string[] | undefined): Promise<LibraryAgent>;
   removeFromLibrary(id: string): Promise<void>;
+  listTeams(): Promise<Team[]>;
+  addTeam(name: string, members: TeamMember[]): Promise<Team>;
+  removeTeam(id: string): Promise<void>;
   startMeeting(projectId: string, agentIds: string[], topic: string, rounds: number): Promise<void>;
   listTasks(projectId: string): Promise<TaskItem[]>;
   createTask(projectId: string, title: string, description: string, assigneeAgentId: string | undefined, createdBy: TaskItem["createdBy"]): Promise<TaskItem>;

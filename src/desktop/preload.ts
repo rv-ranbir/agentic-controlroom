@@ -34,6 +34,9 @@ contextBridge.exposeInMainWorld("api", {
   addToLibrary: (name: string, systemPrompt: string, model: string | undefined, extraArgs: string[] | undefined, skillIds: string[] | undefined) =>
     ipcRenderer.invoke("library:add", { name, systemPrompt, model, extraArgs, skillIds }),
   removeFromLibrary: (id: string) => ipcRenderer.invoke("library:remove", id),
+  listTeams: () => ipcRenderer.invoke("teams:list"),
+  addTeam: (name: string, members: { source: "role" | "library"; refId: string }[]) => ipcRenderer.invoke("teams:add", { name, members }),
+  removeTeam: (id: string) => ipcRenderer.invoke("teams:remove", id),
   startMeeting: (projectId: string, agentIds: string[], topic: string, rounds: number) =>
     ipcRenderer.invoke("room:meeting", { projectId, agentIds, topic, rounds }),
   listTasks: (projectId: string) => ipcRenderer.invoke("tasks:list", projectId),
