@@ -4,7 +4,7 @@ export interface PromptTemplate {
   body: string;
 }
 
-const KEY = "agentroom-prompts";
+const KEY = "agentic-controlroom-prompts";
 
 export function loadPrompts(): PromptTemplate[] {
   try {

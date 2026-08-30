@@ -8,7 +8,7 @@ import { loadRole } from "./roles.js";
 
 const task = process.argv.slice(2).join(" ").trim();
 if (!task) {
-  console.error('Usage: agent-room "<task description>"');
+  console.error('Usage: agentic-controlroom "<task description>"');
   process.exit(1);
 }
 
@@ -21,14 +21,14 @@ const COLORS: Record<string, string> = {
 };
 const RESET = "\x1b[0m";
 
-const log = new ChatLog(join(process.cwd(), ".agent-room", "log.jsonl"));
+const log = new ChatLog(join(process.cwd(), ".agentic-controlroom", "log.jsonl"));
 log.on("message", (m) => {
   const color = COLORS[m.role] ?? "\x1b[35m";
   console.log(`${color}[${m.role}]${RESET} ${m.message}\n`);
 });
 
 const backend = new CursorCliBackend({
-  model: process.env.AGENT_ROOM_MODEL,
+  model: process.env.AGENTIC_CONTROLROOM_MODEL,
   cwd: process.cwd(),
 });
 
@@ -38,7 +38,7 @@ const result = await runRoom(
   log,
   loadRole(rolesDir, "dev", "Dev", "dev.md"),
   loadRole(rolesDir, "qa", "QA", "qa.md"),
-  { maxRounds: Number(process.env.AGENT_ROOM_MAX_ROUNDS ?? 3) },
+  { maxRounds: Number(process.env.AGENTIC_CONTROLROOM_MAX_ROUNDS ?? 3) },
 );
 
 process.exit(result === "approved" ? 0 : 2);

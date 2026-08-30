@@ -1,13 +1,13 @@
 {
-  "name": "agent-room",
-  "displayName": "Agent Room",
+  "name": "agentic-controlroom",
+  "displayName": "Agentic Control Room",
   "version": "0.1.0",
   "description": "Multi-agent coding chatroom: specialized agents (Dev, QA, ...) coordinate on a task via a shared live log, powered by pluggable backends (Cursor CLI by default).",
-  "publisher": "agent-room",
+  "publisher": "agentic-controlroom",
   "type": "module",
   "main": "./dist/extension.cjs",
   "bin": {
-    "agent-room": "./dist/cli.js"
+    "agentic-controlroom": "./dist/cli.js"
   },
   "files": [
     "dist",
@@ -27,37 +27,37 @@
   "contributes": {
     "commands": [
       {
-        "command": "agent-room.runTask",
-        "title": "Agent Room: Run Task"
+        "command": "agenticControlRoom.runTask",
+        "title": "Agentic Control Room: Run Task"
       }
     ],
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "agentRoom",
-          "title": "Agent Room",
+          "id": "agenticControlRoom",
+          "title": "Agentic Control Room",
           "icon": "media/icon.svg"
         }
       ]
     },
     "views": {
-      "agentRoom": [
+      "agenticControlRoom": [
         {
           "type": "webview",
-          "id": "agentRoom.chat",
+          "id": "agenticControlRoom.chat",
           "name": "Chatroom"
         }
       ]
     },
     "configuration": {
-      "title": "Agent Room",
+      "title": "Agentic Control Room",
       "properties": {
-        "agentRoom.model": {
+        "agenticControlRoom.model": {
           "type": "string",
           "default": "",
           "description": "Model passed to cursor-agent as --model (empty = Cursor's default)."
         },
-        "agentRoom.maxRounds": {
+        "agenticControlRoom.maxRounds": {
           "type": "number",
           "default": 3,
           "description": "Maximum Dev/QA rounds before giving up."

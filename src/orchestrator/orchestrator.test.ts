@@ -11,7 +11,7 @@ const dev: RoleConfig = { id: "dev", name: "Developer", systemPrompt: "You are D
 const qa: RoleConfig = { id: "qa", name: "QA", systemPrompt: "You are QA." };
 
 function tmpLog(): ChatLog {
-  const dir = mkdtempSync(join(tmpdir(), "agent-room-orchestrator-test-"));
+  const dir = mkdtempSync(join(tmpdir(), "agentic-controlroom-orchestrator-test-"));
   return new ChatLog(join(dir, "log.jsonl"));
 }
 

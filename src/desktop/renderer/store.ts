@@ -93,7 +93,7 @@ export const useStore = create<State>((set, get) => ({
   messages: [],
   branch: "",
   view: "launcher",
-  theme: (localStorage.getItem("agentroom-theme") as "dark" | "light") ?? "dark",
+  theme: (localStorage.getItem("agentic-controlroom-theme") as "dark" | "light") ?? "dark",
   toast: "",
   rawMode: false,
   repoCloning: false,
@@ -148,7 +148,7 @@ export const useStore = create<State>((set, get) => ({
     const next = get().theme === "dark" ? "light" : "dark";
     if (next === "light") document.documentElement.setAttribute("data-theme", "light");
     else document.documentElement.removeAttribute("data-theme");
-    localStorage.setItem("agentroom-theme", next);
+    localStorage.setItem("agentic-controlroom-theme", next);
     set({ theme: next });
   },
 

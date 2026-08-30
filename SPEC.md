@@ -1,4 +1,4 @@
-# Project Brief: "AgentRoom" — a multi-agent cockpit for CLI coding agents
+# Project Brief: "Agentic Control Room" — a multi-agent cockpit for CLI coding agents
 
 > Canonical brief, pasted 2026-08-26. Milestone gate: M0 must be approved before code.
 

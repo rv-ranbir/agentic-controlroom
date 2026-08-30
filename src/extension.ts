@@ -51,7 +51,7 @@ class RoomController {
   }
 
   private logPath(ws: vscode.WorkspaceFolder): string {
-    return join(ws.uri.fsPath, ".agent-room", "log.jsonl");
+    return join(ws.uri.fsPath, ".agentic-controlroom", "log.jsonl");
   }
 
   private post(msg: OutMsg) {
@@ -60,12 +60,12 @@ class RoomController {
 
   async run(task: string) {
     if (this.running) {
-      vscode.window.showWarningMessage("Agent Room: a run is already in progress.");
+      vscode.window.showWarningMessage("Agentic Control Room: a run is already in progress.");
       return;
     }
     const ws = vscode.workspace.workspaceFolders?.[0];
     if (!ws) {
-      vscode.window.showErrorMessage("Agent Room: open a folder first.");
+      vscode.window.showErrorMessage("Agentic Control Room: open a folder first.");
       return;
     }
 
@@ -84,7 +84,7 @@ class RoomController {
     });
 
     const rolesDir = join(this.context.extensionPath, "roles");
-    const config = vscode.workspace.getConfiguration("agentRoom");
+    const config = vscode.workspace.getConfiguration("agenticControlRoom");
     const backend = new CursorCliBackend({
       cwd: ws.uri.fsPath,
       model: config.get<string>("model") || undefined,
@@ -103,8 +103,8 @@ class RoomController {
       );
       vscode.window.showInformationMessage(
         result === "approved"
-          ? "Agent Room: QA approved. Done."
-          : "Agent Room: max rounds reached without QA approval.",
+          ? "Agentic Control Room: QA approved. Done."
+          : "Agentic Control Room: max rounds reached without QA approval.",
       );
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -116,7 +116,7 @@ class RoomController {
       };
       this.transcript.push(errorMsg);
       this.post({ kind: "message", ...errorMsg });
-      vscode.window.showErrorMessage(`Agent Room: ${msg}`);
+      vscode.window.showErrorMessage(`Agentic Control Room: ${msg}`);
     } finally {
       this.running = false;
       this.statusText = "";
@@ -130,11 +130,11 @@ export function activate(context: vscode.ExtensionContext) {
   const controller = new RoomController(context);
 
   context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider("agentRoom.chat", {
+    vscode.window.registerWebviewViewProvider("agenticControlRoom.chat", {
       resolveWebviewView: (view) => controller.attach(view),
     }),
-    vscode.commands.registerCommand("agent-room.runTask", async () => {
-      await vscode.commands.executeCommand("agentRoom.chat.focus");
+    vscode.commands.registerCommand("agenticControlRoom.runTask", async () => {
+      await vscode.commands.executeCommand("agenticControlRoom.chat.focus");
       const task = await vscode.window.showInputBox({
         prompt: "Task for the agent room (Dev implements, QA verifies)",
         placeHolder: "e.g. add a /health endpoint with a test",

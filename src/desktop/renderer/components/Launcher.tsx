@@ -100,7 +100,7 @@ export function Launcher({ onNewAgent }: { onNewAgent: () => void }) {
   return (
     <div className="viewRoot">
       <header className="lnHeader">
-        <span className="wordmark">AgentRoom</span>
+        <span className="wordmark">Agentic Control Room</span>
         <div className="spacer" />
         {toast && <span className="mono dim toast">{toast}</span>}
         <button className="pillBtn iconBtn" title="Toggle theme" onClick={toggleTheme}>{theme === "light" ? "☀" : "☽"}</button>
@@ -169,7 +169,7 @@ export function Launcher({ onNewAgent }: { onNewAgent: () => void }) {
                 </button>
               </div>
               <p className="dim" style={{ fontSize: 11.5, marginTop: 8 }}>
-                Clones into ~/Documents/AgentRoom/&lt;repo&gt; and opens a room on it. Requires <code className="mono">git</code> on PATH;
+                Clones into ~/Documents/AgenticControlRoom/&lt;repo&gt; and opens a room on it. Requires <code className="mono">git</code> on PATH;
                 per-branch worktrees and PR flow come with full multi-project support.
               </p>
               <GithubPanel />

@@ -34,7 +34,7 @@ export function TopBar() {
   return (
     <header id="topbar">
       <div className="statusDot" />
-      <span className="wordmark">AgentRoom</span>
+      <span className="wordmark">Agentic Control Room</span>
       <div className="vDivider" />
       <button ref={btnRef} className="pillBtn switcher" onClick={() => setOpen((v) => !v)}>
         {selected ? selected.name : "No project"} <span className="chev">▾</span>
@@ -75,7 +75,7 @@ export function TopBar() {
               onClick={() => { void selectProject(p); setOpen(false); }}
               onContextMenu={(e) => {
                 e.preventDefault();
-                if (confirm(`Remove project "${p.name}" from AgentRoom? (files untouched)`)) {
+                if (confirm(`Remove project "${p.name}" from Agentic Control Room? (files untouched)`)) {
                   void removeProject(p.id);
                   setOpen(false);
                 }

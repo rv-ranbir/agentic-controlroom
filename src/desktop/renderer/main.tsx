@@ -5,8 +5,8 @@ import { ErrorBoundary } from "./ErrorBoundary";
 import "./app.css";
 import "highlight.js/styles/github-dark.css";
 
-window.addEventListener("error", (e) => console.error("[AgentRoom] uncaught:", e.message, e.error?.stack));
-window.addEventListener("unhandledrejection", (e) => console.error("[AgentRoom] unhandled rejection:", e.reason));
+window.addEventListener("error", (e) => console.error("[AgenticControlRoom] uncaught:", e.message, e.error?.stack));
+window.addEventListener("unhandledrejection", (e) => console.error("[AgenticControlRoom] unhandled rejection:", e.reason));
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

@@ -1,4 +1,4 @@
-# agent-room
+# Agentic Control Room
 
 Multi-agent coding chatroom. Specialized agents (Dev + QA in this MVP; Lead, Architect, Playwright later) work on a task in your repository, coordinating through a shared live log so each agent sees what the others did.
 
@@ -23,10 +23,10 @@ Backends per project: **Cursor** (default, your Cursor login via `cursor-agent`)
 
 ```bash
 npm install && npm run package
-cursor --install-extension agent-room-0.1.0.vsix
+cursor --install-extension agentic-controlroom-0.1.0.vsix
 ```
 
-Then in Cursor: `Ctrl+Shift+P` → **Agent Room: Run Task** → type the task. A side panel opens showing the live chatroom (Dev and QA messages as they land); the agents work on the currently open workspace folder. Settings: `agentRoom.model`, `agentRoom.maxRounds`.
+Then in Cursor: `Ctrl+Shift+P` → **Agentic Control Room: Run Task** → type the task. A side panel opens showing the live chatroom (Dev and QA messages as they land); the agents work on the currently open workspace folder. Settings: `agenticControlRoom.model`, `agenticControlRoom.maxRounds`.
 
 The extension still drives models through the `cursor-agent` CLI — Cursor exposes no public extension API for its models, so the CLI (same login, same subscription) is the programmatic path. The extension is the UI surface.
 
@@ -34,16 +34,16 @@ The extension still drives models through the `cursor-agent` CLI — Cursor expo
 
 ```bash
 cd your-repo
-agent-room "add a /health endpoint with a test"
+agentic-controlroom "add a /health endpoint with a test"
 ```
 
 What happens:
 
 1. **Dev** implements the task in your repo, posts a summary to the chatroom, ends with `STATUS: READY_FOR_REVIEW`.
 2. **QA** reads the chatroom, verifies the changes in the actual files, ends with `STATUS: APPROVED` or `STATUS: CHANGES_REQUESTED` + findings.
-3. On changes requested, Dev fixes and the loop repeats (default 3 rounds, `AGENT_ROOM_MAX_ROUNDS` to change).
+3. On changes requested, Dev fixes and the loop repeats (default 3 rounds, `AGENTIC_CONTROLROOM_MAX_ROUNDS` to change).
 
-The chatroom streams live in your terminal (color per agent) and persists to `.agent-room/log.jsonl` — append-only JSONL, one message per line: `{ ts, agentId, role, message }`. That file is the shared memory: each agent's prompt includes the recent tail, so agents always know what the others did.
+The chatroom streams live in your terminal (color per agent) and persists to `.agentic-controlroom/log.jsonl` — append-only JSONL, one message per line: `{ ts, agentId, role, message }`. That file is the shared memory: each agent's prompt includes the recent tail, so agents always know what the others did.
 
 Exit code `0` = QA approved, `2` = max rounds without approval.
 
@@ -52,8 +52,8 @@ Exit code `0` = QA approved, `2` = max rounds without approval.
 | Env var | Default | Purpose |
 |---|---|---|
 | `CURSOR_AGENT_BIN` | `cursor-agent` | Path to the Cursor CLI binary |
-| `AGENT_ROOM_MODEL` | Cursor's default | Passed as `--model` |
-| `AGENT_ROOM_MAX_ROUNDS` | `3` | Dev↔QA round cap |
+| `AGENTIC_CONTROLROOM_MODEL` | Cursor's default | Passed as `--model` |
+| `AGENTIC_CONTROLROOM_MAX_ROUNDS` | `3` | Dev↔QA round cap |
 
 ## Architecture (why it's portable)
 

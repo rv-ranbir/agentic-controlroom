@@ -47,12 +47,12 @@ const running = new Set<string>(); // "projectId" (room run) or "projectId:agent
 const runningProcs = new Map<string, ChildProcess>(); // "projectId:agentId" -> in-flight direct-send child process
 const ptySessions = new Map<string, IPty>(); // "projectId:agentId" -> live interactive PTY session (M1)
 
-// ── Process Guard (M8): every child process AgentRoom itself spawns must
+// ── Process Guard (M8): every child process Agentic Control Room itself spawns must
 // resolve to a recognized binary — catches a misconfigured CLAUDE_BIN /
 // CURSOR_AGENT_BIN / SHELL env override before it silently executes
 // something else. Not a sandbox: a provider CLI's own tool calls (e.g. its
 // bash tool) run inside that CLI's process and are outside our reach —
-// this only gates what AgentRoom itself decides to spawn.
+// this only gates what Agentic Control Room itself decides to spawn.
 const ALLOWED_BIN_NAMES = new Set([
   "claude", "cursor-agent", "cloudflared", "whisper",
   "cmd", "powershell", "pwsh",
@@ -268,20 +268,20 @@ function parseUnifiedDiff(raw: string): DiffFile[] {
 // path with no content, so diff treats it as a pure addition against
 // empty) and reset immediately after — the working tree itself is never
 // touched, this only affects what `git diff` chooses to show.
-// AgentRoom's own bookkeeping (chat log, sessions, commit records) lives
+// Agentic Control Room's own bookkeeping (chat log, sessions, commit records) lives
 // inside the project directory and would otherwise show up as untracked
 // files in every diff/commit — not something that belongs in the user's
 // actual history. Best-effort and idempotent; never fatal if it can't write.
 function ensureAgentRoomGitignored(projectPath: string): void {
   try {
-    if (!existsSync(join(projectPath, ".agent-room"))) return; // not this directory's concern (e.g. an agent worktree)
+    if (!existsSync(join(projectPath, ".agentic-controlroom"))) return; // not this directory's concern (e.g. an agent worktree)
     const gitignorePath = join(projectPath, ".gitignore");
     const existing = existsSync(gitignorePath) ? readFileSync(gitignorePath, "utf8") : "";
-    if (existing.split("\n").some((l) => l.trim() === ".agent-room/" || l.trim() === ".agent-room")) return;
+    if (existing.split("\n").some((l) => l.trim() === ".agentic-controlroom/" || l.trim() === ".agentic-controlroom")) return;
     const sep = existing && !existing.endsWith("\n") ? "\n" : "";
-    writeFileSync(gitignorePath, `${existing}${sep}.agent-room/\n`);
+    writeFileSync(gitignorePath, `${existing}${sep}.agentic-controlroom/\n`);
   } catch {
-    // not fatal — worst case .agent-room/ shows up as untracked, same as before this fix
+    // not fatal — worst case .agentic-controlroom/ shows up as untracked, same as before this fix
   }
 }
 
@@ -379,7 +379,7 @@ interface TaskItem {
 }
 
 function tasksFile(project: Project): string {
-  return join(project.path, ".agent-room", "tasks.json");
+  return join(project.path, ".agentic-controlroom", "tasks.json");
 }
 
 function loadTasks(project: Project): TaskItem[] {
@@ -391,12 +391,12 @@ function loadTasks(project: Project): TaskItem[] {
 }
 
 function saveTasks(project: Project, tasks: TaskItem[]): void {
-  mkdirSync(join(project.path, ".agent-room"), { recursive: true });
+  mkdirSync(join(project.path, ".agentic-controlroom"), { recursive: true });
   writeFileSync(tasksFile(project), JSON.stringify(tasks, null, 2));
 }
 
 // ── File IDE (M9): sandboxed browse/edit/save under the project root ──
-const IDE_IGNORE = new Set([".git", "node_modules", "dist", "out", ".agent-room"]);
+const IDE_IGNORE = new Set([".git", "node_modules", "dist", "out", ".agentic-controlroom"]);
 const IDE_MAX_BYTES = 2 * 1024 * 1024;
 
 function resolveInProject(root: string, sub: string): string {
@@ -449,7 +449,7 @@ function getCommitDiff(path: string, sha: string): DiffResult {
 // ── approve → real commit, AI Conventional Commit message (M5) ─────
 // "Conversation attached to commits": each commit record keeps a snippet
 // of the exchange that led to it, so a later reviewer can see why, not
-// just what. Stored in the PROJECT's .agent-room/ (not the agent's
+// just what. Stored in the PROJECT's .agentic-controlroom/ (not the agent's
 // worktree) so it survives even if that worktree is later removed.
 
 interface CommitRecord {
@@ -462,7 +462,7 @@ interface CommitRecord {
 }
 
 function commitsFile(project: Project): string {
-  return join(project.path, ".agent-room", "commits.json");
+  return join(project.path, ".agentic-controlroom", "commits.json");
 }
 
 function loadCommits(project: Project): CommitRecord[] {
@@ -476,7 +476,7 @@ function loadCommits(project: Project): CommitRecord[] {
 function saveCommit(project: Project, record: CommitRecord): void {
   const commits = loadCommits(project);
   commits.push(record);
-  mkdirSync(join(project.path, ".agent-room"), { recursive: true });
+  mkdirSync(join(project.path, ".agentic-controlroom"), { recursive: true });
   writeFileSync(commitsFile(project), JSON.stringify(commits, null, 2));
 }
 
@@ -537,7 +537,7 @@ async function cloneAndRegister(url: string, name: string, token?: string): Prom
   const projects = loadProjects();
   const existingByUrl = projects.find((p) => p.repoUrl === url);
   if (existingByUrl) return existingByUrl;
-  const workspace = join(app.getPath("documents"), "AgentRoom");
+  const workspace = join(app.getPath("documents"), "AgenticControlRoom");
   const dest = join(workspace, name);
   if (existsSync(dest)) {
     const existingByPath = projects.find((p) => p.path === dest);
@@ -567,13 +567,13 @@ async function cloneAndRegister(url: string, name: string, token?: string): Prom
 // this exists; before it, "per-agent diff" was really "whole project diff".
 
 function worktreePathFor(project: Project, agentId: string): string {
-  return join(project.path, ".agent-room", "worktrees", agentId);
+  return join(project.path, ".agentic-controlroom", "worktrees", agentId);
 }
 
 function createWorktree(project: Project, agentId: string): string {
   const path = worktreePathFor(project, agentId);
   if (existsSync(path)) return path; // idempotent — reuse an existing worktree
-  mkdirSync(join(project.path, ".agent-room", "worktrees"), { recursive: true });
+  mkdirSync(join(project.path, ".agentic-controlroom", "worktrees"), { recursive: true });
   try {
     execFileSync("git", ["worktree", "add", "-B", `agent/${agentId}`, path], { cwd: project.path });
   } catch (err) {
@@ -605,7 +605,7 @@ async function captureScreenshot(project: Project, agentId?: string): Promise<st
   const source = sources[0];
   if (!source) throw new Error("No screen source available.");
   const agent = agentId ? project.agents!.find((a) => a.id === agentId) : undefined;
-  const dir = join(agent?.worktreePath ?? project.path, ".agent-room", "screenshots");
+  const dir = join(agent?.worktreePath ?? project.path, ".agentic-controlroom", "screenshots");
   mkdirSync(dir, { recursive: true });
   const file = join(dir, `${Date.now()}.png`);
   writeFileSync(file, source.thumbnail.toPNG());
@@ -669,7 +669,7 @@ function resolveSecretsEnv(projectId: string): Record<string, string> {
 // system prompt for this project — durable context that survives restarts
 // and isn't tied to any one agent, unlike a role's system prompt.
 function memoryFile(project: Project): string {
-  return join(project.path, ".agent-room", "memory.md");
+  return join(project.path, ".agentic-controlroom", "memory.md");
 }
 
 function loadMemory(project: Project): string {
@@ -681,7 +681,7 @@ function loadMemory(project: Project): string {
 }
 
 function saveMemory(project: Project, text: string): void {
-  mkdirSync(join(project.path, ".agent-room"), { recursive: true });
+  mkdirSync(join(project.path, ".agentic-controlroom"), { recursive: true });
   writeFileSync(memoryFile(project), text);
 }
 
@@ -693,7 +693,7 @@ function prependMemory<T extends { systemPrompt: string }>(role: T, project: Pro
 // ── multi-account quota switching (M8): named credential profiles per
 // provider (encrypted env-var overrides, same mechanism as secrets), so a
 // project can switch which login/key an agent spawns with once a provider's
-// quota is hit. AgentRoom can't reliably auto-detect *which* account failed
+// quota is hit. Agentic Control Room can't reliably auto-detect *which* account failed
 // or auto-switch mid-run — it surfaces the option and lets the user pick.
 interface Account { id: string; provider: "claude" | "cursor"; name: string; env: StoredSecret[] }
 
@@ -838,7 +838,7 @@ function runReadOnlyQuery(project: Project, sql: string): { columns: string[]; r
 // ── local dictation (M6): shells out to a `whisper` CLI on PATH — no bundled
 // model, matching the "detection, not configuration" BYOK stance ─────────
 async function transcribeAudio(buffer: Buffer): Promise<string> {
-  const dir = mkdtempSync(join(tmpdir(), "agent-room-dictate-"));
+  const dir = mkdtempSync(join(tmpdir(), "agentic-controlroom-dictate-"));
   try {
     const input = join(dir, "audio.webm");
     writeFileSync(input, buffer);
@@ -882,7 +882,7 @@ function clearGithubToken(): void {
 
 async function githubApi(path: string, token: string): Promise<Response> {
   const res = await fetch(`https://api.github.com${path}`, {
-    headers: { Authorization: `Bearer ${token}`, "User-Agent": "AgentRoom", Accept: "application/vnd.github+json" },
+    headers: { Authorization: `Bearer ${token}`, "User-Agent": "AgenticControlRoom", Accept: "application/vnd.github+json" },
   });
   if (!res.ok) throw new Error(`GitHub API error (HTTP ${res.status}) for ${path}`);
   return res;
@@ -890,7 +890,7 @@ async function githubApi(path: string, token: string): Promise<Response> {
 
 // per-project persisted agent CLI sessions (direct chat resume across restarts)
 function sessionsFile(project: Project): string {
-  return join(project.path, ".agent-room", "sessions.json");
+  return join(project.path, ".agentic-controlroom", "sessions.json");
 }
 
 function loadSessions(project: Project): Record<string, string> {
@@ -918,7 +918,7 @@ function send(channel: string, payload: unknown): void {
 function notifyNeedsInput(project: Project, agentId: string): void {
   if (!Notification.isSupported() || win?.isFocused()) return;
   const name = project.agents?.find((a) => a.id === agentId)?.name ?? agentId;
-  const n = new Notification({ title: "AgentRoom — needs input", body: `${name} is waiting on you in ${project.name}` });
+  const n = new Notification({ title: "Agentic Control Room — needs input", body: `${name} is waiting on you in ${project.name}` });
   n.on("click", () => { win?.show(); win?.focus(); });
   n.show();
 }
@@ -952,7 +952,7 @@ function statsFor(projectId: string): ProjectStats {
 }
 
 function wiredLog(project: Project): ChatLog {
-  const log = new ChatLog(join(project.path, ".agent-room", "log.jsonl"));
+  const log = new ChatLog(join(project.path, ".agentic-controlroom", "log.jsonl"));
   log.on("message", (m: ChatMessage) => {
     statsFor(project.id).lastActivityAt = Date.now();
     send("room:event", { projectId: project.id, kind: "message", ...m });
@@ -1309,7 +1309,7 @@ app.whenReady().then(() => {
   ipcMain.handle("room:log", (_e, id: string) => {
     const p = loadProjects().find((x) => x.id === id);
     if (!p) return [];
-    const file = join(p.path, ".agent-room", "log.jsonl");
+    const file = join(p.path, ".agentic-controlroom", "log.jsonl");
     if (!existsSync(file)) return [];
     return new ChatLog(file).tail(100);
   });
@@ -1356,7 +1356,7 @@ app.whenReady().then(() => {
       if (!lastActivityAt) {
         // no live events yet this app session — fall back to the persisted log's last message
         try {
-          const file = join(p.path, ".agent-room", "log.jsonl");
+          const file = join(p.path, ".agentic-controlroom", "log.jsonl");
           const tail = existsSync(file) ? new ChatLog(file).tail(1) : [];
           lastActivityAt = tail[0] ? new Date(tail[0].ts).getTime() : 0;
         } catch {
@@ -1628,7 +1628,7 @@ app.whenReady().then(() => {
   win = new BrowserWindow({
     width: 1440,
     height: 920,
-    title: "AgentRoom",
+    title: "Agentic Control Room",
     backgroundColor: "#1B1814",
     webPreferences: { preload: join(__dirname, "preload.cjs") },
   });
