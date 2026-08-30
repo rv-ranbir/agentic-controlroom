@@ -2,7 +2,7 @@
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ChatLog } from "./chatroom/log.js";
-import { CursorCliBackend } from "./backend/cursorCliBackend.js";
+import { ClaudeCliBackend } from "./backend/claudeCliBackend.js";
 import { runRoom } from "./orchestrator/orchestrator.js";
 import { loadRole } from "./roles.js";
 
@@ -27,7 +27,7 @@ log.on("message", (m) => {
   console.log(`${color}[${m.role}]${RESET} ${m.message}\n`);
 });
 
-const backend = new CursorCliBackend({
+const backend = new ClaudeCliBackend({
   model: process.env.AGENTIC_CONTROLROOM_MODEL,
   cwd: process.cwd(),
 });

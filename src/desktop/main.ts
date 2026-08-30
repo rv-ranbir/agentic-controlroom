@@ -550,7 +550,7 @@ async function cloneAndRegister(url: string, name: string, token?: string): Prom
     id: randomUUID(),
     name,
     path: dest,
-    backend: "cursor",
+    backend: "claude",
     repoUrl: url,
     agents: [{ id: "dev", name: "Developer" }, { id: "qa", name: "QA" }],
   };
@@ -1178,7 +1178,7 @@ app.whenReady().then(() => {
       id: randomUUID(),
       name: basename(path),
       path,
-      backend: "cursor",
+      backend: "claude",
       agents: [{ id: "dev", name: "Developer" }, { id: "qa", name: "QA" }],
     };
     projects.push(project);

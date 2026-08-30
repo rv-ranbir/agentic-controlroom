@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import { join } from "node:path";
 import { ChatLog, type ChatMessage } from "./chatroom/log.js";
-import { CursorCliBackend } from "./backend/cursorCliBackend.js";
+import { ClaudeCliBackend } from "./backend/claudeCliBackend.js";
 import { runRoom } from "./orchestrator/orchestrator.js";
 import { loadRole } from "./roles.js";
 
@@ -85,7 +85,7 @@ class RoomController {
 
     const rolesDir = join(this.context.extensionPath, "roles");
     const config = vscode.workspace.getConfiguration("agenticControlRoom");
-    const backend = new CursorCliBackend({
+    const backend = new ClaudeCliBackend({
       cwd: ws.uri.fsPath,
       model: config.get<string>("model") || undefined,
     });
