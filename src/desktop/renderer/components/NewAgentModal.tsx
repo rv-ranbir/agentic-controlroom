@@ -46,6 +46,7 @@ export function NewAgentModal({ onClose }: { onClose: () => void }) {
   const [ctab, setCtab] = useState<"template" | "library" | "custom">("template");
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
   const [roleSearch, setRoleSearch] = useState("");
+  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set(["Core team"]));
   const [library, setLibrary] = useState<LibraryAgent[]>([]);
   const [selectedLibraryId, setSelectedLibraryId] = useState<string | null>(null);
   const [saveToLibrary, setSaveToLibrary] = useState(false);
@@ -102,7 +103,7 @@ export function NewAgentModal({ onClose }: { onClose: () => void }) {
     <div className="dialogBackdrop open" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div id="modalBox" className="dialogBox">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h3>New agent &mdash; <span className="dim" style={{ fontFamily: "var(--font-body)", fontSize: 13 }}>{project.name}</span></h3>
+          <h3>New agent <span className="dim" style={{ fontFamily: "var(--font-body)", fontSize: 13 }}>&mdash; adds to {project.name}</span></h3>
           <button className="pillBtn iconBtn ghostBtn" onClick={onClose}>&times;</button>
         </div>
 
@@ -115,12 +116,21 @@ export function NewAgentModal({ onClose }: { onClose: () => void }) {
         {ctab === "library" && (
           <div className="fField">
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 9 }}>
-              <span className="fLabel" style={{ marginBottom: 0 }}>Your agent library</span>
-              <span className="dim mono" style={{ fontSize: 10.5 }}>{library.length} saved</span>
+              <span className="fLabel" style={{ marginBottom: 0 }}>Your agent library <span style={{ textTransform: "none", letterSpacing: 0 }}>&mdash; reusable in any project</span></span>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span className="dim mono" style={{ fontSize: 10.5 }}>{library.length} saved</span>
+                <button
+                  className="pillBtn ghostBtn mono"
+                  style={{ fontSize: 10 }}
+                  onClick={() => { setCtab("custom"); setSaveToLibrary(true); }}
+                >
+                  + new
+                </button>
+              </div>
             </div>
             {library.length === 0 && (
               <div className="dim" style={{ fontSize: 12.5, padding: "12px 0" }}>
-                Nothing saved yet — create a Custom agent and check "save to library" to reuse it in other projects.
+                Nothing saved yet — click "+ new" above to define one.
               </div>
             )}
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -184,12 +194,28 @@ export function NewAgentModal({ onClose }: { onClose: () => void }) {
               return groups
                 .map((g) => ({ ...g, roles: g.roles.filter((r) => !q || r.name.toLowerCase().includes(q) || r.id.includes(q)) }))
                 .filter((g) => g.roles.length > 0)
-                .map((g) => (
-                  <div key={g.label} style={{ marginBottom: 12 }}>
-                    <div className="dim mono" style={{ fontSize: 9.5, letterSpacing: ".1em", textTransform: "uppercase", marginBottom: 7 }}>
+                .map((g) => {
+                  const isOpen = q.length > 0 || openGroups.has(g.label);
+                  return (
+                  <div key={g.label} style={{ marginBottom: 8, border: "1px solid var(--rule)", borderRadius: 8, overflow: "hidden" }}>
+                    <div
+                      className="dim mono"
+                      style={{
+                        display: "flex", alignItems: "center", gap: 6, cursor: "pointer", userSelect: "none",
+                        fontSize: 9.5, letterSpacing: ".1em", textTransform: "uppercase", padding: "8px 10px",
+                        background: "var(--sink)",
+                      }}
+                      onClick={() => setOpenGroups((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(g.label)) next.delete(g.label); else next.add(g.label);
+                        return next;
+                      })}
+                    >
+                      <span style={{ fontSize: 9, transform: isOpen ? "rotate(90deg)" : "none", transition: "transform .1s" }}>&#9656;</span>
                       {g.label} <span style={{ opacity: .7 }}>&middot; {g.roles.length}</span>
                     </div>
-                    <div className="roleGrid">
+                    {isOpen && (
+                    <div className="roleGrid" style={{ padding: 9 }}>
                       {g.roles.map((r) => {
                         const count = project.agents.filter((a) => a.roleId === r.id || a.id === r.id).length;
                         const Icon = ROLE_ICONS[r.id] ?? Bot;
@@ -203,8 +229,10 @@ export function NewAgentModal({ onClose }: { onClose: () => void }) {
                         );
                       })}
                     </div>
+                    )}
                   </div>
-                ));
+                  );
+                });
             })()}
           </div>
         )}
