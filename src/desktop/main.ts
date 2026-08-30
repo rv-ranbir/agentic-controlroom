@@ -1,6 +1,6 @@
 import { app, BrowserWindow, desktopCapturer, dialog, ipcMain, Notification, safeStorage, screen, shell } from "electron";
 import { basename, join, relative, resolve, sep } from "node:path";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import * as pty from "node-pty";
@@ -458,6 +458,56 @@ interface TaskItem {
   createdBy: string; // "pm" | "sm" | "user" | an agent's own name — free text, not a closed set (PM/SM are just agents too)
   attachments?: string[]; // absolute file paths (screenshots, design files) — evidence attached to the task
   createdAt: string;
+  sourcePlanningMessageId?: string; // set when this task was promoted from a Planning Board message (M10 phase 3)
+}
+
+// ── Planning board (M10 phase 3): freeform per-project idea thread that sits
+// before the Task Board — a message can be promoted into a real task.
+interface PlanningMessage {
+  id: string;
+  authorId: string; // "user" or an agent's id
+  authorName: string;
+  text: string;
+  attachments?: string[];
+  createdAt: string;
+}
+
+function planningFile(project: Project): string {
+  return join(project.path, ".agentic-controlroom", "planning.jsonl");
+}
+
+function loadPlanning(project: Project): PlanningMessage[] {
+  const file = planningFile(project);
+  if (!existsSync(file)) return [];
+  return readFileSync(file, "utf8").trim().split("\n").filter(Boolean).map((l) => JSON.parse(l) as PlanningMessage);
+}
+
+function postPlanningMessage(project: Project, entry: Omit<PlanningMessage, "id" | "createdAt">): PlanningMessage {
+  mkdirSync(join(project.path, ".agentic-controlroom"), { recursive: true });
+  const msg: PlanningMessage = { id: randomUUID(), createdAt: new Date().toISOString(), ...entry };
+  appendFileSync(planningFile(project), JSON.stringify(msg) + "\n");
+  return msg;
+}
+
+// ponytail: single-shot backend.start() per comment, no session resume/quota-tracking/live
+// activity streaming — the chat room's sendToAgent() has all that, but wiring the same event
+// plumbing into a second log was out of scope for the MVP. Upgrade if planning threads get long
+// enough that agents need cross-comment memory.
+async function postPlanningComment(project: Project, agent: AgentRef): Promise<PlanningMessage> {
+  const role = prependMemory(
+    appendSkills(
+      agent.systemPrompt ? { id: agent.id, name: agent.name, systemPrompt: agent.systemPrompt } : loadRole(rolesDir, agent.id, agent.name, `${agent.roleId ?? agent.id}.md`),
+      agent,
+    ),
+    project,
+  );
+  const thread = loadPlanning(project)
+    .map((m) => `[${m.authorName}] ${m.text}`)
+    .join("\n\n");
+  const prompt = `Planning board so far:\n${thread}\n\nAdd your comment — an idea, a question, or feedback on what's there. Keep it short.`;
+  const backend = makeBackend(project, agent);
+  const { reply } = await backend.start(role, prompt);
+  return postPlanningMessage(project, { authorId: agent.id, authorName: agent.name, text: reply });
 }
 
 function tasksFile(project: Project): string {
@@ -1559,10 +1609,10 @@ app.whenReady().then(() => {
     const project = loadProjects().find((p) => p.id === projectId);
     return project ? loadTasks(project) : [];
   });
-  ipcMain.handle("tasks:create", (_e, { projectId, title, description, assigneeAgentId, createdBy, attachments }: { projectId: string; title: string; description: string; assigneeAgentId?: string; createdBy: TaskItem["createdBy"]; attachments?: string[] }) => {
+  ipcMain.handle("tasks:create", (_e, { projectId, title, description, assigneeAgentId, createdBy, attachments, sourcePlanningMessageId }: { projectId: string; title: string; description: string; assigneeAgentId?: string; createdBy: string; attachments?: string[]; sourcePlanningMessageId?: string }) => {
     const project = loadProjects().find((p) => p.id === projectId);
     if (!project) throw new Error("Project not found");
-    const task: TaskItem = { id: randomUUID(), title, description, status: "todo", assigneeAgentId, createdBy, attachments, createdAt: new Date().toISOString() };
+    const task: TaskItem = { id: randomUUID(), title, description, status: "todo", assigneeAgentId, createdBy, attachments, createdAt: new Date().toISOString(), sourcePlanningMessageId };
     const tasks = loadTasks(project);
     tasks.push(task);
     saveTasks(project, tasks);
@@ -1582,6 +1632,22 @@ app.whenReady().then(() => {
     const project = loadProjects().find((p) => p.id === projectId);
     if (!project) return;
     saveTasks(project, loadTasks(project).filter((t) => t.id !== id));
+  });
+
+  ipcMain.handle("planning:list", (_e, projectId: string) => {
+    const project = loadProjects().find((p) => p.id === projectId);
+    return project ? loadPlanning(project) : [];
+  });
+  ipcMain.handle("planning:post", (_e, { projectId, authorId, authorName, text, attachments }: { projectId: string; authorId: string; authorName: string; text: string; attachments?: string[] }) => {
+    const project = loadProjects().find((p) => p.id === projectId);
+    if (!project) throw new Error("Project not found");
+    return postPlanningMessage(project, { authorId, authorName, text, attachments });
+  });
+  ipcMain.handle("planning:comment", (_e, { projectId, agentId }: { projectId: string; agentId: string }) => {
+    const project = loadProjects().find((p) => p.id === projectId);
+    const agent = project?.agents?.find((a) => a.id === agentId);
+    if (!project || !agent) throw new Error("Project or agent not found");
+    return postPlanningComment(project, agent);
   });
 
   ipcMain.handle("fs:list", (_e, { path, sub }: { path: string; sub: string }) => listProjectDir(path, sub));

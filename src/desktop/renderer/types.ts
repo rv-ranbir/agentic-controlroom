@@ -73,6 +73,16 @@ export interface TaskItem {
   createdBy: string;
   attachments?: string[];
   createdAt: string;
+  sourcePlanningMessageId?: string;
+}
+
+export interface PlanningMessage {
+  id: string;
+  authorId: string;
+  authorName: string;
+  text: string;
+  attachments?: string[];
+  createdAt: string;
 }
 
 export interface RoomEvent {
@@ -146,11 +156,14 @@ export interface DesktopApi {
   setCategoryMembers(categoryId: string, members: TeamMember[]): Promise<AdminConfig>;
   startMeeting(projectId: string, agentIds: string[], topic: string, rounds: number): Promise<void>;
   listTasks(projectId: string): Promise<TaskItem[]>;
-  createTask(projectId: string, title: string, description: string, assigneeAgentId: string | undefined, createdBy: TaskItem["createdBy"], attachments?: string[]): Promise<TaskItem>;
+  createTask(projectId: string, title: string, description: string, assigneeAgentId: string | undefined, createdBy: TaskItem["createdBy"], attachments?: string[], sourcePlanningMessageId?: string): Promise<TaskItem>;
   pickAttachment(): Promise<string | null>;
   openAttachment(path: string): Promise<void>;
   updateTask(projectId: string, id: string, patch: Partial<TaskItem>): Promise<TaskItem>;
   removeTask(projectId: string, id: string): Promise<void>;
+  listPlanning(projectId: string): Promise<PlanningMessage[]>;
+  postPlanning(projectId: string, authorId: string, authorName: string, text: string, attachments?: string[]): Promise<PlanningMessage>;
+  commentPlanning(projectId: string, agentId: string): Promise<PlanningMessage>;
   listDir(projectPath: string, sub: string): Promise<{ name: string; path: string; isDir: boolean }[]>;
   readFile(projectPath: string, sub: string): Promise<{ content: string } | { error: string }>;
   writeFile(projectPath: string, sub: string, content: string): Promise<void>;

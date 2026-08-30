@@ -9,6 +9,7 @@ import { Ide } from "./components/Ide";
 import { TaskBoard } from "./components/TaskBoard";
 import { ChatBoard } from "./components/ChatBoard";
 import { MeetingRoom } from "./components/MeetingRoom";
+import { PlanningBoard } from "./components/PlanningBoard";
 import { AdminPanel } from "./components/AdminPanel";
 import { NewAgentModal } from "./components/NewAgentModal";
 
@@ -31,6 +32,7 @@ export function App() {
       {view === "board" && <TaskBoard />}
       {view === "chat" && <ChatBoard />}
       {view === "meeting" && <MeetingRoom />}
+      {view === "planning" && <PlanningBoard />}
       {view === "admin" && <AdminPanel />}
       {modalOpen && <NewAgentModal onClose={() => setModalOpen(false)} />}
     </>

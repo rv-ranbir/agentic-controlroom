@@ -133,14 +133,15 @@ export function TaskBoard() {
   );
 }
 
-export function NewTaskModal({ project, onClose, onCreated, defaultReportedBy, defaultAssignee }: {
+export function NewTaskModal({ project, onClose, onCreated, defaultReportedBy, defaultAssignee, defaultTitle, defaultDescription, defaultAttachments, sourcePlanningMessageId }: {
   project: Project; onClose: () => void; onCreated: () => void; defaultReportedBy?: string; defaultAssignee?: string;
+  defaultTitle?: string; defaultDescription?: string; defaultAttachments?: string[]; sourcePlanningMessageId?: string;
 }) {
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
+  const [title, setTitle] = useState(defaultTitle ?? "");
+  const [description, setDescription] = useState(defaultDescription ?? "");
   const [assignee, setAssignee] = useState(defaultAssignee ?? "");
   const [createdBy, setCreatedBy] = useState<string>(defaultReportedBy ?? "pm");
-  const [attachments, setAttachments] = useState<string[]>([]);
+  const [attachments, setAttachments] = useState<string[]>(defaultAttachments ?? []);
   const [pathInput, setPathInput] = useState("");
   const [capturing, setCapturing] = useState(false);
 
@@ -164,7 +165,7 @@ export function NewTaskModal({ project, onClose, onCreated, defaultReportedBy, d
 
   const create = async () => {
     if (!title.trim()) return;
-    await api.createTask(project.id, title.trim(), description.trim(), assignee || undefined, createdBy, attachments.length ? attachments : undefined);
+    await api.createTask(project.id, title.trim(), description.trim(), assignee || undefined, createdBy, attachments.length ? attachments : undefined, sourcePlanningMessageId);
     onCreated();
     onClose();
   };
