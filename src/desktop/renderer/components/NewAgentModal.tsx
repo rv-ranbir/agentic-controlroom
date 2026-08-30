@@ -1,4 +1,9 @@
 import { useState } from "react";
+import {
+  Accessibility, Activity, Award, Bot, BrainCircuit, ClipboardList, Compass, Database, FileText,
+  FlaskConical, Gauge, Infinity as InfinityIcon, Languages, Layers, LayoutPanelLeft, LifeBuoy, Lock,
+  PenLine, Server, ShieldCheck, Smartphone, TrendingUp, Users, type LucideIcon,
+} from "lucide-react";
 import { useStore } from "../store";
 import { colorFor, initials } from "../lib/agents";
 import type { Project } from "../types";
@@ -9,12 +14,28 @@ const ENGINES: { id: string; label: string }[] = [
   { id: "codex", label: "Codex" },
 ];
 const MODELS = [
-  { id: "", label: "Default" },
-  { id: "opus", label: "Opus" },
-  { id: "sonnet", label: "Sonnet" },
-  { id: "haiku", label: "Haiku" },
-  { id: "custom", label: "Custom…" },
+  { id: "", label: "Default", hint: "project default" },
+  { id: "opus", label: "Opus", hint: "most capable" },
+  { id: "sonnet", label: "Sonnet", hint: "balanced" },
+  { id: "haiku", label: "Haiku", hint: "fastest" },
+  { id: "custom", label: "Custom…", hint: "your own model id" },
 ];
+
+// Groups + icons for the role picker — matches the design handoff's ROLE_GROUPS/ROLE_ICONS.
+// Role content itself (name, system prompt) lives in roles/*.md; this table is purely
+// presentation, same as the design's own hardcoded JS constants.
+const ROLE_GROUPS: { label: string; ids: string[] }[] = [
+  { label: "Core team", ids: ["dev", "frontend", "backend", "qa", "devops", "security", "architect", "pm", "sm", "fullstack", "lead"] },
+  { label: "Specialists", ids: ["ml-engineer", "data-engineer", "mobile", "ux-writer", "accessibility", "performance", "localization", "playwright"] },
+  { label: "Community", ids: ["tech-writer", "sre", "growth", "support-triage"] },
+];
+const ROLE_ICONS: Record<string, LucideIcon> = {
+  dev: Bot, frontend: LayoutPanelLeft, backend: Server, qa: ShieldCheck, devops: InfinityIcon,
+  security: Lock, architect: Compass, pm: ClipboardList, sm: Users, fullstack: Layers, lead: Award,
+  "ml-engineer": BrainCircuit, "data-engineer": Database, mobile: Smartphone, "ux-writer": PenLine,
+  accessibility: Accessibility, performance: Gauge, localization: Languages, playwright: FlaskConical,
+  "tech-writer": FileText, sre: Activity, growth: TrendingUp, "support-triage": LifeBuoy,
+};
 
 export function NewAgentModal({ onClose }: { onClose: () => void }) {
   const roles = useStore((s) => s.roles);
@@ -24,6 +45,7 @@ export function NewAgentModal({ onClose }: { onClose: () => void }) {
 
   const [ctab, setCtab] = useState<"template" | "custom">("template");
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
+  const [roleSearch, setRoleSearch] = useState("");
   const [cName, setCName] = useState("");
   const [cRules, setCRules] = useState("");
   const [skills, setSkills] = useState<string[]>([]);
@@ -81,22 +103,53 @@ export function NewAgentModal({ onClose }: { onClose: () => void }) {
 
         {ctab === "template" && (
           <div className="fField">
-            <span className="fLabel">Role</span>
-            <div className="roleGrid">
-              {roles.map((r) => {
-                const count = project.agents.filter((a) => a.roleId === r.id || a.id === r.id).length;
-                return (
-                  <div
-                    key={r.id}
-                    className={`roleOpt${selectedRoleId === r.id ? " chosen" : ""}`}
-                    onClick={() => setSelectedRoleId(r.id)}
-                  >
-                    <div className="monogram mono" style={{ width: 26, height: 26, fontSize: 10, background: colorFor(r.id) }}>{initials(r.name)}</div>
-                    <span>{r.name}{count > 0 ? ` (${count})` : ""}</span>
-                  </div>
-                );
-              })}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 9 }}>
+              <span className="fLabel" style={{ marginBottom: 0 }}>Agent template</span>
+              <span className="dim mono" style={{ fontSize: 10.5 }}>{roles.length} available</span>
             </div>
+            <input
+              className="fInput"
+              style={{ marginBottom: 12 }}
+              placeholder="Search templates by name or skill…"
+              value={roleSearch}
+              onChange={(e) => setRoleSearch(e.target.value)}
+            />
+            {(() => {
+              const q = roleSearch.trim().toLowerCase();
+              const byId = new Map(roles.map((r) => [r.id, r]));
+              const grouped = new Set<string>();
+              const groups = ROLE_GROUPS.map((g) => {
+                const entries = g.ids.map((id) => byId.get(id)).filter((r): r is NonNullable<typeof r> => !!r);
+                entries.forEach((r) => grouped.add(r.id));
+                return { label: g.label, roles: entries };
+              });
+              const other = roles.filter((r) => !grouped.has(r.id));
+              if (other.length) groups.push({ label: "Other", roles: other });
+              return groups
+                .map((g) => ({ ...g, roles: g.roles.filter((r) => !q || r.name.toLowerCase().includes(q) || r.id.includes(q)) }))
+                .filter((g) => g.roles.length > 0)
+                .map((g) => (
+                  <div key={g.label} style={{ marginBottom: 12 }}>
+                    <div className="dim mono" style={{ fontSize: 9.5, letterSpacing: ".1em", textTransform: "uppercase", marginBottom: 7 }}>
+                      {g.label} <span style={{ opacity: .7 }}>&middot; {g.roles.length}</span>
+                    </div>
+                    <div className="roleGrid">
+                      {g.roles.map((r) => {
+                        const count = project.agents.filter((a) => a.roleId === r.id || a.id === r.id).length;
+                        const Icon = ROLE_ICONS[r.id] ?? Bot;
+                        const on = selectedRoleId === r.id;
+                        return (
+                          <div key={r.id} className={`roleOpt${on ? " chosen" : ""}`} onClick={() => setSelectedRoleId(r.id)}>
+                            <Icon size={18} color={on ? "var(--ink)" : "var(--ink-50)"} />
+                            <div className="monogram mono" style={{ width: 26, height: 26, fontSize: 10, background: colorFor(r.id) }}>{initials(r.name)}</div>
+                            <span>{r.name}{count > 0 ? ` (${count})` : ""}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ));
+            })()}
           </div>
         )}
 
@@ -148,10 +201,26 @@ export function NewAgentModal({ onClose }: { onClose: () => void }) {
 
         <div className="fField">
           <span className="fLabel">Model</span>
-          <div className="segGroup">
-            {MODELS.map((m) => (
-              <div key={m.id} className={`segOpt${model === m.id ? " on" : ""}`} onClick={() => setModel(m.id)}>{m.label}</div>
-            ))}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {MODELS.map((m) => {
+              const on = model === m.id;
+              return (
+                <div
+                  key={m.id}
+                  onClick={() => setModel(m.id)}
+                  style={{
+                    textAlign: "left", cursor: "pointer", minWidth: 90,
+                    font: "600 12px/1.3 var(--font-body)", color: on ? "var(--ink)" : "var(--ink-70)",
+                    background: on ? "var(--ink-16)" : "var(--paper)",
+                    border: `1px solid ${on ? "var(--ink-50)" : "var(--rule)"}`,
+                    borderRadius: 8, padding: "9px 13px",
+                  }}
+                >
+                  <span style={{ display: "block" }}>{m.label}</span>
+                  <span className="mono" style={{ display: "block", fontSize: 10, color: "var(--ink-34)", marginTop: 3 }}>{m.hint}</span>
+                </div>
+              );
+            })}
           </div>
           {model === "custom" && (
             <input className="fInput mono" style={{ marginTop: 6 }} placeholder="model id" value={modelCustom} onChange={(e) => setModelCustom(e.target.value)} />
