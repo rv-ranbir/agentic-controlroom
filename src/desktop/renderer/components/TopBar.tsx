@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "../store";
-import type { Project } from "../types";
+import { BACKENDS, effectiveBackends } from "../lib/backends";
+import type { AdminConfig, Project } from "../types";
 
 function isRunning(runningKeys: Record<string, true>, p: Project): boolean {
   return Object.keys(runningKeys).some((k) => k === p.id || k.startsWith(p.id + ":"));
@@ -18,8 +19,11 @@ export function TopBar() {
   const { selectProject, createProject, removeProject, updateProjectBackend, toggleTheme, showView } = useStore.getState();
   const selected = projects.find((p) => p.id === selectedProjectId);
   const [open, setOpen] = useState(false);
+  const [adminConfig, setAdminConfig] = useState<AdminConfig | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => { void api.getAdminConfig().then(setAdminConfig); }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -89,9 +93,9 @@ export function TopBar() {
                 onClick={(e) => e.stopPropagation()}
                 onChange={(e) => updateProjectBackend(p.id, e.target.value as Project["backend"])}
               >
-                <option value="claude">claude</option>
-                <option value="cursor">cursor</option>
-                <option value="openrouter">openrouter</option>
+                {(adminConfig ? effectiveBackends(adminConfig, p) : BACKENDS.map((b) => b.id)).map((id) => (
+                  <option key={id} value={id}>{id}</option>
+                ))}
               </select>
             </div>
           ))}

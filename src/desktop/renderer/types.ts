@@ -21,6 +21,7 @@ export interface Project {
   lastOpenedAt?: number;
   dbPath?: string;
   activeAccountId?: string;
+  allowedBackends?: Project["backend"][];
 }
 
 export interface Msg {
@@ -49,6 +50,18 @@ export interface Team {
   name: string;
   members: TeamMember[];
   createdAt: string;
+}
+
+export interface Category {
+  id: string;
+  label: string;
+  order: number;
+  members: TeamMember[];
+}
+export interface AdminConfig {
+  globalAllowlist: Project["backend"][];
+  categoryAllowlist: Record<string, Project["backend"][]>;
+  categories: Category[];
 }
 
 export interface TaskItem {
@@ -122,6 +135,15 @@ export interface DesktopApi {
   listTeams(): Promise<Team[]>;
   addTeam(name: string, members: TeamMember[]): Promise<Team>;
   removeTeam(id: string): Promise<void>;
+
+  getAdminConfig(): Promise<AdminConfig>;
+  setGlobalAllowlist(list: Project["backend"][]): Promise<AdminConfig>;
+  setCategoryAllowlist(categoryId: string, list: Project["backend"][]): Promise<AdminConfig>;
+  addCategory(label: string): Promise<AdminConfig>;
+  renameCategory(id: string, label: string): Promise<AdminConfig>;
+  removeCategory(id: string): Promise<AdminConfig>;
+  reorderCategories(orderedIds: string[]): Promise<AdminConfig>;
+  setCategoryMembers(categoryId: string, members: TeamMember[]): Promise<AdminConfig>;
   startMeeting(projectId: string, agentIds: string[], topic: string, rounds: number): Promise<void>;
   listTasks(projectId: string): Promise<TaskItem[]>;
   createTask(projectId: string, title: string, description: string, assigneeAgentId: string | undefined, createdBy: TaskItem["createdBy"], attachments?: string[]): Promise<TaskItem>;

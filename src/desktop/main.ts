@@ -40,6 +40,87 @@ interface Project {
   lastOpenedAt?: number; // ms epoch, bumped on selectProject — drives the Launcher's recents ordering
   dbPath?: string; // path to a SQLite file the Environment panel's read-only Database tab queries
   activeAccountId?: string; // selected credential profile (M8 multi-account quota switching)
+  allowedBackends?: BackendId[]; // M10 admin panel: per-project restriction, never wider than the global allow-list
+}
+
+// ── Admin panel (M10): provider governance + user-extensible role/agent categories ──
+type BackendId = "cursor" | "claude" | "openrouter";
+const ALL_BACKENDS: BackendId[] = ["claude", "cursor", "openrouter"];
+
+interface Category {
+  id: string;
+  label: string;
+  order: number;
+  members: TeamMember[]; // same shape as Team's members — a role or a library agent
+}
+
+interface AdminConfig {
+  globalAllowlist: BackendId[];
+  categoryAllowlist: Record<string, BackendId[]>; // categoryId -> subset of globalAllowlist
+  categories: Category[];
+}
+
+// Seeded once from the M9.1 hardcoded NewAgentModal ROLE_GROUPS, so the accordion the
+// user already knows keeps working unchanged the first time this file is read.
+function defaultAdminConfig(): AdminConfig {
+  const seed: { label: string; ids: string[] }[] = [
+    { label: "Core team", ids: ["dev", "frontend", "backend", "qa", "devops", "security", "architect", "pm", "sm", "fullstack", "lead"] },
+    { label: "Specialists", ids: ["ml-engineer", "data-engineer", "mobile", "ux-writer", "accessibility", "performance", "localization", "playwright"] },
+    { label: "Community", ids: ["tech-writer", "sre", "growth", "support-triage"] },
+  ];
+  return {
+    globalAllowlist: [...ALL_BACKENDS],
+    categoryAllowlist: {},
+    categories: seed.map((g, i) => ({
+      id: g.label.toLowerCase().replace(/\s+/g, "-"),
+      label: g.label,
+      order: i,
+      members: g.ids.map((refId) => ({ source: "role" as const, refId })),
+    })),
+  };
+}
+
+function adminConfigFile(): string {
+  return join(app.getPath("userData"), "admin-config.json");
+}
+
+function loadAdminConfig(): AdminConfig {
+  try {
+    return JSON.parse(readFileSync(adminConfigFile(), "utf8"));
+  } catch {
+    const config = defaultAdminConfig();
+    saveAdminConfig(config);
+    return config;
+  }
+}
+
+function saveAdminConfig(config: AdminConfig): void {
+  writeFileSync(adminConfigFile(), JSON.stringify(config, null, 2));
+}
+
+function categoryForRole(config: AdminConfig, roleId: string): Category | undefined {
+  return config.categories.find((c) => c.members.some((m) => m.source === "role" && m.refId === roleId));
+}
+
+// Global hides app-wide; a project may only narrow further, never expand past
+// it; a category (the agent's role group) may narrow it again — e.g. "QA-category
+// agents may only use Claude". ponytail: category narrowing only applies to
+// role-backed agents (an AgentRef with roleId) — a custom/library agent has no
+// category membership to look up, so it's governed by global+project only.
+function effectiveBackends(config: AdminConfig, project: Project, agent?: AgentRef): BackendId[] {
+  let allowed = config.globalAllowlist;
+  if (project.allowedBackends?.length) allowed = allowed.filter((b) => project.allowedBackends!.includes(b));
+  const category = agent?.roleId ? categoryForRole(config, agent.roleId) : undefined;
+  const categoryAllow = category ? config.categoryAllowlist[category.id] : undefined;
+  if (categoryAllow?.length) allowed = allowed.filter((b) => categoryAllow.includes(b));
+  return allowed;
+}
+
+function assertBackendAllowed(project: Project, agent?: AgentRef): void {
+  const allowed = effectiveBackends(loadAdminConfig(), project, agent);
+  if (!allowed.includes(project.backend)) {
+    throw new Error(`Backend "${project.backend}" is not allowed for this project/agent (admin panel restriction). Allowed: ${allowed.join(", ") || "none"}.`);
+  }
 }
 
 const rolesDir = join(__dirname, "..", "..", "roles");
@@ -925,6 +1006,7 @@ function notifyNeedsInput(project: Project, agentId: string): void {
 }
 
 function makeBackend(project: Project, agent?: AgentRef): AgentBackend {
+  assertBackendAllowed(project, agent);
   const opts = {
     cwd: agent?.worktreePath ?? project.path,
     model: agent?.model || project.model || undefined,
@@ -1413,6 +1495,58 @@ app.whenReady().then(() => {
   });
   ipcMain.handle("teams:remove", (_e, id: string) => {
     saveTeams(loadTeams().filter((t) => t.id !== id));
+  });
+
+  ipcMain.handle("admin:get", () => loadAdminConfig());
+  ipcMain.handle("admin:setGlobalAllowlist", (_e, list: BackendId[]) => {
+    const config = loadAdminConfig();
+    config.globalAllowlist = list;
+    saveAdminConfig(config);
+    return config;
+  });
+  ipcMain.handle("admin:setCategoryAllowlist", (_e, { categoryId, list }: { categoryId: string; list: BackendId[] }) => {
+    const config = loadAdminConfig();
+    if (list.length) config.categoryAllowlist[categoryId] = list;
+    else delete config.categoryAllowlist[categoryId];
+    saveAdminConfig(config);
+    return config;
+  });
+  ipcMain.handle("admin:addCategory", (_e, label: string) => {
+    const config = loadAdminConfig();
+    const order = config.categories.length ? Math.max(...config.categories.map((c) => c.order)) + 1 : 0;
+    config.categories.push({ id: randomUUID(), label, order, members: [] });
+    saveAdminConfig(config);
+    return config;
+  });
+  ipcMain.handle("admin:renameCategory", (_e, { id, label }: { id: string; label: string }) => {
+    const config = loadAdminConfig();
+    const cat = config.categories.find((c) => c.id === id);
+    if (cat) cat.label = label;
+    saveAdminConfig(config);
+    return config;
+  });
+  ipcMain.handle("admin:removeCategory", (_e, id: string) => {
+    const config = loadAdminConfig();
+    config.categories = config.categories.filter((c) => c.id !== id);
+    delete config.categoryAllowlist[id];
+    saveAdminConfig(config);
+    return config;
+  });
+  ipcMain.handle("admin:reorderCategories", (_e, orderedIds: string[]) => {
+    const config = loadAdminConfig();
+    orderedIds.forEach((id, i) => {
+      const cat = config.categories.find((c) => c.id === id);
+      if (cat) cat.order = i;
+    });
+    saveAdminConfig(config);
+    return config;
+  });
+  ipcMain.handle("admin:setCategoryMembers", (_e, { categoryId, members }: { categoryId: string; members: TeamMember[] }) => {
+    const config = loadAdminConfig();
+    const cat = config.categories.find((c) => c.id === categoryId);
+    if (cat) cat.members = members;
+    saveAdminConfig(config);
+    return config;
   });
 
   ipcMain.handle("attachments:pick", async () => {

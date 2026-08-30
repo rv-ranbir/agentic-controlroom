@@ -54,7 +54,7 @@ export function Launcher({ onNewAgent }: { onNewAgent: () => void }) {
   const toast = useStore((s) => s.toast);
   const theme = useStore((s) => s.theme);
   const repoCloning = useStore((s) => s.repoCloning);
-  const { toggleTheme, createProject, createRepoProject, showToast, selectProject } = useStore.getState();
+  const { toggleTheme, createProject, createRepoProject, showToast, selectProject, showView } = useStore.getState();
   const [tab, setTab] = useState<"local" | "repo">("local");
   const [drag, setDrag] = useState(false);
   const [repoUrl, setRepoUrl] = useState("");
@@ -103,6 +103,7 @@ export function Launcher({ onNewAgent }: { onNewAgent: () => void }) {
         <span className="wordmark">Agentic Control Room</span>
         <div className="spacer" />
         {toast && <span className="mono dim toast">{toast}</span>}
+        <button className="pillBtn ghostBtn mono" onClick={() => showView("admin")}>admin</button>
         <button className="pillBtn iconBtn" title="Toggle theme" onClick={toggleTheme}>{theme === "light" ? "☀" : "☽"}</button>
       </header>
       <div className="lnScroll">

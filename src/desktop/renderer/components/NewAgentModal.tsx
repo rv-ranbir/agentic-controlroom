@@ -6,14 +6,12 @@ import {
 } from "lucide-react";
 import { useStore } from "../store";
 import { colorFor, initials } from "../lib/agents";
-import type { LibraryAgent, Project } from "../types";
+import { BACKENDS, categoryForRole, effectiveBackends } from "../lib/backends";
+import type { AdminConfig, LibraryAgent, Project } from "../types";
 
-const ENGINES: { id: string; label: string }[] = [
-  { id: "claude", label: "Claude Code" },
-  { id: "cursor", label: "Cursor CLI" },
-  { id: "openrouter", label: "OpenRouter" },
-  { id: "codex", label: "Codex" },
-];
+// "codex" isn't a real backend (not in Project["backend"]/AdminConfig's allow-list union yet),
+// so it can't be admin-restricted — always shown, same as before this picker became allow-list-aware.
+const UNGOVERNED_ENGINES: { id: string; label: string }[] = [{ id: "codex", label: "Codex" }];
 const MODELS = [
   { id: "", label: "Default", hint: "project default" },
   { id: "opus", label: "Opus", hint: "most capable" },
@@ -53,8 +51,16 @@ export function NewAgentModal({ onClose }: { onClose: () => void }) {
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set(["Core team"]));
   const [library, setLibrary] = useState<LibraryAgent[]>([]);
   const [selectedLibraryId, setSelectedLibraryId] = useState<string | null>(null);
+  const [adminConfig, setAdminConfig] = useState<AdminConfig | null>(null);
 
   useEffect(() => { void api.listLibrary().then(setLibrary); }, []);
+  useEffect(() => {
+    void api.getAdminConfig().then((c) => {
+      setAdminConfig(c);
+      const first = [...c.categories].sort((a, b) => a.order - b.order)[0];
+      if (first) setOpenGroups((prev) => (prev.size ? prev : new Set([first.label])));
+    });
+  }, []);
 
   const [cName, setCName] = useState("");
   const [cRules, setCRules] = useState("");
@@ -65,6 +71,13 @@ export function NewAgentModal({ onClose }: { onClose: () => void }) {
   const [model, setModel] = useState("");
   const [modelCustom, setModelCustom] = useState("");
   useEffect(() => { if (engine === "openrouter" && !model) setModel("custom"); }, [engine]);
+
+  const roleCategoryId = selectedRoleId && adminConfig ? categoryForRole(adminConfig, selectedRoleId)?.id : undefined;
+  const governedEngines = adminConfig && project ? effectiveBackends(adminConfig, project, roleCategoryId).map((id) => BACKENDS.find((b) => b.id === id)!) : BACKENDS;
+  const visibleEngines = [...governedEngines, ...UNGOVERNED_ENGINES];
+  useEffect(() => {
+    if (governedEngines.length && !governedEngines.some((e) => e.id === engine)) setEngine(governedEngines[0].id);
+  }, [governedEngines.map((e) => e.id).join(",")]);
   const [ctx, setCtx] = useState<"standard" | "large">("standard");
   const [effort, setEffort] = useState<"medium" | "high">("medium");
   const [advOpenBody, setAdvOpenBody] = useState(false);
@@ -188,7 +201,10 @@ export function NewAgentModal({ onClose }: { onClose: () => void }) {
               const q = roleSearch.trim().toLowerCase();
               const byId = new Map(roles.map((r) => [r.id, r]));
               const grouped = new Set<string>();
-              const groups = ROLE_GROUPS.map((g) => {
+              const groupsSource = adminConfig
+                ? [...adminConfig.categories].sort((a, b) => a.order - b.order).map((c) => ({ label: c.label, ids: c.members.filter((m) => m.source === "role").map((m) => m.refId) }))
+                : ROLE_GROUPS; // admin config not loaded yet — fall back to the M9.1 defaults so the picker isn't empty
+              const groups = groupsSource.map((g) => {
                 const entries = g.ids.map((id) => byId.get(id)).filter((r): r is NonNullable<typeof r> => !!r);
                 entries.forEach((r) => grouped.add(r.id));
                 return { label: g.label, roles: entries };
@@ -279,7 +295,7 @@ export function NewAgentModal({ onClose }: { onClose: () => void }) {
         <div className="fField">
           <span className="fLabel">Engine</span>
           <div className="segGroup">
-            {ENGINES.map((e) => (
+            {visibleEngines.map((e) => (
               <div key={e.id} className={`segOpt${engine === e.id ? " on" : ""}`} title={e.id === "codex" ? "Not wired yet" : undefined} onClick={() => setEngine(e.id)}>
                 {e.label}
               </div>

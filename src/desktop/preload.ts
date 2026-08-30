@@ -38,6 +38,15 @@ contextBridge.exposeInMainWorld("api", {
   listTeams: () => ipcRenderer.invoke("teams:list"),
   addTeam: (name: string, members: { source: "role" | "library"; refId: string }[]) => ipcRenderer.invoke("teams:add", { name, members }),
   removeTeam: (id: string) => ipcRenderer.invoke("teams:remove", id),
+  getAdminConfig: () => ipcRenderer.invoke("admin:get"),
+  setGlobalAllowlist: (list: string[]) => ipcRenderer.invoke("admin:setGlobalAllowlist", list),
+  setCategoryAllowlist: (categoryId: string, list: string[]) => ipcRenderer.invoke("admin:setCategoryAllowlist", { categoryId, list }),
+  addCategory: (label: string) => ipcRenderer.invoke("admin:addCategory", label),
+  renameCategory: (id: string, label: string) => ipcRenderer.invoke("admin:renameCategory", { id, label }),
+  removeCategory: (id: string) => ipcRenderer.invoke("admin:removeCategory", id),
+  reorderCategories: (orderedIds: string[]) => ipcRenderer.invoke("admin:reorderCategories", orderedIds),
+  setCategoryMembers: (categoryId: string, members: { source: "role" | "library"; refId: string }[]) =>
+    ipcRenderer.invoke("admin:setCategoryMembers", { categoryId, members }),
   startMeeting: (projectId: string, agentIds: string[], topic: string, rounds: number) =>
     ipcRenderer.invoke("room:meeting", { projectId, agentIds, topic, rounds }),
   listTasks: (projectId: string) => ipcRenderer.invoke("tasks:list", projectId),
