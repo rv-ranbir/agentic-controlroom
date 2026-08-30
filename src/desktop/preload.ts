@@ -31,6 +31,7 @@ contextBridge.exposeInMainWorld("api", {
   getCommitDiff: (projectId: string, agentId: string, sha: string) => ipcRenderer.invoke("room:commitDiff", { projectId, agentId, sha }),
   postBroadcast: (projectId: string, text: string) => ipcRenderer.invoke("room:post", { projectId, text }),
   listLibrary: () => ipcRenderer.invoke("library:list"),
+  importAgentFromGithub: (url: string) => ipcRenderer.invoke("library:importFromGithub", url),
   addToLibrary: (name: string, systemPrompt: string, model: string | undefined, extraArgs: string[] | undefined, skillIds: string[] | undefined) =>
     ipcRenderer.invoke("library:add", { name, systemPrompt, model, extraArgs, skillIds }),
   removeFromLibrary: (id: string) => ipcRenderer.invoke("library:remove", id),

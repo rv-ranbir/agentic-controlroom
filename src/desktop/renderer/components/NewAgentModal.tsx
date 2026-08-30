@@ -50,8 +50,25 @@ export function NewAgentModal({ onClose }: { onClose: () => void }) {
   const [library, setLibrary] = useState<LibraryAgent[]>([]);
   const [selectedLibraryId, setSelectedLibraryId] = useState<string | null>(null);
   const [saveToLibrary, setSaveToLibrary] = useState(false);
+  const [githubUrl, setGithubUrl] = useState("");
+  const [importingFromGithub, setImportingFromGithub] = useState(false);
 
   useEffect(() => { void api.listLibrary().then(setLibrary); }, []);
+
+  const importAgentFromGithub = async () => {
+    if (!githubUrl.trim()) return;
+    setImportingFromGithub(true);
+    try {
+      const entry = await api.importAgentFromGithub(githubUrl.trim());
+      setLibrary((l) => [...l, entry]);
+      setGithubUrl("");
+      showToast(`Imported agent "${entry.name}" to your library`);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : String(err));
+    } finally {
+      setImportingFromGithub(false);
+    }
+  };
   const [cName, setCName] = useState("");
   const [cRules, setCRules] = useState("");
   const [skills, setSkills] = useState<string[]>([]);
@@ -127,6 +144,19 @@ export function NewAgentModal({ onClose }: { onClose: () => void }) {
                   + new
                 </button>
               </div>
+            </div>
+            <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+              <input
+                className="fInput mono"
+                style={{ flex: 1 }}
+                placeholder="or paste a github.com/…/blob/…/agent.md URL"
+                value={githubUrl}
+                onChange={(e) => setGithubUrl(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") void importAgentFromGithub(); }}
+              />
+              <button className="pillBtn ghostBtn mono" disabled={importingFromGithub || !githubUrl.trim()} onClick={() => void importAgentFromGithub()}>
+                {importingFromGithub ? "importing…" : "import"}
+              </button>
             </div>
             {library.length === 0 && (
               <div className="dim" style={{ fontSize: 12.5, padding: "12px 0" }}>

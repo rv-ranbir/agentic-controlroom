@@ -122,7 +122,7 @@ function listSkills(): { id: string; name: string }[] {
 
 // GitHub-only allowlist (like isSafeRepoUrl) — never fetch an arbitrary user-pasted
 // URL from the main process, that's an SSRF foot-gun (internal/localhost targets).
-function isGithubSkillUrl(url: string): boolean {
+function isGithubContentUrl(url: string): boolean {
   try {
     const u = new URL(url);
     return u.protocol === "https:" && (u.hostname === "github.com" || u.hostname === "raw.githubusercontent.com");
@@ -131,19 +131,40 @@ function isGithubSkillUrl(url: string): boolean {
   }
 }
 
-async function importSkillFromGithub(url: string): Promise<{ id: string; name: string }> {
-  if (!isGithubSkillUrl(url)) throw new Error("Only github.com / raw.githubusercontent.com URLs are supported");
+async function fetchGithubText(url: string): Promise<{ text: string; base: string }> {
+  if (!isGithubContentUrl(url)) throw new Error("Only github.com / raw.githubusercontent.com URLs are supported");
   const rawUrl = url.includes("/blob/") ? url.replace("github.com", "raw.githubusercontent.com").replace("/blob/", "/") : url;
   const res = await fetch(rawUrl);
   if (!res.ok) throw new Error(`GitHub fetch failed: ${res.status} ${res.statusText}`);
   const text = await res.text();
-  if (text.length > 200_000) throw new Error("Skill file too large (200KB limit)");
+  if (text.length > 200_000) throw new Error("File too large (200KB limit)");
   if (!text.trim()) throw new Error("Empty file");
   const base = (rawUrl.split("/").pop() || `imported-${Date.now()}`).replace(/[^\w.-]/g, "_");
+  return { text, base };
+}
+
+async function importSkillFromGithub(url: string): Promise<{ id: string; name: string }> {
+  const { text, base } = await fetchGithubText(url);
   const filename = base.endsWith(".md") ? base : `${base}.md`;
   mkdirSync(skillsDir, { recursive: true });
   writeFileSync(join(skillsDir, filename), text, "utf8");
   return { id: filename.replace(/\.md$/, ""), name: skillTitle(filename) };
+}
+
+// Fetched content becomes a global library agent (not roles/*.md — that's for
+// this repo's own built-in roles). A leading "# Role: X" / "# Agent: X" heading
+// (same convention as roles/*.md) becomes the name; otherwise falls back to the
+// filename. Whatever's left is the system prompt verbatim.
+async function importAgentFromGithub(url: string): Promise<LibraryAgent> {
+  const { text, base } = await fetchGithubText(url);
+  const heading = /^#\s*(?:Role|Agent):\s*(.+)\r?\n?/i.exec(text.trimStart());
+  const name = heading ? heading[1].trim() : base.replace(/\.md$/i, "").replace(/[-_]/g, " ");
+  const systemPrompt = heading ? text.trimStart().slice(heading[0].length).trim() : text.trim();
+  const list = loadLibrary();
+  const entry: LibraryAgent = { id: randomUUID(), name, systemPrompt, createdAt: new Date().toISOString() };
+  list.push(entry);
+  saveLibrary(list);
+  return entry;
 }
 
 function appendSkills<T extends { systemPrompt: string }>(role: T, agent: AgentRef): T {
@@ -1367,6 +1388,7 @@ app.whenReady().then(() => {
   });
 
   ipcMain.handle("library:list", () => loadLibrary());
+  ipcMain.handle("library:importFromGithub", (_e, url: string) => importAgentFromGithub(url));
   ipcMain.handle("library:add", (_e, { name, systemPrompt, model, extraArgs, skillIds }: { name: string; systemPrompt: string; model?: string; extraArgs?: string[]; skillIds?: string[] }) => {
     const list = loadLibrary();
     const entry: LibraryAgent = { id: randomUUID(), name, systemPrompt, model, extraArgs, skillIds, createdAt: new Date().toISOString() };

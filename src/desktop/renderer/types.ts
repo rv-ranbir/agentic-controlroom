@@ -116,6 +116,7 @@ export interface DesktopApi {
   getCommitDiff(projectId: string, agentId: string, sha: string): Promise<DiffResult>;
   postBroadcast(projectId: string, text: string): Promise<void>;
   listLibrary(): Promise<LibraryAgent[]>;
+  importAgentFromGithub(url: string): Promise<LibraryAgent>;
   addToLibrary(name: string, systemPrompt: string, model: string | undefined, extraArgs: string[] | undefined, skillIds: string[] | undefined): Promise<LibraryAgent>;
   removeFromLibrary(id: string): Promise<void>;
   listTeams(): Promise<Team[]>;
