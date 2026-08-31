@@ -51,6 +51,9 @@ export function TopBar() {
         <span className={`pill${blocked > 0 ? " on" : ""}`}>{blocked}</span>
       </div>
       {selected && (
+        <button className="pillBtn ghostBtn mono" onClick={() => showView("floor")}>floor</button>
+      )}
+      {selected && (
         <button className="pillBtn ghostBtn mono" onClick={() => showView("meeting")}>meeting</button>
       )}
       {selected && (

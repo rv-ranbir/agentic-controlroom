@@ -11,6 +11,7 @@ import { ChatBoard } from "./components/ChatBoard";
 import { MeetingRoom } from "./components/MeetingRoom";
 import { PlanningBoard } from "./components/PlanningBoard";
 import { AdminPanel } from "./components/AdminPanel";
+import { OfficeFloor } from "./components/OfficeFloor";
 import { NewAgentModal } from "./components/NewAgentModal";
 
 export function App() {
@@ -34,6 +35,7 @@ export function App() {
       {view === "meeting" && <MeetingRoom />}
       {view === "planning" && <PlanningBoard />}
       {view === "admin" && <AdminPanel />}
+      {view === "floor" && <OfficeFloor />}
       {modalOpen && <NewAgentModal onClose={() => setModalOpen(false)} />}
     </>
   );

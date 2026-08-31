@@ -189,3 +189,12 @@
 .roomSprite { display: flex; flex-direction: column; align-items: center; gap: 3px; flex-shrink: 0; }
 .roomSprite img { height: 74px; width: auto; filter: drop-shadow(0 3px 5px rgba(0,0,0,.35)); }
 .roomSprite .mono { font-size: 9px; color: var(--ink); background: rgba(0,0,0,.4); padding: 1px 5px; border-radius: 4px; }
+
+/* ── office floor — clickable room zones (M11 minimal slice) — same "not
+   theme-reactive" convention as .corkboard/.roomScene. ── */
+.officeFloor { flex: 1; min-height: 0; display: flex; gap: 16px; padding: 20px; overflow: auto; }
+.floorZone { position: relative; flex: 1; min-width: 220px; cursor: pointer; border-radius: 10px; overflow: hidden; border: 1px solid var(--rule); transition: transform .12s ease, border-color .12s ease; }
+.floorZone:hover { transform: translateY(-2px); border-color: var(--signal); }
+.floorZone .roomScene { height: 100%; border-bottom: none; }
+.floorZoneLabel { position: absolute; top: 0; left: 0; right: 0; padding: 10px 14px; background: linear-gradient(rgba(0,0,0,.55), transparent); display: flex; flex-direction: column; gap: 2px; }
+.floorZoneName { font-weight: 700; font-size: 14px; color: var(--ink); }
