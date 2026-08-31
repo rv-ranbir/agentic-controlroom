@@ -41,7 +41,7 @@ export async function runDevQaGraph(
   // before QA runs again. The round gate models exactly that advance point.
   const devFirstTurn = (state: GraphState) => !state.sessions.has("qa");
 
-  const nodes: GraphNode[] = [
+  const nodes: GraphNode<RoomResult>[] = [
     {
       kind: "agent",
       id: "dev",
