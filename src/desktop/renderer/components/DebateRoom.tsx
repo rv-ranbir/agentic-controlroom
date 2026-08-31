@@ -1,0 +1,158 @@
+import { useEffect, useRef, useState } from "react";
+import { useStore } from "../store";
+import { agentIdOf, colorFor, initials } from "../lib/agents";
+import { Markdown } from "./Markdown";
+import { RoomScene } from "./RoomScene";
+
+export function DebateRoom() {
+  const selectedProjectId = useStore((s) => s.selectedProjectId);
+  const project = useStore((s) => s.projects.find((p) => p.id === selectedProjectId));
+  const messages = useStore((s) => s.messages);
+  const running = useStore((s) => !!s.runningKeys[selectedProjectId ?? ""]);
+  const { showView, showToast } = useStore.getState();
+
+  const [analysts, setAnalysts] = useState<Set<string>>(new Set());
+  const [manager, setManager] = useState<string | null>(null);
+  const [topic, setTopic] = useState("");
+  const [maxRounds, setMaxRounds] = useState(2);
+  const [startedTs, setStartedTs] = useState<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [messages]);
+
+  if (!project) {
+    return (
+      <div className="viewRoot">
+        <header className="rvHeader">
+          <button className="pillBtn ghostBtn mono" onClick={() => showView("room")}>&larr; back</button>
+        </header>
+        <div className="rvEmpty">No project selected.</div>
+      </div>
+    );
+  }
+
+  const toggleAnalyst = (id: string) => {
+    if (id === manager) return; // mutually exclusive with the manager pick
+    setAnalysts((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const pickManager = (id: string) => {
+    if (analysts.has(id)) return; // mutually exclusive with the analyst picks
+    setManager((prev) => (prev === id ? null : id));
+  };
+
+  const start = () => {
+    if (analysts.size < 2) { showToast("Pick at least 2 analysts"); return; }
+    if (!manager) { showToast("Pick a manager to judge the debate"); return; }
+    if (!topic.trim()) { showToast("Give the debate a topic"); return; }
+    setStartedTs(new Date().toISOString());
+    void api.startDebate(project.id, [...analysts], manager, topic.trim(), maxRounds)
+      .catch((err) => showToast(err instanceof Error ? err.message : String(err)));
+  };
+
+  const participantIds = manager ? [...analysts, manager] : [...analysts];
+  const transcript = startedTs
+    ? messages.filter((m) => m.ts >= startedTs && (participantIds.includes(agentIdOf(m)) || agentIdOf(m) === "orchestrator"))
+    : [];
+  const lastSystemMsg = [...transcript].reverse().find((m) => agentIdOf(m) === "orchestrator");
+  const outcome = !running && lastSystemMsg
+    ? lastSystemMsg.message.includes("Consensus reached") ? "consensus"
+      : lastSystemMsg.message.includes("No consensus") ? "no-consensus"
+        : null
+    : null;
+
+  return (
+    <div className="viewRoot">
+      <header className="rvHeader">
+        <button className="pillBtn ghostBtn mono" onClick={() => showView("room")}>&larr; back</button>
+        <span className="rvName">{project.name}</span>
+        <span className="dim mono" style={{ fontSize: 10.5 }}>Debate room</span>
+      </header>
+      <RoomScene agents={startedTs ? project.agents.filter((a) => participantIds.includes(a.id)) : project.agents} />
+
+      {!startedTs && (
+        <div style={{ padding: 20, maxWidth: 640 }}>
+          <div className="fField">
+            <span className="fLabel">Analysts (2+)</span>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {project.agents.map((a) => (
+                <div
+                  key={a.id}
+                  className={`roleOpt${analysts.has(a.id) ? " chosen" : ""}`}
+                  style={{ cursor: manager === a.id ? "not-allowed" : "pointer", opacity: manager === a.id ? 0.4 : 1 }}
+                  onClick={() => toggleAnalyst(a.id)}
+                >
+                  <div className="monogram mono" style={{ width: 22, height: 22, fontSize: 9.5, background: colorFor(a.id) }}>{initials(a.name)}</div>
+                  <span>{a.name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="fField">
+            <span className="fLabel">Manager (judges consensus)</span>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {project.agents.map((a) => (
+                <div
+                  key={a.id}
+                  className={`roleOpt${manager === a.id ? " chosen" : ""}`}
+                  style={{ cursor: analysts.has(a.id) ? "not-allowed" : "pointer", opacity: analysts.has(a.id) ? 0.4 : 1 }}
+                  onClick={() => pickManager(a.id)}
+                >
+                  <div className="monogram mono" style={{ width: 22, height: 22, fontSize: 9.5, background: colorFor(a.id) }}>{initials(a.name)}</div>
+                  <span>{a.name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="fField">
+            <span className="fLabel">Topic</span>
+            <textarea className="fInput" rows={3} value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="What should they debate?" />
+          </div>
+          <div className="fField">
+            <span className="fLabel">Max rounds</span>
+            <div className="segGroup">
+              {[1, 2, 3].map((r) => (
+                <div key={r} className={`segOpt${maxRounds === r ? " on" : ""}`} onClick={() => setMaxRounds(r)}>{r}</div>
+              ))}
+            </div>
+          </div>
+          <button className="pillBtn fillBtn mono" onClick={start}>start debate</button>
+        </div>
+      )}
+
+      {startedTs && (
+        <>
+          <div ref={scrollRef} style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: 20 }}>
+            <div className="dim mono" style={{ fontSize: 10.5, marginBottom: 14 }}>
+              {running ? "debate in progress…" : outcome === "consensus" ? "consensus reached" : outcome === "no-consensus" ? "no consensus reached" : "debate ended"}
+            </div>
+            {transcript.map((m, i) => {
+              const id = agentIdOf(m);
+              const name = id === "orchestrator" ? "system" : (project.agents.find((a) => a.id === id)?.name ?? id);
+              return (
+                <div key={i} style={{ display: "flex", gap: 10, marginBottom: 14 }}>
+                  <div className="monogram mono" style={{ width: 22, height: 22, fontSize: 9.5, flexShrink: 0, background: colorFor(id) }}>{initials(name)}</div>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div className="mono dim" style={{ fontSize: 10.5, marginBottom: 2 }}>{name}</div>
+                    <Markdown text={m.message} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {!running && (
+            <div style={{ padding: "0 20px 20px" }}>
+              <button className="pillBtn ghostBtn mono" onClick={() => { setStartedTs(null); setAnalysts(new Set()); setManager(null); setTopic(""); }}>new debate</button>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}

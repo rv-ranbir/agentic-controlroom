@@ -9,6 +9,7 @@ import { Ide } from "./components/Ide";
 import { TaskBoard } from "./components/TaskBoard";
 import { ChatBoard } from "./components/ChatBoard";
 import { MeetingRoom } from "./components/MeetingRoom";
+import { DebateRoom } from "./components/DebateRoom";
 import { PlanningBoard } from "./components/PlanningBoard";
 import { AdminPanel } from "./components/AdminPanel";
 import { OfficeFloor } from "./components/OfficeFloor";
@@ -33,6 +34,7 @@ export function App() {
       {view === "board" && <TaskBoard />}
       {view === "chat" && <ChatBoard />}
       {view === "meeting" && <MeetingRoom />}
+      {view === "debate" && <DebateRoom />}
       {view === "planning" && <PlanningBoard />}
       {view === "admin" && <AdminPanel />}
       {view === "floor" && <OfficeFloor />}

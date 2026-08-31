@@ -155,6 +155,7 @@ export interface DesktopApi {
   reorderCategories(orderedIds: string[]): Promise<AdminConfig>;
   setCategoryMembers(categoryId: string, members: TeamMember[]): Promise<AdminConfig>;
   startMeeting(projectId: string, agentIds: string[], topic: string, rounds: number): Promise<void>;
+  startDebate(projectId: string, analystIds: string[], managerId: string, topic: string, maxRounds: number): Promise<void>;
   listTasks(projectId: string): Promise<TaskItem[]>;
   createTask(projectId: string, title: string, description: string, assigneeAgentId: string | undefined, createdBy: TaskItem["createdBy"], attachments?: string[], sourcePlanningMessageId?: string): Promise<TaskItem>;
   pickAttachment(): Promise<string | null>;

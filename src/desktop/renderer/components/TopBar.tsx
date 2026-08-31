@@ -57,6 +57,9 @@ export function TopBar() {
         <button className="pillBtn ghostBtn mono" onClick={() => showView("meeting")}>meeting</button>
       )}
       {selected && (
+        <button className="pillBtn ghostBtn mono" onClick={() => showView("debate")}>debate</button>
+      )}
+      {selected && (
         <button className="pillBtn ghostBtn mono" onClick={() => showView("chat")}>chat</button>
       )}
       {selected && (

@@ -14,6 +14,7 @@ import { OpenRouterBackend } from "../backend/openRouterBackend.js";
 import type { AgentBackend, RoleConfig } from "../backend/agentBackend.js";
 import { runRoom } from "../orchestrator/orchestrator.js";
 import { runMeeting } from "../orchestrator/meeting.js";
+import { runDebateGraph } from "../orchestrator/graphs/debate.js";
 import { isQuestionLike } from "../orchestrator/needsInput.js";
 import { loadRole } from "../roles.js";
 
@@ -1226,6 +1227,45 @@ async function startMeeting(project: Project, agentIds: string[], topic: string,
   }
 }
 
+// ── Debate room (M12 phase 2): analysts weigh in, a manager judges consensus ──
+async function startDebate(project: Project, analystIds: string[], managerId: string, topic: string, maxRounds: number): Promise<void> {
+  const analystAgents = analystIds.map((id) => project.agents?.find((a) => a.id === id)).filter((a): a is AgentRef => !!a);
+  const managerAgent = project.agents?.find((a) => a.id === managerId);
+  if (analystAgents.length < 2) throw new Error("Pick at least 2 analysts for a debate.");
+  if (!managerAgent) throw new Error("Pick a manager to judge the debate.");
+  const allAgents = [...analystAgents, managerAgent];
+  const keys = allAgents.map((a) => `${project.id}:${a.id}`);
+  const busy = keys.find((k) => running.has(k));
+  if (busy) throw new Error(`${allAgents[keys.indexOf(busy)].name} is already busy.`);
+  keys.forEach((k) => running.add(k));
+  const log = wiredLog(project);
+  send("room:event", { projectId: project.id, kind: "running", running: true });
+  try {
+    const buildParticipant = (agent: AgentRef) => ({
+      agent: prependMemory(
+        appendSkills(
+          agent.systemPrompt
+            ? { id: agent.id, name: agent.name, systemPrompt: agent.systemPrompt }
+            : loadRole(rolesDir, agent.id, agent.name, `${agent.roleId ?? agent.id}.md`),
+          agent,
+        ),
+        project,
+      ),
+      backend: makeBackend(project, agent),
+    });
+    const analysts = analystAgents.map(buildParticipant);
+    const manager = buildParticipant(managerAgent);
+    await runDebateGraph(topic, log, analysts, manager, { maxRounds, streamActivity: true });
+  } catch (err) {
+    postError(project, err);
+  } finally {
+    keys.forEach((k) => running.delete(k));
+    allAgents.forEach((a) => log.agentState(a.id, "idle"));
+    log.status("");
+    send("room:event", { projectId: project.id, kind: "running", running: false });
+  }
+}
+
 // ── interactive PTY terminal (M1: real node-pty session, not headless exec) ──
 // The CLI runs through the user's own shell (cmd/bash) rather than being
 // resolved/exec'd directly like the headless backends: here the user types
@@ -1467,6 +1507,12 @@ app.whenReady().then(() => {
     const p = loadProjects().find((x) => x.id === projectId);
     if (!p) throw new Error("Unknown project");
     void startMeeting(p, agentIds, topic, rounds);
+  });
+
+  ipcMain.handle("room:debate", (_e, { projectId, analystIds, managerId, topic, maxRounds }: { projectId: string; analystIds: string[]; managerId: string; topic: string; maxRounds: number }) => {
+    const p = loadProjects().find((x) => x.id === projectId);
+    if (!p) throw new Error("Unknown project");
+    void startDebate(p, analystIds, managerId, topic, maxRounds);
   });
 
   ipcMain.handle("room:running", () => [...running]);
