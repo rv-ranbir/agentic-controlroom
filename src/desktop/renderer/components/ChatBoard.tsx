@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useStore } from "../store";
 import { agentIdOf, colorFor, initials } from "../lib/agents";
 import { Markdown } from "./Markdown";
+import { RoomScene } from "./RoomScene";
 
 export function ChatBoard() {
   const selectedProjectId = useStore((s) => s.selectedProjectId);
@@ -49,6 +50,7 @@ export function ChatBoard() {
         <span className="rvName">{project.name}</span>
         <span className="dim mono" style={{ fontSize: 10.5 }}>Chat board &middot; everyone sees this</span>
       </header>
+      <RoomScene agents={project.agents} />
       <div ref={scrollRef} style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "20px" }}>
         {messages.length === 0 && <div className="rvEmpty">No messages yet.</div>}
         {messages.map((m, i) => {

@@ -173,3 +173,19 @@
 .stickyNote .pillBtn:hover { border-color: rgba(42,36,32,.55); }
 .stickyNote .pillBtn.fillBtn { background: #2A2420; color: var(--note-color, #E8C468); border-color: #2A2420; }
 .corkColHead { color: var(--ink); background: rgba(0,0,0,.22); border-radius: 6px; padding: 6px 10px; margin: 0 0 10px; backdrop-filter: blur(1px); }
+
+/* ── chat/meeting room skeuomorphic backdrop (M10 phase 4b) — drawn assets already
+   match the dark theme palette 1:1, so like the corkboard this is deliberately
+   not theme-reactive. ── */
+.roomScene {
+  position: relative;
+  flex-shrink: 0;
+  height: 150px;
+  background-size: cover;
+  background-position: center;
+  border-bottom: 1px solid var(--rule);
+}
+.roomSpriteRow { position: absolute; left: 0; right: 0; bottom: 8px; display: flex; gap: 12px; padding: 0 16px; overflow-x: auto; }
+.roomSprite { display: flex; flex-direction: column; align-items: center; gap: 3px; flex-shrink: 0; }
+.roomSprite img { height: 74px; width: auto; filter: drop-shadow(0 3px 5px rgba(0,0,0,.35)); }
+.roomSprite .mono { font-size: 9px; color: var(--ink); background: rgba(0,0,0,.4); padding: 1px 5px; border-radius: 4px; }

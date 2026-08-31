@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useStore } from "../store";
 import { agentIdOf, colorFor, initials } from "../lib/agents";
 import { Markdown } from "./Markdown";
+import { RoomScene } from "./RoomScene";
 
 export function MeetingRoom() {
   const selectedProjectId = useStore((s) => s.selectedProjectId);
@@ -58,6 +59,7 @@ export function MeetingRoom() {
         <span className="rvName">{project.name}</span>
         <span className="dim mono" style={{ fontSize: 10.5 }}>Meeting room</span>
       </header>
+      <RoomScene agents={startedTs ? project.agents.filter((a) => picked.has(a.id)) : project.agents} />
 
       {!startedTs && (
         <div style={{ padding: 20, maxWidth: 640 }}>
