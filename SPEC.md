@@ -97,7 +97,13 @@ Rules: raw stream always kept verbatim with a toggle (parser failure degrades to
   - Multiple named rooms as clickable zones on one floor (meeting rooms, boardrooms, possibly a per-role desk area) — navigating between rooms becomes spatial (click a room) rather than the current flat `showView()` tab switch.
   - Agent characters shown as moving/animated within the floor, not just a static sprite strip — implies real-time position/movement state per agent, which does not exist yet (RoomScene's `bucketOf()` only gives a discrete state, not a location or motion).
   - Clicking a room likely opens that room's existing view (Chat Board / Meeting Room / Task Board) — so this could layer on top of the M10 phase 4b assets and `bucketOf()` state machine rather than replace them.
-  - **Not yet scoped**: needs a design pass (what rooms exist, how agents get assigned/shown in a room, whether movement is real or just a state-based idle animation, how many new illustrated assets this needs) before implementation starts. Flagged here so it isn't lost, not committed to a build plan.
+  - **Minimal first slice scoped 2026-08-31** — see `docs/plan-graph-orchestrator-extensions-office-floor.md` Part C: a few named clickable zones reusing `RoomScene`'s existing background/sprites, each zone just navigating to the room's existing view. Full moving-characters vision still deferred.
+
+- **M12 — Graph-based orchestrator (proposed 2026-08-31, Phase 1 scoped, not built).** `orchestrator.ts`'s Dev/QA loop is a hardcoded 2-node state machine — can't express branching/debate flows (e.g. a TradingAgents-style analyst-debate-then-consensus shape). Full design in `docs/graph-orchestrator-design.md`; Phase 1 execution plan (engine + node/edge types, port the existing Dev/QA loop as a graph config, prove parity against `orchestrator.test.ts`, no UI change) in `docs/plan-graph-orchestrator-extensions-office-floor.md` Part A.
+
+- **Extension layer — docs only, not a milestone.** How a user plugs in their own script/API (e.g. Bitbucket PR review, market data) or an MCP server without touching `agent-room`'s own codebase. The mechanism already exists end-to-end (`skillIds` → system-prompt injection via `appendSkills()`; `extraArgs` → the existing "CLI flags" field in New Agent Modal, covers `--mcp-config`) — nothing to build, just needs writing down. Plan in `docs/plan-graph-orchestrator-extensions-office-floor.md` Part B; target doc `docs/extending-agents.md` (not yet written).
+
+Next-session pointer: **read `docs/plan-graph-orchestrator-extensions-office-floor.md` first** — it's the up-to-date consolidated plan for M11/M12/extension-layer work above, sequenced B (docs) → A (orchestrator engine) → C (office floor slice).
 
 Ship each milestone end-to-end; don't start the next until the previous has been used.
 
