@@ -9,6 +9,7 @@ export interface RoleConfig {
 export interface StartResult {
   sessionId: string;
   reply: string;
+  usage?: { inputTokens:number|null; outputTokens:number|null; costUsd:null };
 }
 
 /** Called with each raw output line while the agent works (tool calls, text deltas). */

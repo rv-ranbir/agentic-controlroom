@@ -1,0 +1,29 @@
+.workflowPanel { display:flex; flex-direction:column; gap:16px; color:var(--ink); }
+.workflowPanel .tabBar,.workflowPanel .workflowHeader,.workflowPanel .stepRow,.workflowPanel .buttonRow,.workflowPanel .runHeader,.workflowPanel .artifactHeader { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+.workflowPanel .tabBar { border-bottom:1px solid var(--rule); padding-bottom:12px; }
+.workflowPanel .tab { background:transparent; color:var(--dim); border:1px solid transparent; padding:8px 14px; cursor:pointer; border-radius:16px; }
+.workflowPanel .tab.active { color:var(--ink); border-color:var(--rule); background:var(--sink); }
+.workflowPanel .tabContent { display:flex; flex-direction:column; gap:16px; }
+.workflowPanel input,.workflowPanel select,.workflowPanel textarea { color:var(--ink); background:var(--sink); border:1px solid var(--rule); border-radius:6px; padding:10px; font:inherit; max-width:100%; }
+.workflowPanel input:focus-visible,.workflowPanel select:focus-visible,.workflowPanel textarea:focus-visible { outline:2px solid var(--live); }
+.workflowPanel .workflowName { min-width:280px; flex:1; }
+.workflowPanel .stepsContainer { display:grid; gap:12px; }
+.workflowPanel .stepRow { padding:12px; border:1px solid var(--rule); border-radius:8px; }
+.workflowPanel .stepAgent { flex:1; min-width:180px; }
+.workflowPanel .stepBtn { color:var(--ink); background:transparent; border:1px solid var(--rule); padding:8px 12px; cursor:pointer; border-radius:6px; }
+.workflowPanel .taskSection { display:grid; gap:12px; }
+.workflowPanel .taskInput { width:100%; box-sizing:border-box; min-height:110px; resize:vertical; }
+.workflowPanel .runItem,.workflowPanel .artifactItem { padding:16px; border:1px solid var(--rule); border-radius:8px; }
+.workflowPanel .runName,.workflowPanel .artifactTitle { font-weight:600; }
+.workflowPanel .runStatus,.workflowPanel .status { font:12px monospace; }
+.workflowPanel .complete { color:var(--live); }
+.workflowPanel .failed,.workflowPanel .errorMsg { color:#eb8c79; }
+.workflowPanel .stepsList { display:grid; gap:6px; margin-top:10px; }
+.workflowPanel .stepStatus { display:flex; gap:12px; }
+.workflowPanel .artifactActions { display:flex; gap:8px; margin-top:12px; }
+.workflowPanel .settingsTable { overflow-x:auto; }
+.workflowPanel table { width:100%; border-collapse:collapse; text-align:left; }
+.workflowPanel th,.workflowPanel td { padding:12px 8px; border-bottom:1px solid var(--rule); }
+.workflowPanel td input { width:160px; }
+.workflowPanel .empty { padding:24px; color:var(--dim); }
+.workflowPanel button:disabled { opacity:.45; cursor:not-allowed; }

@@ -92,7 +92,7 @@ export function NewAgentModal({ onClose }: { onClose: () => void }) {
   async function create() {
     if (!project) return;
     if (engine === "codex") { showToast("Codex engine — not wired yet"); return; }
-    if (engine !== project!.backend) updateProjectBackend(project!.id, engine as Project["backend"]);
+    const existingIds=new Set(project.agents.map(a=>a.id));
     const finalModel = model === "custom" ? modelCustom.trim() : model;
     const override = advPrompt.trim();
     const extraArgs = advFlags.trim() ? advFlags.trim().split(/\s+/) : undefined;
@@ -114,6 +114,9 @@ export function NewAgentModal({ onClose }: { onClose: () => void }) {
       if (!selectedRoleId) { showToast("Pick a role"); return; }
       await addAgent(project.id, selectedRoleId, finalModel || undefined, extraArgs, advWorktree);
     }
+    const updated=(await api.listProjects()).find(p=>p.id===project.id);
+    const added=updated?.agents.find(a=>!existingIds.has(a.id));
+    if(added)await api.updateAgentRuntime(project.id,added.id,{provider:engine,model:finalModel||"",keyEnv:""});
     await refreshProjects();
     onClose();
   }

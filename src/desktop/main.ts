@@ -12,11 +12,14 @@ import { CursorCliBackend } from "../backend/cursorCliBackend.js";
 import { ClaudeCliBackend } from "../backend/claudeCliBackend.js";
 import { OpenRouterBackend } from "../backend/openRouterBackend.js";
 import type { AgentBackend, RoleConfig } from "../backend/agentBackend.js";
-import { runRoom } from "../orchestrator/orchestrator.js";
 import { runMeeting } from "../orchestrator/meeting.js";
 import { runDebateGraph } from "../orchestrator/graphs/debate.js";
 import { isQuestionLike } from "../orchestrator/needsInput.js";
 import { loadRole } from "../roles.js";
+import { readProjectDashboard } from '../projectDashboard.js';
+import { createDashboardWindowManager } from './projectDashboardWindow.js';
+import { createWorkflowHost } from './workflowHost.js';
+import { createHttpBackend, validCredentialBinding, type ModelConfig, type ProviderId } from '../backend/httpBackend.js';
 
 interface AgentRef {
   id: string; // unique per instance — always a generated id, never the bare role id (M9: multiple instances of the same role are allowed)
@@ -27,13 +30,15 @@ interface AgentRef {
   extraArgs?: string[]; // raw CLI flags from the new-agent modal's "CLI flags" field
   worktreePath?: string; // present when this agent got its own git worktree (M5)
   skillIds?: string[]; // attached skills/*.md files, appended to the system prompt (M7)
+  provider?: BackendId; // per-agent effective backend override; falls back to project.backend
+  keyEnv?: string; // credential env var name for HTTP providers (openai/anthropic/gemini/ollama)
 }
 
 interface Project {
   id: string;
   name: string;
   path: string;
-  backend: "cursor" | "claude" | "openrouter";
+  backend: BackendId;
   model?: string;
   agents?: AgentRef[];
   repoUrl?: string; // present when this room was created by cloning a repository
@@ -45,8 +50,9 @@ interface Project {
 }
 
 // ── Admin panel (M10): provider governance + user-extensible role/agent categories ──
-type BackendId = "cursor" | "claude" | "openrouter";
-const ALL_BACKENDS: BackendId[] = ["claude", "cursor", "openrouter"];
+type BackendId = "cursor" | "claude" | "openrouter" | "openai" | "anthropic" | "gemini" | "ollama";
+const ALL_BACKENDS: BackendId[] = ["claude", "cursor", "openrouter", "openai", "anthropic", "gemini", "ollama"];
+const HTTP_BACKENDS = new Set<BackendId>(["openai", "anthropic", "gemini", "ollama"]);
 
 interface Category {
   id: string;
@@ -117,15 +123,21 @@ function effectiveBackends(config: AdminConfig, project: Project, agent?: AgentR
   return allowed;
 }
 
+function effectiveProvider(project: Project, agent?: AgentRef): BackendId {
+  return agent?.provider ?? project.backend;
+}
+
 function assertBackendAllowed(project: Project, agent?: AgentRef): void {
   const allowed = effectiveBackends(loadAdminConfig(), project, agent);
-  if (!allowed.includes(project.backend)) {
-    throw new Error(`Backend "${project.backend}" is not allowed for this project/agent (admin panel restriction). Allowed: ${allowed.join(", ") || "none"}.`);
+  const provider = effectiveProvider(project, agent);
+  if (!allowed.includes(provider)) {
+    throw new Error(`Backend "${provider}" is not allowed for this project/agent (admin panel restriction). Allowed: ${allowed.join(", ") || "none"}.`);
   }
 }
 
 const rolesDir = join(__dirname, "..", "..", "roles");
 let win: BrowserWindow | undefined;
+const dashboardWindows = createDashboardWindowManager(options => new BrowserWindow(options));
 const running = new Set<string>(); // "projectId" (room run) or "projectId:agentId" (direct send)
 const runningProcs = new Map<string, ChildProcess>(); // "projectId:agentId" -> in-flight direct-send child process
 const ptySessions = new Map<string, IPty>(); // "projectId:agentId" -> live interactive PTY session (M1)
@@ -268,7 +280,7 @@ function loadProjects(): Project[] {
   try {
     const projects: Project[] = JSON.parse(readFileSync(projectsFile(), "utf8"));
     for (const p of projects) {
-      if (!p.agents?.length) p.agents = [{ id: "dev", name: "Developer" }, { id: "qa", name: "QA" }];
+      if (!p.agents) p.agents = []; // never overwrite a populated roster — only fill in a missing field
     }
     return projects;
   } catch {
@@ -685,7 +697,7 @@ async function cloneAndRegister(url: string, name: string, token?: string): Prom
     path: dest,
     backend: "claude",
     repoUrl: url,
-    agents: [{ id: "dev", name: "Developer" }, { id: "qa", name: "QA" }],
+    agents: [],
   };
   projects.push(project);
   saveProjects(projects);
@@ -828,7 +840,7 @@ function prependMemory<T extends { systemPrompt: string }>(role: T, project: Pro
 // project can switch which login/key an agent spawns with once a provider's
 // quota is hit. Agentic Control Room can't reliably auto-detect *which* account failed
 // or auto-switch mid-run — it surfaces the option and lets the user pick.
-interface Account { id: string; provider: "claude" | "cursor" | "openrouter"; name: string; env: StoredSecret[] }
+interface Account { id: string; provider: "claude" | "cursor" | "openrouter" | "openai" | "anthropic" | "gemini" | "ollama"; name: string; env: StoredSecret[] }
 
 function accountsFile(): string {
   return join(app.getPath("userData"), "accounts.json");
@@ -850,7 +862,7 @@ function listAccountsSafe(): { id: string; provider: string; name: string; envKe
   return loadAccounts().map((a) => ({ id: a.id, provider: a.provider, name: a.name, envKeys: a.env.map((e) => e.key) }));
 }
 
-function addAccount(provider: "claude" | "cursor" | "openrouter", name: string, env: Record<string, string>): void {
+function addAccount(provider: "claude" | "cursor" | "openrouter" | "openai" | "anthropic" | "gemini" | "ollama", name: string, env: Record<string, string>): void {
   const list = loadAccounts();
   list.push({
     id: randomUUID(),
@@ -1058,15 +1070,29 @@ function notifyNeedsInput(project: Project, agentId: string): void {
 
 function makeBackend(project: Project, agent?: AgentRef): AgentBackend {
   assertBackendAllowed(project, agent);
+  const provider = effectiveProvider(project, agent);
+  const env = { ...process.env, ...resolveSecretsEnv(project.id), ...resolveAccountEnv(project.activeAccountId) } as Record<string, string>;
+  if (HTTP_BACKENDS.has(provider)) {
+    const model = agent?.model || project.model;
+    if (!model) throw new Error(`Set a model for the "${provider}" provider.`);
+    const config: ModelConfig = {
+      provider: provider as ProviderId,
+      model,
+      keyEnv: agent?.keyEnv || `${provider.toUpperCase()}_API_KEY`,
+      maxTokens: 4096,
+      timeoutMs: 120000,
+    };
+    return createHttpBackend(config, env);
+  }
   const opts = {
     cwd: agent?.worktreePath ?? project.path,
     model: agent?.model || project.model || undefined,
     extraArgs: agent?.extraArgs,
-    env: { ...process.env, ...resolveSecretsEnv(project.id), ...resolveAccountEnv(project.activeAccountId) } as Record<string, string>,
+    env,
   };
-  if (project.backend === "openrouter") return new OpenRouterBackend(opts);
-  assertAllowedBin(project.backend === "claude" ? (process.env.CLAUDE_BIN ?? "claude") : (process.env.CURSOR_AGENT_BIN ?? "cursor-agent"));
-  return project.backend === "claude" ? new ClaudeCliBackend(opts) : new CursorCliBackend(opts);
+  if (provider === "openrouter") return new OpenRouterBackend(opts);
+  assertAllowedBin(provider === "claude" ? (process.env.CLAUDE_BIN ?? "claude") : (process.env.CURSOR_AGENT_BIN ?? "cursor-agent"));
+  return provider === "claude" ? new ClaudeCliBackend(opts) : new CursorCliBackend(opts);
 }
 
 // M4 Launcher stats: main.ts is the one place that sees every project's
@@ -1115,36 +1141,34 @@ function postError(project: Project, err: unknown): void {
   });
 }
 
-// ── orchestrated room run (Dev implements → QA verifies) ───────
+// ── workflow host (project-defined multi-agent workflows) ──────
 
-async function runTask(project: Project, task: string): Promise<void> {
-  if (running.has(project.id)) throw new Error("A run is already in progress for this project.");
-  running.add(project.id);
-  send("room:event", { projectId: project.id, kind: "running", running: true });
-  const log = wiredLog(project);
-  try {
-    const result = await runRoom(
-      task,
-      makeBackend(project),
-      log,
-      loadRole(rolesDir, "dev", "Developer", "dev.md"),
-      loadRole(rolesDir, "qa", "QA", "qa.md"),
-      { streamActivity: true },
-    );
-    send("room:event", { projectId: project.id, kind: "done", result });
-  } catch (err) {
-    postError(project, err);
-    send("room:event", { projectId: project.id, kind: "done", result: "error" });
-  } finally {
-    running.delete(project.id);
-    send("room:event", { projectId: project.id, kind: "running", running: false });
-  }
+function roleFor(p: Project, a: AgentRef): RoleConfig {
+  return prependMemory(
+    appendSkills(
+      a.systemPrompt
+        ? { id: a.id, name: a.name, systemPrompt: a.systemPrompt }
+        : loadRole(rolesDir, a.id, a.name, `${a.roleId ?? a.id}.md`),
+      a,
+    ),
+    p,
+  );
 }
+
+const workflowHost = createWorkflowHost({
+  projects: loadProjects,
+  running,
+  role: roleFor,
+  backend: makeBackend,
+  log: wiredLog,
+  event: (projectId, event) => send("room:event", { projectId, ...event }),
+});
 
 // ── direct message to one agent ────────────────────────────────
 
 async function sendToAgent(project: Project, agent: AgentRef, prompt: string): Promise<void> {
   const key = `${project.id}:${agent.id}`;
+  if (running.has(project.id)) throw new Error("This project has agents already working.");
   if (running.has(key)) throw new Error(`${agent.name} is still working.`);
   running.add(key);
   quotaNotified.delete(key);
@@ -1338,6 +1362,8 @@ function startShellPty(project: Project): { alreadyRunning: boolean } {
 // ── app ────────────────────────────────────────────────────────
 
 app.whenReady().then(() => {
+  ipcMain.handle('projects:dashboard', (_e,id:string) => { const p=loadProjects().find(p=>p.id===id); if(!p)throw new Error('Unknown project');return readProjectDashboard(p.path); });
+  ipcMain.handle('projects:openDashboard', async (_e,id:string) => { const p=loadProjects().find(p=>p.id===id);if(!p)throw new Error('Unknown project');const dashboard=readProjectDashboard(p.path);if(!dashboard)throw new Error('This project has no dashboard');await dashboardWindows.open(id, dashboard, win); });
   ipcMain.handle("roles:list", () => listRoles());
 
   ipcMain.handle("projects:list", () => loadProjects());
@@ -1354,7 +1380,7 @@ app.whenReady().then(() => {
       name: basename(path),
       path,
       backend: "claude",
-      agents: [{ id: "dev", name: "Developer" }, { id: "qa", name: "QA" }],
+      agents: [],
     };
     projects.push(project);
     saveProjects(projects);
@@ -1492,7 +1518,37 @@ app.whenReady().then(() => {
   ipcMain.handle("room:run", (_e, { projectId, task }: { projectId: string; task: string }) => {
     const p = loadProjects().find((x) => x.id === projectId);
     if (!p) throw new Error("Unknown project");
-    void runTask(p, task);
+    return workflowHost.start(p, task);
+  });
+
+  ipcMain.handle("agent:runtime", (_e, { projectId, agentId, config }: { projectId: string; agentId: string; config: { provider: BackendId | "inherit"; model: string; keyEnv: string } }) => {
+    const projects = loadProjects();
+    const p = projects.find((x) => x.id === projectId);
+    if (!p) throw new Error("Unknown project");
+    const agent = p.agents!.find((a) => a.id === agentId);
+    if (!agent) throw new Error("Unknown agent");
+    if (running.has(projectId) || [...running].some((k) => k.startsWith(`${projectId}:`))) {
+      throw new Error("This project has agents already working.");
+    }
+    if (!config || typeof config.provider!=="string") throw new Error("Invalid provider settings");
+    const provider=config.provider==="inherit"?undefined:config.provider;
+    const effective=provider??p.backend;
+    if (provider&&!ALL_BACKENDS.includes(provider)) throw new Error("Unknown provider.");
+    if (typeof config.model !== "string" || config.model.length > 300) {
+      throw new Error("Model must be 1-300 characters.");
+    }
+    if (HTTP_BACKENDS.has(effective)) {
+      if (typeof config.keyEnv !== "string" || config.keyEnv.length > 200) throw new Error("Credential env name must be at most 200 characters.");
+      if (!validCredentialBinding({ provider: effective as ProviderId, model: config.model, keyEnv: config.keyEnv || `${effective.toUpperCase()}_API_KEY`, maxTokens: 1, timeoutMs: 1 })) {
+        throw new Error("Credential env name must belong to the selected provider.");
+      }
+    }
+    assertBackendAllowed(p, { ...agent, provider });
+    agent.provider = provider;
+    agent.model = config.model;
+    agent.keyEnv = HTTP_BACKENDS.has(effective) ? config.keyEnv : undefined;
+    saveProjects(projects);
+    return agent;
   });
 
   ipcMain.handle("agent:send", (_e, { projectId, agentId, prompt }: { projectId: string; agentId: string; prompt: string }) => {
@@ -1821,7 +1877,7 @@ app.whenReady().then(() => {
 
   ipcMain.handle("accounts:list", () => listAccountsSafe());
 
-  ipcMain.handle("accounts:add", (_e, { provider, name, env }: { provider: "claude" | "cursor" | "openrouter"; name: string; env: Record<string, string> }) => {
+  ipcMain.handle("accounts:add", (_e, { provider, name, env }: { provider: "claude" | "cursor" | "openrouter" | "openai" | "anthropic" | "gemini" | "ollama"; name: string; env: Record<string, string> }) => {
     addAccount(provider, name, env);
     return listAccountsSafe();
   });
@@ -1873,6 +1929,8 @@ app.whenReady().then(() => {
     if (!project) throw new Error("Unknown project");
     saveMemory(project, text);
   });
+
+  workflowHost.register();
 
   win = new BrowserWindow({
     width: 1440,

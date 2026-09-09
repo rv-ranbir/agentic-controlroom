@@ -13,6 +13,7 @@ import { DebateRoom } from "./components/DebateRoom";
 import { PlanningBoard } from "./components/PlanningBoard";
 import { AdminPanel } from "./components/AdminPanel";
 import { OfficeFloor } from "./components/OfficeFloor";
+import { ProjectWorkflows } from "./components/ProjectWorkflows";
 import { NewAgentModal } from "./components/NewAgentModal";
 
 export function App() {
@@ -38,6 +39,7 @@ export function App() {
       {view === "planning" && <PlanningBoard />}
       {view === "admin" && <AdminPanel />}
       {view === "floor" && <OfficeFloor />}
+      {view === "workflows" && <ProjectWorkflows />}
       {modalOpen && <NewAgentModal onClose={() => setModalOpen(false)} />}
     </>
   );

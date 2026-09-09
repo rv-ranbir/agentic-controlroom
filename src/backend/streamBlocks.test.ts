@@ -23,7 +23,7 @@ test("classifies a claude dev-turn fixture into the expected block sequence", ()
   assert.match(blocks[2].toolInput ?? "", /server\.js/);
   assert.match(blocks[4].text, /STATUS: READY_FOR_REVIEW/);
   // raw stream is always kept verbatim (SPEC's toggle rule)
-  assert.equal(blocks[4].raw, raw.trim().split("\n").at(-1));
+  assert.equal(blocks[4].raw, raw.split("\n").filter((line) => line.trim().length > 0).at(-1));
 });
 
 test("classifies a claude error-turn fixture", () => {
@@ -69,3 +69,4 @@ test("incremental parsing across a chunk split mid-line matches batch parsing", 
   const incremental = [...first.blocks, ...second.blocks];
   assert.deepEqual(incremental, batch);
 });
+

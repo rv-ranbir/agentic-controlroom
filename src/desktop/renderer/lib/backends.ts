@@ -4,6 +4,10 @@ export const BACKENDS: { id: Project["backend"]; label: string }[] = [
   { id: "claude", label: "Claude Code" },
   { id: "cursor", label: "Cursor CLI" },
   { id: "openrouter", label: "OpenRouter" },
+  { id: "openai", label: "OpenAI" },
+  { id: "anthropic", label: "Anthropic" },
+  { id: "gemini", label: "Gemini" },
+  { id: "ollama", label: "Ollama" },
 ];
 
 export function categoryForRole(config: AdminConfig, roleId: string): Category | undefined {

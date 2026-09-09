@@ -1,6 +1,8 @@
 import { contextBridge, ipcRenderer } from "electron";
 
 contextBridge.exposeInMainWorld("api", {
+  getProjectDashboard: (id:string) => ipcRenderer.invoke('projects:dashboard',id),
+  openProjectDashboard: (id:string) => ipcRenderer.invoke('projects:openDashboard',id),
   listRoles: () => ipcRenderer.invoke("roles:list"),
   listProjects: () => ipcRenderer.invoke("projects:list"),
   addProject: () => ipcRenderer.invoke("projects:add"),
@@ -95,7 +97,7 @@ contextBridge.exposeInMainWorld("api", {
   removeSecret: (projectId: string, key: string) => ipcRenderer.invoke("secrets:remove", { projectId, key }),
   setAgentModel: (projectId: string, agentId: string, model: string) => ipcRenderer.invoke("agents:setModel", { projectId, agentId, model }),
   listAccounts: () => ipcRenderer.invoke("accounts:list"),
-  addAccount: (provider: "claude" | "cursor" | "openrouter", name: string, env: Record<string, string>) => ipcRenderer.invoke("accounts:add", { provider, name, env }),
+  addAccount: (provider: "claude" | "cursor" | "openrouter" | "openai" | "anthropic" | "gemini" | "ollama", name: string, env: Record<string, string>) => ipcRenderer.invoke("accounts:add", { provider, name, env }),
   removeAccount: (id: string) => ipcRenderer.invoke("accounts:remove", { id }),
   setActiveAccount: (projectId: string, accountId?: string) => ipcRenderer.invoke("accounts:setActive", { projectId, accountId }),
   onQuotaEvent: (cb: (e: { projectId: string; agentId: string }) => void) => {
@@ -119,4 +121,12 @@ contextBridge.exposeInMainWorld("api", {
     ipcRenderer.on("pty:exit", handler);
     return () => ipcRenderer.removeListener("pty:exit", handler);
   },
+  getWorkflow: (id: string) => ipcRenderer.invoke("workflow:get", id),
+  saveWorkflow: (id: string, definition: unknown) => ipcRenderer.invoke("workflow:save", id, definition),
+  startWorkflow: (id: string, input: string, fixture?: boolean) => ipcRenderer.invoke("workflow:start", id, input, fixture),
+  cancelWorkflow: (id: string) => ipcRenderer.invoke("workflow:cancel", id),
+  listWorkflowRuns: (id: string) => ipcRenderer.invoke("workflow:runs", id),
+  listArtifacts: (id: string) => ipcRenderer.invoke("artifacts:list", id),
+  openArtifact: (id: string, artifactId: string, mode: string) => ipcRenderer.invoke("artifacts:open", id, artifactId, mode),
+  updateAgentRuntime: (id: string, agentId: string, config: unknown) => ipcRenderer.invoke("agent:runtime", { projectId: id, agentId, config }),
 });

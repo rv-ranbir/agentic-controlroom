@@ -99,5 +99,35 @@
     "rehype-highlight": "^7.0.2",
     "remark-gfm": "^4.0.1",
     "zustand": "^5.0.0"
+  },
+  "exports": {
+    "./graph": {
+      "types": "./dist/orchestrator/graph.d.ts",
+      "import": "./dist/orchestrator/graph.js"
+    },
+    "./backend": {
+      "types": "./dist/backend/agentBackend.d.ts",
+      "import": "./dist/backend/agentBackend.js"
+    },
+    "./http-backend": {
+      "types": "./dist/backend/httpBackend.d.ts",
+      "import": "./dist/backend/httpBackend.js"
+    },
+    "./chat-log": {
+      "types": "./dist/chatroom/log.d.ts",
+      "import": "./dist/chatroom/log.js"
+    },
+    "./context": {
+      "types": "./dist/workflow/context.d.ts",
+      "import": "./dist/workflow/context.js"
+    },
+    "./workflow": {
+      "types": "./dist/workflow/runtime.d.ts",
+      "import": "./dist/workflow/runtime.js"
+    },
+    "./artifacts": {
+      "types": "./dist/workflow/artifacts.d.ts",
+      "import": "./dist/workflow/artifacts.js"
+    }
   }
 }

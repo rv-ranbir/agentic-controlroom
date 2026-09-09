@@ -7,13 +7,15 @@ export interface AgentRef {
   extraArgs?: string[];
   worktreePath?: string;
   skillIds?: string[];
+  provider?: Project["backend"];
+  keyEnv?: string;
 }
 
 export interface Project {
   id: string;
   name: string;
   path: string;
-  backend: "cursor" | "claude" | "openrouter";
+  backend: "cursor" | "claude" | "openrouter" | "openai" | "anthropic" | "gemini" | "ollama";
   model?: string;
   agents: AgentRef[];
   repoUrl?: string;
@@ -115,8 +117,11 @@ export interface CommitRecord {
 }
 
 export interface DesktopApi {
+  updateAgentRuntime(id:string,agentId:string,config:{provider:string;model:string;keyEnv:string}):Promise<void>;
   listRoles(): Promise<AgentRef[]>;
   listProjects(): Promise<Project[]>;
+  getProjectDashboard(id:string):Promise<{label:string;url:string}|null>;
+  openProjectDashboard(id:string):Promise<void>;
   addProject(): Promise<Project | null>;
   cloneRepo(url: string): Promise<Project | null>;
   githubConnect(token: string): Promise<{ login: string }>;
@@ -192,7 +197,7 @@ export interface DesktopApi {
   removeSecret(projectId: string, key: string): Promise<string[]>;
   setAgentModel(projectId: string, agentId: string, model: string): Promise<AgentRef>;
   listAccounts(): Promise<{ id: string; provider: string; name: string; envKeys: string[] }[]>;
-  addAccount(provider: "claude" | "cursor" | "openrouter", name: string, env: Record<string, string>): Promise<{ id: string; provider: string; name: string; envKeys: string[] }[]>;
+  addAccount(provider: "claude" | "cursor" | "openrouter" | "openai" | "anthropic" | "gemini" | "ollama", name: string, env: Record<string, string>): Promise<{ id: string; provider: string; name: string; envKeys: string[] }[]>;
   removeAccount(id: string): Promise<{ id: string; provider: string; name: string; envKeys: string[] }[]>;
   setActiveAccount(projectId: string, accountId?: string): Promise<Project>;
   onQuotaEvent(cb: (e: { projectId: string; agentId: string }) => void): () => void;

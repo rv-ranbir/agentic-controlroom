@@ -19,6 +19,8 @@ export function TopBar() {
   const { selectProject, createProject, removeProject, updateProjectBackend, toggleTheme, showView } = useStore.getState();
   const selected = projects.find((p) => p.id === selectedProjectId);
   const [open, setOpen] = useState(false);
+  const [dashboard,setDashboard]=useState<{label:string;url:string}|null>(null);
+  useEffect(()=>{let active=true;setDashboard(null);if(selectedProjectId)void api.getProjectDashboard(selectedProjectId).then(value=>{if(active)setDashboard(value);}).catch(()=>{});return ()=>{active=false;};},[selectedProjectId]);
   const [adminConfig, setAdminConfig] = useState<AdminConfig | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -45,6 +47,7 @@ export function TopBar() {
       </button>
       {branch && <span className="mono dim branch">{branch}</span>}
       <div className="spacer" />
+      {selectedProjectId&&dashboard&&<button className="pillBtn ghostBtn mono" onClick={()=>void api.openProjectDashboard(selectedProjectId).catch(error=>useStore.getState().showToast(String(error)))}>{dashboard.label}</button>}
       {toast && <span className="mono dim toast">{toast}</span>}
       <div className="blockedWrap">
         <span className="mono dim">Blocked</span>
@@ -67,6 +70,9 @@ export function TopBar() {
       )}
       {selected && (
         <button className="pillBtn ghostBtn mono" onClick={() => showView("board")}>board</button>
+      )}
+      {selected && (
+        <button className="pillBtn ghostBtn mono" onClick={() => showView("workflows")}>workflows & artifacts</button>
       )}
       {selected && (
         <button className="pillBtn ghostBtn mono" onClick={() => showView("ide")}>files</button>

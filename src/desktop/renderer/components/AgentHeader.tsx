@@ -51,7 +51,7 @@ export function AgentHeader({ onOpenReview, agentId, interactive = true }: { onO
         <div className="monogram mono" style={{ background: "var(--sink)" }}>RM</div>
         <div className="ahInfo">
           <div className="ahTitleRow"><span className="identDot" style={{ background: "var(--rule)" }} /><span className="ahTask">Room — {project.name}</span></div>
-          <div className="mono dim ahMeta">shared chatroom · runs the Dev→QA loop</div>
+          <div className="mono dim ahMeta">shared chatroom · runs this project's workflow</div>
         </div>
       </div>
     );

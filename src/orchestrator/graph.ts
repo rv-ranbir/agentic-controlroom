@@ -1,5 +1,6 @@
 import type { AgentBackend, RoleConfig } from "../backend/agentBackend.js";
 import type { ChatLog } from "../chatroom/log.js";
+import type { RunContext } from '../workflow/context.js';
 
 // Generic graph engine (M12). orchestrator.ts's Dev/QA loop, meeting.ts's
 // round-robin, and the debate/consensus flow are all expressed on top of this
@@ -11,6 +12,8 @@ import type { ChatLog } from "../chatroom/log.js";
 export type RoomResult = "approved" | "max-rounds" | "needs-input";
 
 export interface GraphState {
+  /** Optional shared artifact store supplied by the project workflow. */
+  context?: RunContext;
   /** Per-node session id, once that node's agent has had its first turn. */
   sessions: Map<string, string>;
   /** Free-running counter a graph's own nodes/edges give meaning to (e.g. review rounds). */
@@ -27,6 +30,8 @@ export interface AgentTurnNode {
   buildPrompt: (state: GraphState) => string;
   /** Runs after this node's own log.status/agentState("working"), before the backend call — e.g. to mark another node's agent idle while this one runs. */
   beforeRun?: (state: GraphState, log: ChatLog) => void;
+  /** Runs after a successful backend reply, before edge evaluation — e.g. to persist an artifact. */
+  afterRun?: (reply: string, state: GraphState, log: ChatLog) => void | Promise<void>;
   streamActivity?: boolean;
 }
 
@@ -34,7 +39,7 @@ export interface GateNode {
   kind: "gate";
   id: string;
   /** Pure side effect on shared state — e.g. increment a round counter. No agent call, no log events. */
-  run: (state: GraphState) => void;
+  run: (state: GraphState) => void | Promise<void>;
 }
 
 export interface TerminalNode<R extends string> {
@@ -54,8 +59,10 @@ export interface GraphEdge {
 }
 
 export interface RunGraphOptions {
+  context?: RunContext;
   /** Cycle safety net — graphs can loop, unlike a fixed `for` loop, so something has to bound a run. */
   maxSteps?: number;
+  signal?: AbortSignal;
 }
 
 export async function runGraph<R extends string>(
@@ -67,10 +74,15 @@ export async function runGraph<R extends string>(
 ): Promise<R> {
   const maxSteps = opts.maxSteps ?? 50;
   const byId = new Map(nodes.map((n) => [n.id, n]));
-  const state: GraphState = { sessions: new Map(), round: 1, data: {} };
+  const state: GraphState = { sessions: new Map(), round: 1, data: {}, context: opts.context };
   let currentId = startId;
 
+  const checkSignal = () => {
+    if (opts.signal?.aborted) throw new Error("graph: aborted");
+  };
+
   for (let step = 0; step < maxSteps; step++) {
+    checkSignal();
     const node = byId.get(currentId);
     if (!node) throw new Error(`graph: unknown node "${currentId}"`);
 
@@ -80,7 +92,7 @@ export async function runGraph<R extends string>(
     }
 
     if (node.kind === "gate") {
-      node.run(state);
+      await node.run(state);
     } else {
       const prompt = node.buildPrompt(state);
       log.status(`${node.role.name} is working…`);
@@ -90,18 +102,25 @@ export async function runGraph<R extends string>(
 
       const sessionId = state.sessions.get(node.id);
       let reply: string;
-      if (sessionId === undefined) {
-        const r = await node.backend.start(node.role, prompt, onLine);
-        state.sessions.set(node.id, r.sessionId);
-        reply = r.reply;
-      } else {
-        reply = (await node.backend.resume(sessionId, prompt, node.role, onLine)).reply;
+      try {
+        if (sessionId === undefined) {
+          const r = await node.backend.start(node.role, prompt, onLine);
+          state.sessions.set(node.id, r.sessionId);
+          reply = r.reply;
+        } else {
+          reply = (await node.backend.resume(sessionId, prompt, node.role, onLine)).reply;
+        }
+      } catch (err) {
+        log.agentState(node.role.id, "idle");
+        throw err;
       }
       log.post(node.role.id, node.role.name, reply);
       state.data.lastReply = reply;
       state.data.lastNodeId = node.id;
+      if (node.afterRun) await node.afterRun(reply, state, log);
     }
 
+    checkSignal();
     const next = edges.filter((e) => e.from === currentId).find((e) => e.condition(state));
     if (!next) throw new Error(`graph: no matching edge from "${currentId}"`);
     currentId = next.to;

@@ -3,7 +3,7 @@ import type { AgentRef, Project, Msg, RoomEvent, DiffResult } from "./types";
 import { bucketOf, deriveAgentStates } from "./lib/agents";
 import { pushTick, clearTicks } from "./lib/rail";
 
-export type View = "launcher" | "room" | "review" | "terminal" | "env" | "ide" | "planning" | "board" | "chat" | "meeting" | "admin" | "floor" | "debate";
+export type View = "launcher" | "room" | "review" | "terminal" | "env" | "ide" | "planning" | "board" | "chat" | "meeting" | "admin" | "floor" | "debate" | "workflows";
 
 interface State {
   roles: AgentRef[];
@@ -80,8 +80,9 @@ function trySendQueued(projectId: string, agentId: string | null): void {
   const composerQueue = { ...s.composerQueue };
   if (rest.length) composerQueue[key] = rest; else delete composerQueue[key];
   useStore.setState({ composerQueue });
-  if (agentId) void api.sendToAgent(projectId, agentId, next);
-  else void api.runTask(projectId, next);
+  const target = useStore.getState();
+  if (agentId) void api.sendToAgent(projectId, agentId, next).catch((err) => target.showToast(err instanceof Error ? err.message : String(err)));
+  else void api.runTask(projectId, next).catch((err) => target.showToast(err instanceof Error ? err.message : String(err)));
 }
 
 export const useStore = create<State>((set, get) => ({
@@ -271,8 +272,8 @@ export const useStore = create<State>((set, get) => ({
       set((st) => ({ composerQueue: { ...st.composerQueue, [key]: [...(st.composerQueue[key] ?? []), text] } }));
       return;
     }
-    if (agentId) void api.sendToAgent(projectId, agentId, text);
-    else void api.runTask(projectId, text);
+    if (agentId) void api.sendToAgent(projectId, agentId, text).catch((err) => get().showToast(err instanceof Error ? err.message : String(err)));
+    else void api.runTask(projectId, text).catch((err) => get().showToast(err instanceof Error ? err.message : String(err)));
   },
 
   // like submitComposer, but for an arbitrary agentId (the Task Board assigns
