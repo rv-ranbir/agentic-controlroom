@@ -15,6 +15,7 @@ import { AdminPanel } from "./components/AdminPanel";
 import { OfficeFloor } from "./components/OfficeFloor";
 import { ProjectWorkflows } from "./components/ProjectWorkflows";
 import { NewAgentModal } from "./components/NewAgentModal";
+import { ArtifactTabs } from "./components/ArtifactTabs";
 
 export function App() {
   const view = useStore((s) => s.view);
@@ -41,6 +42,7 @@ export function App() {
       {view === "floor" && <OfficeFloor />}
       {view === "workflows" && <ProjectWorkflows />}
       {modalOpen && <NewAgentModal onClose={() => setModalOpen(false)} />}
+      <ArtifactTabs />
     </>
   );
 }

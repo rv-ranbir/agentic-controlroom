@@ -33,6 +33,7 @@ export interface AgentTurnNode {
   /** Runs after a successful backend reply, before edge evaluation — e.g. to persist an artifact. */
   afterRun?: (reply: string, state: GraphState, log: ChatLog) => void | Promise<void>;
   streamActivity?: boolean;
+  logReply?: boolean;
 }
 
 export interface GateNode {
@@ -114,7 +115,7 @@ export async function runGraph<R extends string>(
         log.agentState(node.role.id, "idle");
         throw err;
       }
-      log.post(node.role.id, node.role.name, reply);
+      if(node.logReply !== false) log.post(node.role.id, node.role.name, reply);
       state.data.lastReply = reply;
       state.data.lastNodeId = node.id;
       if (node.afterRun) await node.afterRun(reply, state, log);

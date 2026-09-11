@@ -1,3 +1,4 @@
+import { CapabilityPanel } from "./CapabilityPanel";
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "../store";
 import { BACKENDS, effectiveBackends } from "../lib/backends";
@@ -19,6 +20,7 @@ export function TopBar() {
   const { selectProject, createProject, removeProject, updateProjectBackend, toggleTheme, showView } = useStore.getState();
   const selected = projects.find((p) => p.id === selectedProjectId);
   const [open, setOpen] = useState(false);
+  const [capabilitiesOpen,setCapabilitiesOpen]=useState(false);
   const [dashboard,setDashboard]=useState<{label:string;url:string}|null>(null);
   useEffect(()=>{let active=true;setDashboard(null);if(selectedProjectId)void api.getProjectDashboard(selectedProjectId).then(value=>{if(active)setDashboard(value);}).catch(()=>{});return ()=>{active=false;};},[selectedProjectId]);
   const [adminConfig, setAdminConfig] = useState<AdminConfig | null>(null);
@@ -39,6 +41,7 @@ export function TopBar() {
 
   return (
     <header id="topbar">
+      {capabilitiesOpen&&selected&&<CapabilityPanel key={selected.id} project={selected} onClose={()=>setCapabilitiesOpen(false)}/>}
       <div className="statusDot" />
       <span className="wordmark">Agentic Control Room</span>
       <div className="vDivider" />
@@ -80,6 +83,7 @@ export function TopBar() {
       {selected && (
         <button className="pillBtn ghostBtn mono" onClick={() => showView("env")}>env</button>
       )}
+      {selected&&<button className="pillBtn ghostBtn mono" onClick={()=>setCapabilitiesOpen(true)}>capabilities</button>}
       <button className="pillBtn iconBtn" title="Toggle theme" onClick={toggleTheme}>
         {theme === "light" ? "☀" : "☽"}
       </button>

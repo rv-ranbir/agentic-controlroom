@@ -1,0 +1,519 @@
+.officeStudio {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--paper);
+  --wood: #A97C50;
+  --wood-dark: #7C5A38;
+  --wood-light: #C79A68;
+  --sage: #8FA883;
+  --sage-dark: #6C8564;
+  --ivory: #F3EAD9;
+  --floor-a: #221D18;
+  --floor-b: #26211B;
+}
+
+:root[data-theme="light"] .officeStudio {
+  --wood: #B98A5E;
+  --wood-dark: #93673F;
+  --wood-light: #D2AE7E;
+  --sage: #86A177;
+  --sage-dark: #64815A;
+  --ivory: #FBF4E6;
+  --floor-a: #EDE0C7;
+  --floor-b: #F5EAD8;
+}
+
+.osWorkspace {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  min-width: 0;
+  min-height: 0;
+}
+
+.osGrid {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--rule);
+}
+
+.osGridTop {
+  flex-shrink: 0;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--rule);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.osZoomControls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.osZoomBtn {
+  padding: 4px 9px;
+  min-width: 34px;
+  justify-content: center;
+}
+
+.osFitBtn {
+  padding: 4px 10px;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.osFitBtn.on {
+  border-color: var(--signal);
+  color: var(--signal);
+}
+
+.rvHeaderStats {
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+.osSearch {
+  flex: 1;
+  background: var(--deck);
+  color: var(--ink);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  outline: none;
+}
+
+.osSearch:focus {
+  border-color: var(--signal);
+  box-shadow: 0 0 0 2px rgba(214, 127, 72, 0.16);
+}
+
+.osSearch::placeholder {
+  color: var(--ink-50);
+}
+
+.osGridCount {
+  font-size: 10px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.osGridArea {
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+  padding: 16px;
+  position: relative;
+}
+
+.osCanvasWrap {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+}
+
+.osCanvasSizer {
+  position: relative;
+}
+
+.osCanvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+}
+
+.osZone {
+  position: absolute;
+  box-sizing: border-box;
+}
+
+.osZoneLabel {
+  position: absolute;
+  top: 6px;
+  left: 10px;
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.osZoneLabelBtn {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  font-family: inherit;
+  z-index: 2;
+}
+
+.osZoneLabelBtn:hover {
+  text-decoration: underline;
+}
+
+.osZoneLabelBtn:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 2px;
+}
+
+.osZoneDesk {
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+}
+
+.osZoneCorridor {
+  background: transparent;
+}
+
+.osRoom {
+  background: transparent;
+  border: 1.5px solid var(--wood-dark);
+  border-radius: 10px;
+}
+
+.osRoomSvg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+.osTable {
+  fill: var(--wood);
+  stroke: var(--wood-dark);
+  stroke-width: 1.5;
+}
+
+.osChair {
+  fill: var(--sage);
+  stroke: var(--wood-dark);
+  stroke-width: 1;
+  opacity: 0.85;
+}
+
+/* — Atmosphere / furniture SVG layers sit behind agent buttons and room labels — */
+.osAtmosphere,
+.osFurnitureLayer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.osZone,
+.osDesk-item {
+  z-index: 1;
+}
+
+.osNoMatch {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 3;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 11px;
+  color: var(--ink-70);
+}
+
+.osDesk-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 10px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  background: transparent;
+  transition: background 0.12s ease, opacity 0.15s ease;
+}
+
+.osDesk-item.placed {
+  position: absolute;
+  width: 96px;
+  z-index: 1;
+}
+
+.osDesk-item.dim {
+  opacity: 0.32;
+}
+
+.osDesk-item:hover {
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+}
+
+.osDesk-item:focus {
+  outline: 2px solid var(--signal);
+  outline-offset: 2px;
+}
+
+.osDesk-item.sel {
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+}
+
+.osDesk-visual {
+  position: relative;
+  width: 60px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Selection halo — a glow ring behind the character art, not an opaque card. */
+.osDesk-item.sel .osDesk-visual::before {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--signal), 0 0 14px 3px color-mix(in srgb, var(--signal) 55%, transparent);
+  pointer-events: none;
+}
+
+.osSprite {
+  height: 54px;
+  width: auto;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+  position: relative;
+}
+
+.osBadge {
+  position: absolute;
+  top: -6px;
+  right: -8px;
+  font-size: 8px;
+  line-height: 1.4;
+  padding: 1px 5px;
+  border-radius: 8px;
+  border: 1px solid;
+  background: var(--paper);
+  color: var(--ink-70);
+  white-space: nowrap;
+}
+
+/* Readable name/status plate — translucent, sits on top of the illustration,
+   never the other way around, so art never obscures the label text. */
+.osDesk-labelPlate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 2px 7px 3px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--paper) 82%, transparent);
+  border: 1px solid color-mix(in srgb, var(--rule) 80%, transparent);
+  max-width: 100%;
+}
+
+.osDesk-label {
+  font-size: 11px;
+  text-align: center;
+  line-height: 1.3;
+  word-break: break-word;
+  white-space: normal;
+  min-width: 0;
+}
+
+.osEmpty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--ink-50);
+  font-style: italic;
+  font-size: 12.5px;
+}
+
+.osGridNav {
+  flex-shrink: 0;
+  padding: 12px 16px;
+  border-top: 1px solid var(--rule);
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.osGridNav .pillBtn {
+  flex: 1;
+  min-width: 90px;
+  justify-content: center;
+  font-size: 10.5px;
+}
+
+.osGridNav .pillBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.osGridNav .pillBtn:focus {
+  outline: 2px solid var(--signal);
+  outline-offset: 2px;
+}
+
+/* — Inspector panel — */
+.osInspector {
+  width: 300px;
+  flex-shrink: 0;
+  background: var(--deck);
+  border-left: 1px solid var(--rule);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.osInspectorHeader {
+  flex-shrink: 0;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--rule);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.osInspectorTitle {
+  font-weight: 700;
+  font-size: 12.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.osInspectorContent {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.osInspectorField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.osInspectorLabel {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-50);
+  font-family: var(--mono);
+}
+
+.osInspectorValue {
+  font-size: 11.5px;
+  color: var(--ink);
+  word-break: break-word;
+}
+
+.osInspectorMessage {
+  font-size: 10.5px;
+  color: var(--ink-70);
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+/* — Responsive design — */
+@media (max-width: 1200px) {
+  .osWorkspace {
+    flex-direction: column;
+  }
+
+  .osInspector {
+    width: auto;
+    max-height: 200px;
+    border-left: none;
+    border-top: 1px solid var(--rule);
+  }
+
+  .osGrid {
+    flex: 1;
+    border-right: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .osGridNav .pillBtn {
+    min-width: 70px;
+  }
+
+  .osInspector {
+    display: block;
+    max-height: 40vh;
+    overflow-y: auto;
+    width: 100%;
+  }
+}
+
+@media (max-width: 650px) {
+  .osGridTop {
+    padding: 8px 10px;
+    gap: 8px;
+  }
+
+  .osSearch {
+    flex-basis: 100%;
+  }
+
+  .osZoomBtn {
+    padding: 3px 7px;
+    min-width: 28px;
+  }
+
+  .osFitBtn {
+    padding: 3px 8px;
+  }
+
+  .rvHeaderStats {
+    display: none;
+  }
+}
+
+/* — Reduced motion — */
+@media (prefers-reduced-motion: reduce) {
+  .osDesk-item {
+    transition: none;
+  }
+}
+
+/* — Buttons with focus rings — */
+.osGridNav .pillBtn:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 2px;
+}
+
+.osDesk-item:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 2px;
+}
+
+.osSearch:focus-visible {
+  outline: none;
+  border-color: var(--signal);
+}
+
+
+/* Allow the canvas to scroll inside the workspace rather than widening the shell. */
+.osGrid { min-width: 0; }
+.osSearch { min-width: 100px; }
+
+/* Keep room navigation readable in the fitted overview. */
+.osZoneLabel { font-size: inherit; }

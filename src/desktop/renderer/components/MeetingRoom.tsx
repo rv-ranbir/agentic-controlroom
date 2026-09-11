@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "../store";
 import { agentIdOf, colorFor, initials } from "../lib/agents";
-import { Markdown } from "./Markdown";
+import { AgentMessage } from "./AgentMessage";
 import { RoomScene } from "./RoomScene";
 
 export function MeetingRoom() {
@@ -109,7 +109,7 @@ export function MeetingRoom() {
                   <div className="monogram mono" style={{ width: 22, height: 22, fontSize: 9.5, flexShrink: 0, background: colorFor(id) }}>{initials(name)}</div>
                   <div style={{ minWidth: 0, flex: 1 }}>
                     <div className="mono dim" style={{ fontSize: 10.5, marginBottom: 2 }}>{name}</div>
-                    <Markdown text={m.message} />
+                    <AgentMessage message={m} />
                   </div>
                 </div>
               );

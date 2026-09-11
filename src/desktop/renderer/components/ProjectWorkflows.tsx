@@ -16,9 +16,10 @@ interface WorkflowApi {
 }
 
 interface Definition {
+  projectManaged?: boolean;
   id: string;
   name: string;
-  steps: Array<{ id: string; agentId?: string; workflow?: Definition }>;
+  steps: Array<{ id: string; agentId?: string; tool?: string; ownerId?:string; workflow?: Definition }>;
 }
 
 interface Run {
@@ -223,6 +224,7 @@ export function ProjectWorkflows() {
             <input
               className="workflowName"
               type="text"
+              readOnly={workflow.projectManaged}
               value={workflow.name}
               onChange={(e) => {
                 setWorkflow({ ...workflow, name: e.target.value });
@@ -230,17 +232,18 @@ export function ProjectWorkflows() {
               }}
               placeholder="Workflow name"
             />
-            <button className="pillBtn" onClick={saveWorkflowDef} disabled={!dirty || loading}>
+            <button className="pillBtn" onClick={saveWorkflowDef} disabled={workflow.projectManaged || !dirty || loading}>
               {loading ? "Saving..." : "Save"}
             </button>
           </div>
 
           <div className="stepsContainer">
             {workflow.steps.map((step, idx) => (
-              <div key={step.id} className="stepRow">{step.workflow&&<span>Child workflow: {step.workflow.name}</span>}
+              <div key={step.id} className="stepRow">{workflow.projectManaged && <span>{step.id}{step.tool ? " · project tool" : ""}</span>}{step.workflow&&<span>Child workflow: {step.workflow.name}</span>}
                 <select
+                  disabled={workflow.projectManaged}
                   className="stepAgent"
-                  value={step.agentId || step.workflow?.steps[0]?.agentId || ""}
+                  value={step.agentId || step.ownerId || step.workflow?.steps[0]?.agentId || ""}
                   onChange={(e) => updateStep(idx, e.target.value || undefined)}
                   aria-label={`Step ${idx + 1} agent`}
                 >
@@ -249,15 +252,15 @@ export function ProjectWorkflows() {
                     <option key={a.id} value={a.id}>{a.name}</option>
                   ))}
                 </select>
-                <button className="stepBtn" onClick={() => moveStep(idx, idx - 1)} disabled={idx === 0} title="Move up">↑</button>
-                <button className="stepBtn" onClick={() => moveStep(idx, idx + 1)} disabled={idx === workflow.steps.length - 1} title="Move down">↓</button>
-                <button className="stepBtn" onClick={() => removeStep(idx)} title="Remove">✕</button>
+                <button className="stepBtn" onClick={() => moveStep(idx, idx - 1)} disabled={workflow.projectManaged || idx === 0} title="Move up">↑</button>
+                <button className="stepBtn" onClick={() => moveStep(idx, idx + 1)} disabled={workflow.projectManaged || idx === workflow.steps.length - 1} title="Move down">↓</button>
+                <button className="stepBtn" disabled={workflow.projectManaged} onClick={() => removeStep(idx)} title="Remove">✕</button>
               </div>
             ))}
           </div>
 
-          <button className="pillBtn" onClick={() => addStep()}>+ Add Step</button>
-          <button className="pillBtn" onClick={()=>{setWorkflow({...workflow,steps:[...workflow.steps,{id:crypto.randomUUID(),workflow:{id:crypto.randomUUID(),name:"Delegated workflow",steps:[{id:"delegated",agentId:selected.agents[0].id}]}}]});setDirty(true);}}>+ Add Child Workflow</button>
+          <button className="pillBtn" disabled={workflow.projectManaged} onClick={() => addStep()}>+ Add Step</button>
+          <button className="pillBtn" disabled={workflow.projectManaged} onClick={()=>{setWorkflow({...workflow,steps:[...workflow.steps,{id:crypto.randomUUID(),workflow:{id:crypto.randomUUID(),name:"Delegated workflow",steps:[{id:"delegated",agentId:selected.agents[0].id}]}}]});setDirty(true);}}>+ Add Child Workflow</button>
           <p className="dim">Fixture runs use synthetic replies and make no external model calls.</p>
 
           <div className="taskSection">
@@ -300,7 +303,7 @@ export function ProjectWorkflows() {
                   <div className="stepsList">
                     {run.steps.map((step) => (
                       <div key={step.id} className="stepStatus">
-                        <span>{step.agentId ? (selected.agents.find(a=>a.id===step.agentId)?.name ?? step.agentId) : "Child workflow"}</span>
+                        <span>{step.agentId ? (selected.agents.find(a=>a.id===step.agentId)?.name ?? step.agentId) : step.id}</span>
                         <span className={`status ${step.status}`}>{step.status}</span>
                       </div>
                     ))}

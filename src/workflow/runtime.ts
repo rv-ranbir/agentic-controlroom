@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFile
 import { join } from 'node:path';
 import type { AgentBackend, RoleConfig } from '../backend/agentBackend.js';
 import type { ChatLog } from '../chatroom/log.js';
+import { parsePresentation } from './presentation.js';
 import { RunContext } from './context.js';
 import { runGraph, type GraphEdge, type GraphNode } from '../orchestrator/graph.js';
 
@@ -16,6 +17,21 @@ export interface WorkflowStep {
   agentId?: string;
   tool?: string;
   workflow?: WorkflowDefinition;
+  ownerId?: string;
+  continueOnError?: boolean;
+}
+
+export interface WorkflowAgentArgs {
+  step: WorkflowStep;
+  role: RoleConfig;
+  context: RunContext;
+  input: string;
+}
+
+export interface PreparedAgent {
+  prompt: string;
+  systemPrompt?: string;
+  skipReason?: string;
 }
 
 export interface WorkflowDefinition {
@@ -24,7 +40,7 @@ export interface WorkflowDefinition {
   steps: WorkflowStep[];
 }
 
-export type StepStatus = 'pending' | 'running' | 'complete' | 'failed' | 'cancelled' | 'interrupted';
+export type StepStatus = 'pending' | 'running' | 'complete' | 'failed' | 'cancelled' | 'interrupted' | 'skipped';
 
 export interface WorkflowRunStep {
   id: string;
@@ -57,10 +73,15 @@ export interface ExecuteWorkflowOptions {
   log: ChatLog;
   input: string;
   tools?: Record<string, WorkflowTool>;
+  publishPresentation?: (artifact:{title:string;path:string;runId:string;agentId:string})=>Promise<string>|string;
   signal?: AbortSignal;
   parentRunId?: string;
   limits?: { maxSteps?: number; maxDepth?: number };
+  prepareAgent?: (args: WorkflowAgentArgs) => Promise<PreparedAgent> | PreparedAgent;
+  afterAgent?: (args: WorkflowAgentArgs & { reply: string }) => Promise<unknown> | unknown;
 }
+
+const MAX_PROMPT_CHARS = 60000;
 
 interface ResolvedLimits {
   maxSteps: number;
@@ -127,6 +148,12 @@ function validateDefinition(
       } else {
         validateDefinition(step.workflow!, agents, tools, depth + 1, seen, budget, limits);
       }
+      if (step.ownerId !== undefined && (typeof step.ownerId !== 'string' || !agents.some((a) => a.id === step.ownerId))) {
+        throw new Error(`workflow: unknown owner "${step.ownerId}"`);
+      }
+      if (step.continueOnError !== undefined && typeof step.continueOnError !== 'boolean') {
+        throw new Error(`workflow: invalid continueOnError flag`);
+      }
     }
   } finally {
     seen.delete(definition);
@@ -155,6 +182,7 @@ function readRunSnapshot(runDir: string): WorkflowRun | undefined {
 function buildStepPrompt(context: RunContext, input: string): string {
   const items = context
     .list()
+    .filter(a=>a.type!=='raw-output'&&a.type!=='presentation')
     .slice(-CONTEXT_PROMPT_ITEMS)
     .map((a) => ({ type: a.type, key: a.key, data: a.data }));
   const bounded = JSON.stringify(items).slice(0, CONTEXT_PROMPT_MAX_CHARS);
@@ -171,7 +199,7 @@ async function runAgentStep(
 ): Promise<string> {
   let reply = '';
   const nodes: GraphNode<'done'>[] = [
-    { kind: 'agent', id: 'step', role, backend, streamActivity: true, buildPrompt: () => prompt, afterRun: (r) => { reply = r; } },
+    { kind: 'agent', id: 'step', role, backend, streamActivity: true, logReply:false, buildPrompt: () => prompt, afterRun: (r) => { reply = r; } },
     { kind: 'terminal', id: 'done', result: 'done' },
   ];
   const edges: GraphEdge[] = [{ from: 'step', to: 'done', condition: () => true }];
@@ -214,17 +242,60 @@ async function runWorkflowInternal(opts: ExecuteWorkflowOptions, limits: Resolve
       run.steps[i].status = 'running';
       persistRun(runDir, run);
 
-      const prompt = buildStepPrompt(context, opts.input);
+      const prompt = buildStepPrompt(context, opts.input).slice(0, MAX_PROMPT_CHARS);
       let outputData: unknown;
       let producer: string;
       try {
         if (step.agentId !== undefined) {
           const role = opts.agents.find((a) => a.id === step.agentId)!;
-          const backend = opts.backendFor(role);
-          outputData = await runAgentStep(role, backend, prompt, opts.log, context, opts.signal);
+          let effectivePrompt = prompt;
+          let effectiveSystemPrompt: string | undefined;
+          if (opts.prepareAgent) {
+            const prepared = await opts.prepareAgent({ step, role, context, input: prompt });
+            if (prepared.skipReason !== undefined) {
+              opts.log.post('orchestrator',role.name,`Skipped ${step.id}: ${prepared.skipReason}`);
+              opts.log.agentState(role.id,'idle');
+              run.steps[i].status = 'skipped';
+              const artifact = context.add({ type: 'step-output', producer: role.id, key: step.id, data: { skipped: true, reason: prepared.skipReason }, parents: [prevArtifactId] });
+              run.steps[i].outputArtifactId = artifact.id;
+              prevArtifactId = artifact.id;
+              persistRun(runDir, run);
+              continue;
+            }
+            if(typeof prepared.prompt!=='string'||prepared.prompt.length>MAX_PROMPT_CHARS)throw new Error('workflow: prepared prompt exceeds limit or is invalid');
+            effectivePrompt = prepared.prompt;
+            effectiveSystemPrompt = prepared.systemPrompt;
+          }
+          const effectiveRole = { ...role, systemPrompt: (effectiveSystemPrompt ?? role.systemPrompt) + '\n\nOptional visual output: you may add a presentation object alongside the required JSON data fields: {title,summary,html}. Choose the layout yourself (cards, SVG charts, tables, canvas, interactive HTML). HTML must be self-contained; no external resources, network, host APIs or credentials. Inline CSS/JavaScript supported in an isolated frame. Title <=200 chars, summary <=2000, HTML <=256 KiB. Keep the required data unchanged and accurately represent its uncertainty; omit presentation if not useful. Never replace evidence with a visual.' };
+          const backend = opts.backendFor(effectiveRole);
+          const originalReply = await runAgentStep(effectiveRole, backend, effectivePrompt, opts.log, context, opts.signal);
+          const raw = context.add({type:'raw-output',producer:role.id,key:step.id,data:originalReply,parents:[prevArtifactId]});
+          const {dataReply:reply,presentation}=parsePresentation(originalReply);
+          if (opts.afterAgent) {
+            const value = await opts.afterAgent({ step, role, context, input: effectivePrompt, reply });
+            outputData = value !== undefined ? value : reply;
+          } else {
+            outputData = reply;
+          }
+          let artifactId:string|undefined;
+          if(presentation){
+            const views=join(runDir,'views');mkdirSync(views,{recursive:true});
+            const path=join(views,`${randomUUID()}.html`);writeFileSync(path,presentation.html,{flag:'wx'});
+            context.add({type:'presentation',producer:role.id,key:step.id,data:{...presentation,path},parents:[raw.id]});
+            artifactId=await opts.publishPresentation?.({title:presentation.title,path,runId:run.id,agentId:role.id});
+          }
+          opts.log.post(role.id,role.name,presentation?.summary ?? reply,{...(presentation?{rawReply:originalReply}:{}),...(artifactId?{artifactId}:{})});
           producer = role.id;
         } else if (step.tool !== undefined) {
-          outputData = await opts.tools![step.tool]({ context, input: prompt, signal: opts.signal });
+          opts.log.post('orchestrator',step.ownerId ?? 'Workflow',`Running tool: ${step.tool}`);
+          if (step.ownerId) opts.log.agentState(step.ownerId, 'working');
+          try {
+            outputData = await opts.tools![step.tool]({ context, input: prompt, signal: opts.signal });
+          } catch (toolErr) {
+            if (step.ownerId) opts.log.agentState(step.ownerId, 'idle');
+            throw toolErr;
+          }
+          if (step.ownerId) opts.log.agentState(step.ownerId, 'done');
           producer = step.tool;
         } else {
           const childRun = await runWorkflowInternal(
@@ -239,10 +310,21 @@ async function runWorkflowInternal(opts: ExecuteWorkflowOptions, limits: Resolve
         }
       } catch (err) {
         const aborted = opts.signal?.aborted === true;
+        const message = err instanceof Error ? err.message : String(err);
+        if (!aborted && step.continueOnError) {
+          opts.log.post('orchestrator','Workflow',`${step.id} failed validation: ${message}`);
+          if(step.agentId)opts.log.agentState(step.agentId,'idle');
+          run.steps[i].status = 'failed';
+          const artifact = context.add({ type: 'step-error', producer: step.agentId ?? step.tool ?? `workflow:${step.workflow?.id}`, key: step.id, data: { error: message }, parents: [prevArtifactId] });
+          run.steps[i].outputArtifactId = artifact.id;
+          prevArtifactId = artifact.id;
+          persistRun(runDir, run);
+          continue;
+        }
         run.steps[i].status = aborted ? 'cancelled' : 'failed';
         run.status = aborted ? 'cancelled' : 'failed';
         if (aborted) for(const pending of run.steps) if(pending.status==='pending') pending.status='cancelled';
-        run.error = err instanceof Error ? err.message : String(err);
+        run.error = message;
         run.finishedAt = new Date().toISOString();
         persistRun(runDir, run);
         return run;

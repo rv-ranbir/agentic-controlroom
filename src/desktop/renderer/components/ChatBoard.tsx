@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "../store";
 import { agentIdOf, colorFor, initials } from "../lib/agents";
-import { Markdown } from "./Markdown";
+import { AgentMessage } from "./AgentMessage";
 import { RoomScene } from "./RoomScene";
 
 export function ChatBoard() {
@@ -66,7 +66,7 @@ export function ChatBoard() {
                 <div className="mono dim" style={{ fontSize: 10.5, marginBottom: 2 }}>
                   {name} <span style={{ opacity: .6 }}>&middot; {new Date(m.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
                 </div>
-                <Markdown text={m.message} />
+                <AgentMessage message={m} />
               </div>
             </div>
           );

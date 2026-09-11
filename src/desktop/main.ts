@@ -1,6 +1,6 @@
 import { app, BrowserWindow, desktopCapturer, dialog, ipcMain, Notification, safeStorage, screen, shell } from "electron";
 import { basename, join, relative, resolve, sep } from "node:path";
-import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import * as pty from "node-pty";
@@ -8,6 +8,8 @@ import type { IPty } from "node-pty";
 import Database from "better-sqlite3";
 import { randomUUID } from "node:crypto";
 import { ChatLog, type ChatMessage } from "../chatroom/log.js";
+import { withCapabilities } from '../backend/capabilityBackend.js';
+import { createCapabilityService } from '../capabilities/service.js';
 import { CursorCliBackend } from "../backend/cursorCliBackend.js";
 import { ClaudeCliBackend } from "../backend/claudeCliBackend.js";
 import { OpenRouterBackend } from "../backend/openRouterBackend.js";
@@ -18,8 +20,10 @@ import { isQuestionLike } from "../orchestrator/needsInput.js";
 import { loadRole } from "../roles.js";
 import { readProjectDashboard } from '../projectDashboard.js';
 import { createDashboardWindowManager } from './projectDashboardWindow.js';
+import { readProjectIntegration } from '../workflow/projectIntegration.js';
 import { createWorkflowHost } from './workflowHost.js';
 import { createHttpBackend, validCredentialBinding, type ModelConfig, type ProviderId } from '../backend/httpBackend.js';
+import { OfficePresenceRegistry } from './officePresence.js';
 
 interface AgentRef {
   id: string; // unique per instance — always a generated id, never the bare role id (M9: multiple instances of the same role are allowed)
@@ -139,6 +143,7 @@ const rolesDir = join(__dirname, "..", "..", "roles");
 let win: BrowserWindow | undefined;
 const dashboardWindows = createDashboardWindowManager(options => new BrowserWindow(options));
 const running = new Set<string>(); // "projectId" (room run) or "projectId:agentId" (direct send)
+const officePresence = new OfficePresenceRegistry(); // active meeting/debate sessions, for the office floor (starts empty)
 const runningProcs = new Map<string, ChildProcess>(); // "projectId:agentId" -> in-flight direct-send child process
 const ptySessions = new Map<string, IPty>(); // "projectId:agentId" -> live interactive PTY session (M1)
 
@@ -477,6 +482,7 @@ interface TaskItem {
 // ── Planning board (M10 phase 3): freeform per-project idea thread that sits
 // before the Task Board — a message can be promoted into a real task.
 interface PlanningMessage {
+  artifactId?: string;
   id: string;
   authorId: string; // "user" or an agent's id
   authorName: string;
@@ -518,9 +524,20 @@ async function postPlanningComment(project: Project, agent: AgentRef): Promise<P
     .map((m) => `[${m.authorName}] ${m.text}`)
     .join("\n\n");
   const prompt = `Planning board so far:\n${thread}\n\nAdd your comment — an idea, a question, or feedback on what's there. Keep it short.`;
-  const backend = makeBackend(project, agent);
-  const { reply } = await backend.start(role, prompt);
-  return postPlanningMessage(project, { authorId: agent.id, authorName: agent.name, text: reply });
+  const backend = makeBackend(project, agent, 'planning');
+  // Session begins here, right before the provider call — not while building the
+  // prompt above — so the strategy room only shows the agent for the duration it's
+  // actually waiting on a reply.
+  const sessionId = randomUUID();
+  officePresence.start(sessionId, project.id, "planning", [agent.id]);
+  sendOfficePresence();
+  try {
+    const { reply } = await backend.start(role, prompt);
+    return postPlanningMessage(project, { authorId: agent.id, authorName: agent.name, text: reply });
+  } finally {
+    officePresence.end(sessionId);
+    sendOfficePresence();
+  }
 }
 
 function tasksFile(project: Project): string {
@@ -697,7 +714,7 @@ async function cloneAndRegister(url: string, name: string, token?: string): Prom
     path: dest,
     backend: "claude",
     repoUrl: url,
-    agents: [],
+    agents: readProjectIntegration(dest)?.agents ?? [],
   };
   projects.push(project);
   saveProjects(projects);
@@ -1058,6 +1075,10 @@ function send(channel: string, payload: unknown): void {
   win?.webContents.send(channel, payload);
 }
 
+function sendOfficePresence(): void {
+  send("office:presence", officePresence.snapshot());
+}
+
 // M2: desktop notification when an agent (heuristically) needs input. Skipped
 // when the window already has focus — the user is already looking at it.
 function notifyNeedsInput(project: Project, agentId: string): void {
@@ -1068,7 +1089,7 @@ function notifyNeedsInput(project: Project, agentId: string): void {
   n.show();
 }
 
-function makeBackend(project: Project, agent?: AgentRef): AgentBackend {
+function createProviderBackend(project: Project, agent?: AgentRef): AgentBackend {
   assertBackendAllowed(project, agent);
   const provider = effectiveProvider(project, agent);
   const env = { ...process.env, ...resolveSecretsEnv(project.id), ...resolveAccountEnv(project.activeAccountId) } as Record<string, string>;
@@ -1093,6 +1114,23 @@ function makeBackend(project: Project, agent?: AgentRef): AgentBackend {
   if (provider === "openrouter") return new OpenRouterBackend(opts);
   assertAllowedBin(provider === "claude" ? (process.env.CLAUDE_BIN ?? "claude") : (process.env.CURSOR_AGENT_BIN ?? "cursor-agent"));
   return provider === "claude" ? new ClaudeCliBackend(opts) : new CursorCliBackend(opts);
+}
+
+function capabilityService(project:Project,agent?:AgentRef,surface?:'planning') {
+ const provider=effectiveProvider(project,agent);
+ let projectTools:string[]=[];try{projectTools=readProjectIntegration(project.path)?.workflow.steps.flatMap(s=>s.tool?[s.tool]:[])??[];}catch{/* Discovery does not run project code. */}
+ const cli=provider==='claude'||provider==='cursor';
+ return createCapabilityService({projectPath:project.path,provider,
+  skills:()=>listSkills().map(s=>({...s,attached:!!agent?.skillIds?.includes(s.id)})),
+  readSkill:id=>{if(!/^[A-Za-z0-9_-]+$/.test(id))throw new Error('Invalid skill id');const path=realpathSync(join(skillsDir,id+'.md'));const rel=relative(realpathSync(skillsDir),path);if(rel.startsWith('..')||rel.includes(':')||statSync(path).size>65536)throw new Error('Invalid skill file');return readFileSync(path,'utf8');},
+  nativeMcp:cli?{status:'provider-managed-unverified',servers:[],note:'Native MCP is managed by the selected CLI and its configuration/flags. The app cannot enumerate its live tools. Use the provider tool discovery; do not assume a connection is active.'}:undefined,
+  projectTools,
+  onPublish:v=>{const name=agent?.name??v.agentId;wiredLog(project).post(v.agentId,name,v.summary,{artifactId:v.artifactId,rawReply:JSON.stringify({viewId:v.viewId,revision:v.revision})});if(surface==='planning')postPlanningMessage(project,{authorId:v.agentId,authorName:name,text:v.summary,artifactId:v.artifactId});}
+ });
+}
+function makeBackend(project:Project,agent?:AgentRef,surface?:'planning'):AgentBackend {
+ const service=capabilityService(project,agent,surface);
+ return withCapabilities(createProviderBackend(project,agent),{catalogue:service.catalogue,execute:service.execute});
 }
 
 // M4 Launcher stats: main.ts is the one place that sees every project's
@@ -1157,6 +1195,7 @@ function roleFor(p: Project, a: AgentRef): RoleConfig {
 
 const workflowHost = createWorkflowHost({
   projects: loadProjects,
+  environment: p => ({...process.env,...resolveSecretsEnv(p.id)}),
   running,
   role: roleFor,
   backend: makeBackend,
@@ -1227,6 +1266,9 @@ async function startMeeting(project: Project, agentIds: string[], topic: string,
   keys.forEach((k) => running.add(k));
   const log = wiredLog(project);
   send("room:event", { projectId: project.id, kind: "running", running: true });
+  const sessionId = randomUUID();
+  officePresence.start(sessionId, project.id, "meeting", agents.map((a) => a.id));
+  sendOfficePresence();
   try {
     const participants = agents.map((agent) => ({
       agent: prependMemory(
@@ -1248,6 +1290,8 @@ async function startMeeting(project: Project, agentIds: string[], topic: string,
     agents.forEach((a) => log.agentState(a.id, "idle"));
     log.status("");
     send("room:event", { projectId: project.id, kind: "running", running: false });
+    officePresence.end(sessionId);
+    sendOfficePresence();
   }
 }
 
@@ -1264,6 +1308,9 @@ async function startDebate(project: Project, analystIds: string[], managerId: st
   keys.forEach((k) => running.add(k));
   const log = wiredLog(project);
   send("room:event", { projectId: project.id, kind: "running", running: true });
+  const sessionId = randomUUID();
+  officePresence.start(sessionId, project.id, "debate", allAgents.map((a) => a.id));
+  sendOfficePresence();
   try {
     const buildParticipant = (agent: AgentRef) => ({
       agent: prependMemory(
@@ -1287,6 +1334,8 @@ async function startDebate(project: Project, analystIds: string[], managerId: st
     allAgents.forEach((a) => log.agentState(a.id, "idle"));
     log.status("");
     send("room:event", { projectId: project.id, kind: "running", running: false });
+    officePresence.end(sessionId);
+    sendOfficePresence();
   }
 }
 
@@ -1380,7 +1429,7 @@ app.whenReady().then(() => {
       name: basename(path),
       path,
       backend: "claude",
-      agents: [],
+      agents: readProjectIntegration(path)?.agents ?? [],
     };
     projects.push(project);
     saveProjects(projects);
@@ -1572,6 +1621,8 @@ app.whenReady().then(() => {
   });
 
   ipcMain.handle("room:running", () => [...running]);
+
+  ipcMain.handle("office:presence:get", () => officePresence.snapshot());
 
   ipcMain.handle("git:branch", (_e, path: string) => {
     try {
@@ -1905,6 +1956,7 @@ app.whenReady().then(() => {
     return agent;
   });
 
+  ipcMain.handle('capabilities:get',(_e,projectId:string,agentId:string)=>{const project=loadProjects().find(p=>p.id===projectId);const agent=project?.agents?.find(a=>a.id===agentId);if(!project||!agent)throw new Error('Unknown project agent');return capabilityService(project,agent).catalogue({id:agent.id,name:agent.name,systemPrompt:''});});
   ipcMain.handle("skills:list", () => listSkills());
   ipcMain.handle("skills:importFromGithub", (_e, url: string) => importSkillFromGithub(url));
 
@@ -1939,6 +1991,7 @@ app.whenReady().then(() => {
     backgroundColor: "#1B1814",
     webPreferences: { preload: join(__dirname, "preload.cjs") },
   });
+  win.webContents.on('will-frame-navigate',event=>{if(!event.isMainFrame&&event.url!=='about:srcdoc'&&event.url!=='about:blank')event.preventDefault();});
   win.webContents.on("console-message", (_e, level, message, line, sourceId) => {
     console.log(`[renderer:${level}] ${message} (${sourceId.split(/[\\/]/).pop()}:${line})`);
   });

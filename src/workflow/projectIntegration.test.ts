@@ -1,0 +1,10 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtempSync,writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { readProjectIntegration,loadProjectIntegration } from './projectIntegration.js';
+function fixture(){const root=mkdtempSync(join(tmpdir(),'project-integration-'));writeFileSync(join(root,'tool.mjs'),'export function createIntegration({environment}) { return {tools:{echo:async()=>environment}}; }');const manifest={version:1,id:'test',name:'Test',module:'tool.mjs',envKeys:['PROJECT_TOKEN'],agents:[{id:'analyst',name:'Analyst',systemPrompt:'Review evidence'}],workflow:{id:'test',name:'Test',steps:[{id:'tool',tool:'echo',ownerId:'analyst'}]}};writeFileSync(join(root,'agent-room.integration.json'),JSON.stringify(manifest));return {root,manifest};}
+test('loads a local project integration and limits passed environment to declared keys',async()=>{const {root}=fixture();const descriptor=readProjectIntegration(root)!;assert.equal(descriptor.agents[0].id,'analyst');const loaded=await loadProjectIntegration(root,{fixture:true,environment:{PROJECT_TOKEN:'allowed',OTHER_SECRET:'not passed'}});assert.deepEqual(await loaded!.tools.echo({} as never),{PROJECT_TOKEN:'allowed'});});
+test('reading metadata does not execute project code',()=>{const {root}=fixture();writeFileSync(join(root,'tool.mjs'),'throw new Error("must not execute on import preview");');assert.equal(readProjectIntegration(root)!.id,'test');});
+test('rejects outside modules, malformed templates, and unknown providers',()=>{const {root,manifest}=fixture();for(const patch of [{module:'../outside.mjs'},{module:'https://example.com/code.js'},{agents:[{id:'a',name:'A',systemPrompt:'x',provider:'unknown'}]},{agents:[{id:'a',name:'A',systemPrompt:'x',extraArgs:['; calc.exe']}]},{version:2}]){writeFileSync(join(root,'agent-room.integration.json'),JSON.stringify({...manifest,...patch}));assert.throws(()=>readProjectIntegration(root));}});

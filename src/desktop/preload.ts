@@ -3,6 +3,8 @@ import { contextBridge, ipcRenderer } from "electron";
 contextBridge.exposeInMainWorld("api", {
   getProjectDashboard: (id:string) => ipcRenderer.invoke('projects:dashboard',id),
   openProjectDashboard: (id:string) => ipcRenderer.invoke('projects:openDashboard',id),
+  getCapabilities: (projectId:string,agentId:string)=>ipcRenderer.invoke('capabilities:get',projectId,agentId),
+  getArtifactPreview: (projectId:string,id:string)=>ipcRenderer.invoke('artifacts:preview',projectId,id),
   listRoles: () => ipcRenderer.invoke("roles:list"),
   listProjects: () => ipcRenderer.invoke("projects:list"),
   addProject: () => ipcRenderer.invoke("projects:add"),
@@ -25,6 +27,12 @@ contextBridge.exposeInMainWorld("api", {
     ipcRenderer.invoke("agent:send", { projectId, agentId, prompt }),
   pauseAgent: (projectId: string, agentId: string) => ipcRenderer.invoke("agent:pause", { projectId, agentId }),
   getRunning: () => ipcRenderer.invoke("room:running"),
+  getOfficePresence: () => ipcRenderer.invoke("office:presence:get"),
+  onOfficePresence: (cb: (sessions: unknown[]) => void) => {
+    const handler = (_evt: unknown, payload: unknown[]) => cb(payload);
+    ipcRenderer.on("office:presence", handler);
+    return () => ipcRenderer.removeListener("office:presence", handler);
+  },
   gitBranch: (path: string) => ipcRenderer.invoke("git:branch", path),
   getDiff: (path: string) => ipcRenderer.invoke("room:diff", path),
   getProjectStats: () => ipcRenderer.invoke("projects:stats"),

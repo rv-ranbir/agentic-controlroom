@@ -1,0 +1,9 @@
+# Shared agent views and virtual office
+
+All desktop model-backed agents receive the shared capability catalogue and can discover skills and publish or update isolated HTML views. Views render in conversations and can open in app tabs, separate previews or a browser. Workflow presentations preserve raw replies and validate domain data before publishing. The catalogue distinguishes provider-managed MCP configuration from verified app tools; native MCP discovery/execution is not implemented.
+
+The project office shows the actual roster, supports search and fit/zoom, and opens agent details and existing room views. Meeting, debate and planning lifecycle events drive project/session-scoped room occupancy. Concurrent sessions have separate stable room positions while the view is mounted. Agent home desks persist in this desktop profile across restarts and roster changes. Vector furniture is separate from agent controls; reduced motion is supported.
+
+Current limits: live room layouts and preview tabs are not persisted, home slots do not sync across machines, and subagent visualization, full obstacle-aware movement and advanced character artwork remain future work. Manual terminals and standalone extension/CLI entrypoints are outside the common desktop capability wrapper. The office artwork is a simplified vector implementation, not the full cutaway concept.
+
+Verification for this change: full build and151 core tests pass, including an isolated snapshot containing only staged files. Electron checks cover generic visual publishing/update and isolation; a12-agent/14-step trading fixture;12/30-agent office search and fit; actual session orchestration with simulated model responses; planning failure cleanup; project isolation; reduced motion; and desk persistence across restart. No authenticated trading analysis or broker execution is implied by fixture results.

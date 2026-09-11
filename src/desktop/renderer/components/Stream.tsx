@@ -3,7 +3,7 @@ import { useStore } from "../store";
 import { agentIdOf, bucketOf } from "../lib/agents";
 import { extractChoices } from "../../../orchestrator/needsInput";
 import { classifyLine } from "../../../backend/streamBlocks";
-import { Markdown } from "./Markdown";
+import { AgentMessage } from "./AgentMessage";
 import type { CommitRecord, DiffResult, Msg } from "../types";
 
 export function Stream({ agentId, interactive = true }: { agentId?: string; interactive?: boolean } = {}) {
@@ -126,7 +126,7 @@ function MsgBlock({ m, mentionPrefix }: { m: Msg; mentionPrefix?: string }) {
   return (
     <div className={`blk ${isUser ? "user" : isSystem ? "note" : "prose"}`}>
       <div className="gutter">{isUser ? "you" : new Date(m.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>
-      <div className="content"><Markdown text={text} /></div>
+      <div className="content"><AgentMessage message={m} text={text} /></div>
     </div>
   );
 }

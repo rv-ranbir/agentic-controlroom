@@ -31,6 +31,8 @@ export interface Msg {
   agentId?: string;
   role: string;
   message: string;
+  artifactId?: string;
+  rawReply?: string;
 }
 
 export interface LibraryAgent {
@@ -79,6 +81,7 @@ export interface TaskItem {
 }
 
 export interface PlanningMessage {
+  artifactId?: string;
   id: string;
   authorId: string;
   authorName: string;
@@ -91,6 +94,14 @@ export interface RoomEvent {
   projectId: string;
   kind: "message" | "status" | "agentState" | "activity" | "running" | "done";
   [k: string]: unknown;
+}
+
+/** An active meeting/debate session, as tracked by the main-process office presence registry. */
+export interface OfficeSession {
+  id: string;
+  projectId: string;
+  kind: "meeting" | "debate" | "planning";
+  agentIds: string[];
 }
 
 export type Bucket = "needs" | "review" | "active" | "seen" | "idle";
@@ -207,8 +218,11 @@ export interface DesktopApi {
   getMemory(projectId: string): Promise<string>;
   setMemory(projectId: string, text: string): Promise<void>;
   getRunning(): Promise<string[]>;
+  getOfficePresence(): Promise<OfficeSession[]>;
+  onOfficePresence(cb: (sessions: OfficeSession[]) => void): () => void;
   gitBranch(path: string): Promise<string>;
   getDiff(path: string): Promise<DiffResult>;
+  getArtifactPreview(projectId: string, artifactId: string): Promise<{ title: string; html: string }>;
   onEvent(cb: (e: RoomEvent) => void): void;
 }
 
