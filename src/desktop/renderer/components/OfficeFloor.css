@@ -517,3 +517,22 @@
 
 /* Keep room navigation readable in the fitted overview. */
 .osZoneLabel { font-size: inherit; }
+
+/* Art animates inside the character; the outer button owns spatial movement. */
+.officeCharacter { width:64px; height:78px; overflow:visible; }
+.osDesk-visual { height:78px; }
+.ocArm { transform-origin:32px 35px; }
+.ocLeg { transform-origin:32px 55px; }
+.ocNotebook { display:none; }
+.ocWorking .ocNotebook { display:block; }
+.ocWorking .ocArmLeft { transform:rotate(-24deg); }
+.ocWorking .ocArmRight { transform:rotate(24deg); }
+.osDesk-item[data-walking=true] .ocNotebook { display:none; }
+.osDesk-item[data-walking=true] .ocLegLeft { animation:officeStep .32s ease-in-out infinite alternate; }
+.osDesk-item[data-walking=true] .ocLegRight { animation:officeStep .32s ease-in-out infinite alternate-reverse; }
+.osDesk-item[data-walking=true] .ocArmLeft { animation:officeSwing .32s ease-in-out infinite alternate-reverse; }
+.osDesk-item[data-walking=true] .ocArmRight { animation:officeSwing .32s ease-in-out infinite alternate; }
+@keyframes officeStep { from {transform:rotate(-12deg)} to {transform:rotate(12deg)} }
+@keyframes officeSwing { from {transform:rotate(-10deg)} to {transform:rotate(10deg)} }
+.officeStudio[data-motion-paused=true] .officeCharacter * { animation-play-state:paused !important; }
+@media(prefers-reduced-motion:reduce) { .officeCharacter * { animation:none !important; } }

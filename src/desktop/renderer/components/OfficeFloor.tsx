@@ -1,15 +1,12 @@
+import { OfficeCharacter } from "./OfficeCharacter";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../store";
 import { useOfficePresence } from "../lib/useOfficePresence";
 import { useOfficeHomes } from "../lib/useOfficeHomes";
 import { buildRooms, agentRoomMap, createOfficeLayoutState, type RoomKind } from "../../officeLayout";
-import spriteIdle from "../assets/illustration/character-idle.svg";
-import spriteTyping from "../assets/illustration/character-typing.svg";
-import spriteAway from "../assets/illustration/character-away.svg";
 import { OfficeAtmosphere, DeskFurnitureLayer, RoomFloor, Whiteboard, HeadChair } from "./OfficeIllustration";
 import "./OfficeFloor.css";
 
-const SPRITE_BY_STATE: Record<string, string> = { working: spriteTyping, done: spriteAway };
 const statusLabel = (state: string) => ({ working: "Working", done: "Completed", needs: "Needs input", idle: "Idle" }[state] ?? state);
 
 const ROOM_BASE_LABEL: Record<RoomKind, string> = { meeting: "Meeting", debate: "Boardroom", planning: "Strategy" };
@@ -144,6 +141,18 @@ export function OfficeFloor() {
   const itemRefs = useRef(new Map<string, HTMLButtonElement>());
   const anchorRef = useRef(new Map<string, Point>());
   const canvasWrapRef = useRef<HTMLDivElement | null>(null);
+  const [motionPaused, setMotionPaused] = useState(document.hidden);
+  useEffect(() => {
+    const update = () => {
+      setMotionPaused(document.hidden);
+      if (document.hidden) for (const el of itemRefs.current.values()) {
+        el.getAnimations().forEach((animation) => { if (animation.playState === "running") animation.finish(); });
+        delete el.dataset.walking;
+      }
+    };
+    document.addEventListener("visibilitychange", update);
+    return () => document.removeEventListener("visibilitychange", update);
+  }, []);
   const layoutState = useMemo(() => createOfficeLayoutState(), [selectedProjectId]);
 
   useEffect(() => {
@@ -261,12 +270,14 @@ export function OfficeFloor() {
       const matrix = new DOMMatrixReadOnly(getComputedStyle(el).transform);
       const current = { x: matrix.m41, y: matrix.m42 };
       el.getAnimations().forEach((animation) => animation.cancel());
+      delete el.dataset.walking;
       if (motionReduced) {
         el.style.transform = `translate(${dx}px, ${dy}px)`;
       } else {
         const from = current;
         const viaFromX = { x: from.x, y: corridorMidY - home.y };
         const viaToX = { x: dx, y: corridorMidY - home.y };
+        el.dataset.walking = "true";
         const animation = el.animate(
           [
             { transform: `translate(${from.x}px, ${from.y}px)` },
@@ -277,6 +288,7 @@ export function OfficeFloor() {
           { duration: 700, easing: "ease-in-out", fill: "forwards" },
         );
         animation.onfinish = () => {
+          delete el.dataset.walking;
           el.style.transform = `translate(${dx}px, ${dy}px)`;
           animation.cancel();
         };
@@ -336,7 +348,7 @@ export function OfficeFloor() {
         <span className="dim mono" style={{ fontSize: 10.5 }}>Office</span>
         <span className="dim mono rvHeaderStats">{agents.length} agent{agents.length === 1 ? "" : "s"} · {sessions.length} active session{sessions.length === 1 ? "" : "s"}</span>
       </header>
-      <div className="officeStudio">
+      <div className="officeStudio" data-motion-paused={motionPaused}>
         <div className="osWorkspace">
           <div className="osGrid">
             <div className="osGridTop">
@@ -431,7 +443,7 @@ export function OfficeFloor() {
                             data-session-id={sessionId ?? undefined}
                           >
                             <div className="osDesk-visual">
-                              <img src={SPRITE_BY_STATE[state] ?? spriteIdle} alt="" className="osSprite" />
+                              <OfficeCharacter agentId={agent.id} working={state === "working" || zone === "planning"} />
                               {roomBadge && <span className="osBadge mono" style={{ borderColor: accent }}>{roomBadge}</span>}
                             </div>
                             <div className="osDesk-labelPlate">
