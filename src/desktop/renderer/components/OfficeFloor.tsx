@@ -1,3 +1,4 @@
+import { arrangeDesks, defaultRoomOrder } from "../../officeArrangement";
 import { OfficeSettings, readOfficePreferences } from "./OfficeSettings";
 import { OfficeResultsWall } from "./OfficeResultsWall";
 import { officeRoute, routeFrames } from "../../officeRoutes";
@@ -207,7 +208,8 @@ export function OfficeFloor() {
   const agents = useMemo(() => project?.agents ?? [], [project]);
   const agentIds = useMemo(() => agents.map((a) => a.id), [agents]);
   const rosterIds = useMemo(() => new Set(agentIds), [agentIds]);
-  const slots = useOfficeHomes(selectedProjectId, agentIds);
+  const baseSlots = useOfficeHomes(selectedProjectId, agentIds);
+  const slots = useMemo(()=>arrangeDesks(baseSlots,preferences.desks),[baseSlots,preferences.desks]);
 
   const homes = useMemo(() => {
     const map = new Map<string, Point>();
@@ -229,10 +231,10 @@ export function OfficeFloor() {
   // additionally drops agent ids outside the roster and dedupes an agent that
   // (in principle) shows up in more than one concurrently active session.
   const rooms = useMemo(
-    () => buildRooms(sessions, rosterIds, layoutState),
-    [sessions, rosterIds, layoutState],
+    () => buildRooms(sessions, rosterIds, layoutState).map(r=>({...r,position:r.position<3?preferences.roomOrder.indexOf(defaultRoomOrder[r.position]):r.position})),
+    [sessions, rosterIds, layoutState, preferences.roomOrder],
   );
-  const reservedHeights = useMemo(() => new Map<number, number>(), [selectedProjectId]);
+  const reservedHeights = useMemo(() => new Map<number, number>(), [selectedProjectId, preferences.roomOrder]);
   const roomMap = useMemo(() => agentRoomMap(rooms), [rooms]);
   const roomHeights = rooms.map((r) => roomHeight(r.agentIds.length));
   rooms.forEach((r, i) => reservedHeights.set(r.position, Math.max(reservedHeights.get(r.position) ?? 0, roomHeights[i])));
@@ -345,7 +347,7 @@ export function OfficeFloor() {
         <span className="dim mono" style={{ fontSize: 10.5 }}>Office</span>
         <span className="dim mono rvHeaderStats">{agents.length} agent{agents.length === 1 ? "" : "s"} · {sessions.length} active session{sessions.length === 1 ? "" : "s"}</span>
       </header>
-      {settingsOpen && <OfficeSettings key={project.id} projectId={project.id} preferences={preferences} onSave={setPreferences} onClose={()=>setSettingsOpen(false)} />}
+      {settingsOpen && <OfficeSettings key={project.id} projectId={project.id} preferences={preferences} agents={agents} homes={slots} layoutLocked={sessions.length>0} onSave={p=>{if([...arrangeDesks(baseSlots,p.desks)].some(([id,slot])=>slots.get(id)!==slot)||JSON.stringify(p.roomOrder)!==JSON.stringify(preferences.roomOrder)){anchorRef.current.clear();for(const el of itemRefs.current.values()){el.getAnimations().forEach(a=>a.cancel());delete el.dataset.walking;el.style.transform="";}}setPreferences(p);}} onClose={()=>setSettingsOpen(false)} />}
       <div className="officeStudio" data-labels={preferences.labels} data-motion-paused={motionPaused}>
         <div className="osWorkspace">
           <div className="osGrid">
@@ -435,7 +437,7 @@ export function OfficeFloor() {
                             data-session-id={sessionId ?? undefined}
                           >
                             <div className="osDesk-visual">
-                              <OfficeCharacter agentId={agent.id} working={state === "working" || zone === "planning"} />
+                              <OfficeCharacter agentId={agent.id} seated={zone === "home"} working={state === "working" || zone === "planning"} />
                               {roomBadge && <span className="osBadge mono" style={{ borderColor: accent }}>{roomBadge}</span>}
                             </div>
                             <div className="osDesk-labelPlate">

@@ -13,7 +13,7 @@ export interface CapabilityOptions {
  provider:string;
  nativeMcp?:{status:string;servers:string[];note:string};
  projectTools?:string[];
- onPublish?(entry:{agentId:string;title:string;summary:string;artifactId:string;viewId:string;revision:number}):void;
+ onPublish?(entry:{agentId:string;title:string;summary:string;artifactId:string;viewId:string;revision:number;previousArtifactId?:string}):void;
 }
 interface ViewRecord {id:string;owner:string;revision:number;title:string;artifactId:string;dataArtifactId:string;previousArtifactId?:string}
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -55,7 +55,7 @@ export function createCapabilityService(options:CapabilityOptions){
   const record:ViewRecord={id,owner:role.id,revision,title:presentation.title,artifactId:artifact.id,dataArtifactId:dataArtifact.id,...(prior?{previousArtifactId:prior.artifactId}:{})};
   const history=join(dir,`${id}.r${revision}.json`);writeFileSync(history,JSON.stringify(record),{flag:'wx'});
   const pending=join(dir,`${randomUUID()}.pending`);writeFileSync(pending,JSON.stringify(record),{flag:'wx'});renameSync(pending,head);
-  options.onPublish?.({agentId:role.id,title:presentation.title,summary:presentation.summary,artifactId:artifact.id,viewId:id,revision});
+  options.onPublish?.({agentId:role.id,title:presentation.title,summary:presentation.summary,artifactId:artifact.id,viewId:id,revision,previousArtifactId:prior?.artifactId});
   return {viewId:id,revision,artifactId:artifact.id,dataArtifactId:dataArtifact.id,previousArtifactId:prior?.artifactId};
  }
  return {catalogue,execute};

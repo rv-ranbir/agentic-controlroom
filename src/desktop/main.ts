@@ -482,6 +482,8 @@ interface TaskItem {
 // ── Planning board (M10 phase 3): freeform per-project idea thread that sits
 // before the Task Board — a message can be promoted into a real task.
 interface PlanningMessage {
+  viewId?: string;
+  revision?: number;
   artifactId?: string;
   id: string;
   authorId: string; // "user" or an agent's id
@@ -1125,7 +1127,7 @@ function capabilityService(project:Project,agent?:AgentRef,surface?:'planning') 
   readSkill:id=>{if(!/^[A-Za-z0-9_-]+$/.test(id))throw new Error('Invalid skill id');const path=realpathSync(join(skillsDir,id+'.md'));const rel=relative(realpathSync(skillsDir),path);if(rel.startsWith('..')||rel.includes(':')||statSync(path).size>65536)throw new Error('Invalid skill file');return readFileSync(path,'utf8');},
   nativeMcp:cli?{status:'provider-managed-unverified',servers:[],note:'Native MCP is managed by the selected CLI and its configuration/flags. The app cannot enumerate its live tools. Use the provider tool discovery; do not assume a connection is active.'}:undefined,
   projectTools,
-  onPublish:v=>{const name=agent?.name??v.agentId;wiredLog(project).post(v.agentId,name,v.summary,{artifactId:v.artifactId,rawReply:JSON.stringify({viewId:v.viewId,revision:v.revision})});if(surface==='planning')postPlanningMessage(project,{authorId:v.agentId,authorName:name,text:v.summary,artifactId:v.artifactId});}
+  onPublish:v=>{const name=agent?.name??v.agentId;wiredLog(project).post(v.agentId,name,v.summary,{artifactId:v.artifactId,viewId:v.viewId,revision:v.revision,previousArtifactId:v.previousArtifactId,rawReply:JSON.stringify({viewId:v.viewId,revision:v.revision})});if(surface==='planning')postPlanningMessage(project,{authorId:v.agentId,authorName:name,text:v.summary,artifactId:v.artifactId,viewId:v.viewId,revision:v.revision});}
  });
 }
 function makeBackend(project:Project,agent?:AgentRef,surface?:'planning'):AgentBackend {

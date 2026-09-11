@@ -595,3 +595,20 @@
 .osSettings footer{display:flex;gap:8px;justify-content:flex-end;margin-top:24px;}
 .officeStudio[data-labels=false] .osDesk-item:not(:hover):not(:focus):not(.sel) .osDesk-labelPlate{opacity:0;pointer-events:none;}
 .osStudioDoor {position:absolute;z-index:1;width:30px;height:76px;background:#b9976b;border-block:5px solid #353a32;box-sizing:border-box;pointer-events:none;}
+
+/* At-desk pose faces the monitor; actual movement temporarily restores standing. */
+.ocSeated{display:none;}
+.ocAtDesk .ocSeated{display:block;}
+.ocAtDesk .ocBody,.ocAtDesk .ocStandingShadow,.ocAtDesk .ocNotebook{display:none;}
+.osDesk-item[data-walking=true] .ocSeated{display:none;}
+.osDesk-item[data-walking=true] .ocBody,.osDesk-item[data-walking=true] .ocStandingShadow{display:block;}
+.ocAtDesk.ocWorking .ocSeatedArm{animation:officeTyping .8s ease-in-out infinite alternate;}
+@keyframes officeTyping{from{transform:translateY(0)}to{transform:translateY(-1.5px)}}
+@media(prefers-reduced-motion:reduce){.ocAtDesk.ocWorking .ocSeatedArm{animation:none;}}
+
+.osSettings{width:min(560px,90vw);}
+.osArrangement{margin-top:20px;padding:12px;border:1px solid var(--rule);border-radius:6px;}
+.osArrangement label{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:8px 0;}
+.osArrangement select{padding:6px;background:var(--deck);color:var(--ink);border:1px solid var(--rule);border-radius:4px;max-width:60%;}
+.osArrangement p{font-size:12px;color:var(--ink-70);}
+.osDeskAssignments{max-height:180px;overflow:auto;margin-bottom:12px;}

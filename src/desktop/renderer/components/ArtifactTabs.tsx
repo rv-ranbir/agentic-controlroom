@@ -1,3 +1,4 @@
+import { parseArtifactTabs, serializeArtifactTabs } from "../../artifactTabState";
 import { useEffect, useState } from "react";
 
 interface Tab {
@@ -11,9 +12,10 @@ interface Tab {
 }
 
 export function ArtifactTabs() {
-  const [tabs, setTabs] = useState<Tab[]>([]);
-  const [selectedTabId, setSelectedTabId] = useState<string | null>(null);
-  const [minimized, setMinimized] = useState(false);
+  const [saved] = useState(() => { try { return parseArtifactTabs(localStorage.getItem("artifact-tabs:v1")); } catch { return parseArtifactTabs(null); } });
+  const [tabs, setTabs] = useState<Tab[]>(() => saved.tabs.map(tab=>({...tab,loading:true})));
+  const [selectedTabId, setSelectedTabId] = useState<string | null>(saved.selectedTabId);
+  const [minimized, setMinimized] = useState(saved.minimized);
 
   useEffect(() => {
     const handleOpenTab = (e: CustomEvent) => {
@@ -77,6 +79,19 @@ export function ArtifactTabs() {
     document.documentElement.style.setProperty("--artifact-dock-height", tabs.length && minimized ? "60px" : "0px");
     return () => { document.documentElement.style.removeProperty("--artifact-dock-height"); };
   }, [tabs.length, minimized]);
+
+  useEffect(() => {
+    try { localStorage.setItem("artifact-tabs:v1", serializeArtifactTabs(tabs, selectedTabId, minimized)); } catch { /* Preview remains usable if profile storage is unavailable. */ }
+  }, [tabs, selectedTabId, minimized]);
+
+  useEffect(() => {
+    const update=(event:Event)=>{const e=(event as CustomEvent).detail;if(!e?.previousArtifactId||!e.artifactId)return;
+      setSelectedTabId(current=>current===`${e.projectId}:${e.previousArtifactId}`?`${e.projectId}:${e.artifactId}`:current);
+      setTabs(current=>current.map(tab=>tab.projectId===e.projectId&&tab.artifactId===e.previousArtifactId ? {...tab,id:`${e.projectId}:${e.artifactId}`,artifactId:e.artifactId,title:undefined,preview:undefined,error:undefined,loading:true} : tab));
+    };
+    window.addEventListener('artifactRevision',update);
+    return()=>window.removeEventListener('artifactRevision',update);
+  }, []);
 
   const closeTab = (id: string) => {
     setTabs((current) => current.filter((t) => t.id !== id));

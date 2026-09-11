@@ -1,19 +1,34 @@
-import type { CSSProperties } from "react";
+import { useId, type CSSProperties } from "react";
 
 const coats = ["#819477", "#BD895E", "#7C8F9A", "#AA786B", "#9A8DAD", "#B19C68"];
 const skins = ["#D9AA86", "#B9805C", "#E7C1A1", "#956748"];
 const hairs = ["#37312B", "#5C4232", "#BCB5A7", "#322C29"];
 
 /** Identity is deterministic; pose reflects execution, never an inferred role. */
-export function OfficeCharacter({ agentId, working }: { agentId: string; working: boolean }) {
+export function OfficeCharacter({ agentId, working, seated = false }: { agentId: string; working: boolean; seated?: boolean }) {
+  const fabricId = useId();
   let hash = 0;
   for (const char of agentId) hash = (Math.imul(hash, 31) + char.charCodeAt(0)) >>> 0;
   const coat = coats[hash % coats.length];
   const skin = skins[(hash >>> 3) % skins.length];
   const hair = hairs[(hash >>> 6) % hairs.length];
   const style = { "--oc-coat": coat, "--oc-skin": skin } as CSSProperties;
-  return <svg className={`officeCharacter ${working ? "ocWorking" : ""}`} style={style} viewBox="0 0 64 90" aria-hidden="true" focusable="false">
-    <ellipse cx="32" cy="84" rx="21" ry="4" fill="#171511" opacity=".25" />
+  return <svg className={`officeCharacter ${working ? "ocWorking" : ""} ${seated ? "ocAtDesk" : ""}`} style={style} viewBox="0 0 64 90" aria-hidden="true" focusable="false">
+    <defs><linearGradient id={fabricId} x1="0" y1="0" x2="1" y2="1"><stop stopColor={coat}/><stop offset=".5" stopColor={coat}/><stop offset="1" stopColor="#343c32"/></linearGradient></defs>
+    <g className="ocSeated">
+      <ellipse cx="32" cy="77" rx="24" ry="6" fill="#20251f" opacity=".25"/>
+      <path d="M19 51 Q14 57 15 68 L23 70 L29 53 M35 53 L42 70 L50 67 Q49 57 44 51" fill="#424943"/>
+      <path d="M19 31 Q32 25 45 31 L47 55 Q32 65 17 55Z" fill={`url(#${fabricId})`} stroke="#353e33" strokeWidth=".6"/>
+      <path d="M27 34 Q29 46 26 55 M37 34 Q35 48 40 56" fill="none" stroke="#eef0db" opacity=".12"/>
+      <g className="ocSeatedArm"><path d="M20 35 Q12 42 12 31 L17 23" fill="none" stroke={coat} strokeWidth="8" strokeLinecap="round"/><ellipse cx="18" cy="22" rx="4" ry="3" fill={skin}/></g>
+      <g className="ocSeatedArm"><path d="M44 35 Q52 42 52 31 L47 23" fill="none" stroke={coat} strokeWidth="8" strokeLinecap="round"/><ellipse cx="46" cy="22" rx="4" ry="3" fill={skin}/></g>
+      <rect x="28" y="25" width="8" height="8" rx="3" fill={skin}/>
+      <ellipse cx="32" cy="20" rx="12" ry="14" fill={hair}/>
+      <path d="M23 12 Q29 6 37 12" stroke="#e1d2b6" strokeOpacity=".16" strokeWidth="3" fill="none"/>
+      <path d="M17 53 Q32 48 47 53 L46 68 Q32 76 18 68Z" fill="#59644f" stroke="#343e32" strokeWidth="2"/>
+      <path d="M22 56 Q32 53 42 56" stroke="#8f9c7c" fill="none" strokeWidth="2"/>
+    </g>
+    <ellipse className="ocStandingShadow" cx="32" cy="84" rx="21" ry="4" fill="#171511" opacity=".25" />
     <g className="ocBody">
       <g className="ocLeg ocLegLeft"><path d="M23 55 L31 55 L29 79 L22 79Z" fill="#41474A"/><path d="M22 77 Q18 80 19 83 L30 83 L30 77Z" fill="#272A29"/></g>
       <g className="ocLeg ocLegRight"><path d="M33 55 L41 55 L43 79 L35 79Z" fill="#50565A"/><path d="M35 77 L35 83 L47 83 Q47 80 42 77Z" fill="#272A29"/></g>

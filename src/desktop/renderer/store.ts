@@ -1,3 +1,4 @@
+import { collapseVisualMessages } from "../../visualMessages";
 import { create } from "zustand";
 import type { AgentRef, Project, Msg, RoomEvent, DiffResult } from "./types";
 import { bucketOf, deriveAgentStates } from "./lib/agents";
@@ -166,7 +167,7 @@ export const useStore = create<State>((set, get) => ({
 
   async selectProject(p) {
     clearTicks();
-    const messages = await api.getLog(p.id);
+    const messages = collapseVisualMessages(await api.getLog(p.id));
     const agentStates = deriveAgentStates(messages, p.agents.map((a) => a.id));
     set({
       selectedProjectId: p.id, selectedAgent: null, splitAgent: null, messages, branch: "",
@@ -363,6 +364,7 @@ export const useStore = create<State>((set, get) => ({
 // ── wire the main-process event stream into the store ────────────
 api.onEvent((e: RoomEvent) => {
   const s = useStore.getState();
+  if (e.kind === "message") window.dispatchEvent(new CustomEvent("artifactRevision", {detail:e}));
   if (e.kind === "running") {
     const runningKeys = { ...s.runningKeys };
     if (e.running) runningKeys[e.projectId] = true; else delete runningKeys[e.projectId];
@@ -378,7 +380,7 @@ api.onEvent((e: RoomEvent) => {
   switch (e.kind) {
     case "message": {
       const m = e as unknown as Msg;
-      useStore.setState({ messages: [...useStore.getState().messages, m] });
+      useStore.setState({ messages: collapseVisualMessages([...useStore.getState().messages, m]) });
       break;
     }
     case "status":

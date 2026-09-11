@@ -31,6 +31,9 @@ export interface Msg {
   agentId?: string;
   role: string;
   message: string;
+  viewId?: string;
+  revision?: number;
+  previousArtifactId?: string;
   artifactId?: string;
   rawReply?: string;
 }
@@ -81,6 +84,9 @@ export interface TaskItem {
 }
 
 export interface PlanningMessage {
+  viewId?: string;
+  revision?: number;
+  previousArtifactId?: string;
   artifactId?: string;
   id: string;
   authorId: string;

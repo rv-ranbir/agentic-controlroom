@@ -1,3 +1,4 @@
+import { collapseVisualMessages } from "../../../visualMessages";
 import { AgentMessage } from "./AgentMessage";
 import { useEffect, useState } from "react";
 import { useStore } from "../store";
@@ -17,7 +18,7 @@ export function PlanningBoard() {
   const [promoting, setPromoting] = useState<PlanningMessage | null>(null);
 
   const refresh = () => {
-    if (selectedProjectId) void api.listPlanning(selectedProjectId).then(setMessages);
+    if (selectedProjectId) void api.listPlanning(selectedProjectId).then(items=>setMessages(collapseVisualMessages(items)));
   };
   useEffect(refresh, [selectedProjectId]);
 
@@ -64,7 +65,7 @@ export function PlanningBoard() {
                 <span style={{ font: "600 12.5px/1.3 var(--font-body)" }}>{m.authorName}</span>
                 <span className="dim mono" style={{ fontSize: 10 }}>{new Date(m.createdAt).toLocaleString()}</span>
               </div>
-              <div style={{ fontSize: 13, whiteSpace: "pre-wrap", marginTop: 3 }}><AgentMessage message={{ts:m.createdAt,agentId:m.authorId,role:m.authorName,message:m.text,artifactId:m.artifactId}} /></div>
+              <div style={{ fontSize: 13, whiteSpace: "pre-wrap", marginTop: 3 }}><AgentMessage message={{ts:m.createdAt,agentId:m.authorId,role:m.authorName,message:m.text,artifactId:m.artifactId,viewId:m.viewId,revision:m.revision}} /></div>
               {m.attachments && m.attachments.length > 0 && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 3, marginTop: 6 }}>
                   {m.attachments.map((p, i) => (

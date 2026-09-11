@@ -7,6 +7,9 @@ export interface ChatMessage {
   agentId: string;
   role: string;
   message: string;
+  viewId?: string;
+  revision?: number;
+  previousArtifactId?: string;
   artifactId?: string;
   rawReply?: string;
 }
@@ -17,7 +20,7 @@ export class ChatLog extends EventEmitter {
     mkdirSync(dirname(file), { recursive: true });
   }
 
-  post(agentId: string, role: string, message: string, metadata: {artifactId?:string;rawReply?:string} = {}): ChatMessage {
+  post(agentId: string, role: string, message: string, metadata: {artifactId?:string;rawReply?:string;viewId?:string;revision?:number;previousArtifactId?:string} = {}): ChatMessage {
     const msg: ChatMessage = { ts: new Date().toISOString(), agentId, role, message, ...metadata };
     appendFileSync(this.file, JSON.stringify(msg) + "\n");
     this.emit("message", msg);
