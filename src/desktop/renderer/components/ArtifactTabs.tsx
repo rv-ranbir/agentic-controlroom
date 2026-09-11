@@ -73,6 +73,11 @@ export function ArtifactTabs() {
     };
   }, [tabs]);
 
+  useEffect(() => {
+    document.documentElement.style.setProperty("--artifact-dock-height", tabs.length && minimized ? "60px" : "0px");
+    return () => { document.documentElement.style.removeProperty("--artifact-dock-height"); };
+  }, [tabs.length, minimized]);
+
   const closeTab = (id: string) => {
     setTabs((current) => current.filter((t) => t.id !== id));
     if (selectedTabId === id) {

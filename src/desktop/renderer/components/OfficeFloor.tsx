@@ -1,10 +1,13 @@
+import { OfficeSettings, readOfficePreferences } from "./OfficeSettings";
+import { OfficeResultsWall } from "./OfficeResultsWall";
+import { officeRoute, routeFrames } from "../../officeRoutes";
 import { OfficeCharacter } from "./OfficeCharacter";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../store";
 import { useOfficePresence } from "../lib/useOfficePresence";
 import { useOfficeHomes } from "../lib/useOfficeHomes";
 import { buildRooms, agentRoomMap, createOfficeLayoutState, type RoomKind } from "../../officeLayout";
-import { OfficeAtmosphere, DeskFurnitureLayer, RoomFloor, Whiteboard, HeadChair } from "./OfficeIllustration";
+import { RoomFloor, Whiteboard, HeadChair, UpholsteredChair } from "./OfficeIllustration";
 import "./OfficeFloor.css";
 
 const statusLabel = (state: string) => ({ working: "Working", done: "Completed", needs: "Needs input", idle: "Idle" }[state] ?? state);
@@ -14,19 +17,19 @@ const ROOM_SHAPE: Record<RoomKind, "oval" | "rect"> = { meeting: "oval", debate:
 const ZONE_LOCATION_LABEL: Record<RoomKind, string> = { meeting: "Meeting room", debate: "Boardroom", planning: "Strategy room" };
 
 // ── spatial layout (px, unscaled canvas units) ──────────────────
-const DESK_COLS = 6;
-const DESK_CELL_W = 180;
-const DESK_CELL_H = 190;
+const DESK_COLS = 4;
+const DESK_CELL_W = 214;
+const DESK_CELL_H = 282;
 const ZONE_PAD = 26;
-const CORRIDOR_H = 170;
-const ROOM_GAP = 28;
+const CORRIDOR_H = 144;
+const ROOM_GAP = 22;
 const SEAT_W = 160;
 const SEAT_H = 190;
-const SEAT_COLS = 4;
+const SEAT_COLS = 2;
 const ROOM_HEADER_H = 46;
-const ROOM_MIN_SEAT_SLOTS = 4; // a room reads as a room even with nobody in it
-const ROOM_WIDTH = ZONE_PAD * 2 + SEAT_COLS * SEAT_W;
-const ROOM_ENTRANCE_W = 64;
+const ROOM_MIN_SEAT_SLOTS = 2; // a room reads as a room even with nobody in it
+const ROOM_WIDTH = 416;
+
 // Low enough that a full 30-agent roster spread across many concurrent rooms
 // still fits a small viewport in fit mode / manual zoom-out.
 const ZOOM_MIN = 0.08;
@@ -49,7 +52,7 @@ interface Point { x: number; y: number }
 function deskHome(index: number): Point {
   const col = index % DESK_COLS;
   const row = Math.floor(index / DESK_COLS);
-  return { x: ZONE_PAD + col * DESK_CELL_W, y: ZONE_PAD + row * DESK_CELL_H };
+  return { x: 142 + col * DESK_CELL_W, y: 218 + (row % 3) * DESK_CELL_H + Math.floor(row / 3) * 1024 };
 }
 
 function roomSeatAnchors(count: number, originX: number, originY: number): Point[] {
@@ -58,7 +61,7 @@ function roomSeatAnchors(count: number, originX: number, originY: number): Point
   for (let i = 0; i < slots; i++) {
     const col = i % SEAT_COLS;
     const row = Math.floor(i / SEAT_COLS);
-    anchors.push({ x: originX + ZONE_PAD + col * SEAT_W, y: originY + ROOM_HEADER_H + row * SEAT_H + 12 });
+    anchors.push({ x: originX + (col ? 310 : 50), y: originY + 140 + row * SEAT_H });
   }
   return anchors;
 }
@@ -66,14 +69,14 @@ function roomSeatAnchors(count: number, originX: number, originY: number): Point
 function roomHeight(count: number): number {
   const slots = Math.max(count, ROOM_MIN_SEAT_SLOTS);
   const rows = Math.ceil(slots / SEAT_COLS);
-  return ROOM_HEADER_H + rows * SEAT_H + ZONE_PAD;
+  return Math.max(320, ROOM_HEADER_H + rows * SEAT_H + ZONE_PAD);
 }
 
 function reducedMotionPreferred(): boolean {
   return typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
 }
 
-function RoomFurniture({ top, left, width, height, label, seatCount, accent, shape, kind, sessionId, onOpen }: {
+function RoomFurniture({ top, left, width, height, label, seatCount, accent, shape, kind, sessionId, artRow, onOpen }: {
   top: number;
   left: number;
   width: number;
@@ -84,6 +87,7 @@ function RoomFurniture({ top, left, width, height, label, seatCount, accent, sha
   shape: "oval" | "rect";
   kind: RoomKind;
   sessionId: string | null;
+  artRow: number;
   onOpen: () => void;
 }) {
   const slots = Math.max(seatCount, ROOM_MIN_SEAT_SLOTS);
@@ -98,11 +102,13 @@ function RoomFurniture({ top, left, width, height, label, seatCount, accent, sha
   const tableX = width / 2;
   const tableY = ROOM_HEADER_H + (rows * SEAT_H) / 2;
   return (
-    <div className="osZone osRoom" style={{ top, left, width, height, borderColor: accent }} data-session-id={sessionId ?? undefined} data-office-zone={kind}>
+    <div className="osZone osRoom osCutawayRoom" style={{ top, left, width, height, borderColor: accent }} data-session-id={sessionId ?? undefined} data-office-zone={kind}>
       <button type="button" className="osZoneLabel osZoneLabelBtn mono" style={{ color: accent }} onClick={onOpen} title={`Open ${label}`}>{label}</button>
+      <div className="osMeetingArt" style={{backgroundPosition:`-1120px -${artRow * 342}px`, height:320, transform:`scaleY(${height / 320})`, transformOrigin:"top"}} aria-hidden="true" />
+      <span className="osRoomOccupancy">{seatCount ? `${seatCount} participating` : "Available"}</span>
       <svg className="osRoomSvg" width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
         <RoomFloor width={width} height={height} kind={kind} />
-        {kind === "planning" && <Whiteboard x={width * 0.18} y={10} width={width * 0.64} />}
+        {kind === "planning" && <Whiteboard x={26} y={48} width={width - 52} />}
         {shape === "oval" ? (
           <ellipse cx={tableX} cy={tableY} rx={Math.min(width * 0.32, 90)} ry={Math.min(rows * SEAT_H * 0.28, 46)} className="osTable" />
         ) : (
@@ -115,7 +121,7 @@ function RoomFurniture({ top, left, width, height, label, seatCount, accent, sha
             className="osTable"
           />
         )}
-        {chairs.map((c, i) => <circle key={i} cx={c.x} cy={c.y} r={10} className="osChair" />)}
+        {chairs.map((c, i) => <UpholsteredChair key={i} x={c.x} y={c.y} />)}
         {kind === "debate" && <HeadChair x={tableX} y={tableY - Math.min(rows * SEAT_H * 0.24, 30) - 16} />}
       </svg>
     </div>
@@ -130,6 +136,9 @@ export function OfficeFloor() {
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const { showView, selectAgent } = useStore.getState();
 
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [preferences, setPreferences] = useState(() => readOfficePreferences(selectedProjectId ?? ""));
+  const [resultsOpen, setResultsOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [zoom, setZoom] = useState(1);
   const [fitMode, setFitMode] = useState(true);
@@ -181,6 +190,9 @@ export function OfficeFloor() {
 
   useEffect(() => {
     setSearch("");
+    setResultsOpen(false);
+    setSettingsOpen(false);
+    setPreferences(readOfficePreferences(selectedProjectId ?? ""));
     setSelectedAgent(null);
     setZoom(1);
     setFitMode(true);
@@ -208,8 +220,8 @@ export function OfficeFloor() {
 
   const maxSlot = Math.max(0, ...slots.values());
   const deskRows = Math.max(1, Math.ceil((maxSlot + 1) / DESK_COLS));
-  const deskZoneW = ZONE_PAD * 2 + DESK_COLS * DESK_CELL_W;
-  const deskZoneH = ZONE_PAD * 2 + deskRows * DESK_CELL_H;
+  const deskZoneW = 976;
+  const deskZoneH = Math.ceil(deskRows / 3) * 1024;
   const corridorY = deskZoneH;
   const roomsY = corridorY + CORRIDOR_H;
 
@@ -220,25 +232,19 @@ export function OfficeFloor() {
     () => buildRooms(sessions, rosterIds, layoutState),
     [sessions, rosterIds, layoutState],
   );
+  const reservedHeights = useMemo(() => new Map<number, number>(), [selectedProjectId]);
   const roomMap = useMemo(() => agentRoomMap(rooms), [rooms]);
-  const roomAnchors = useMemo(
-    () => rooms.map((r) => roomSeatAnchors(r.agentIds.length, r.position * (ROOM_WIDTH + ROOM_GAP), roomsY)),
-    [rooms, roomsY],
-  );
-  const roomHeights = useMemo(() => rooms.map((r) => roomHeight(r.agentIds.length)), [rooms]);
-
-  const canvasWidth = Math.max(deskZoneW, (Math.max(0, ...rooms.map((r) => r.position)) + 1) * (ROOM_WIDTH + ROOM_GAP));
-  const canvasHeight = roomsY + Math.max(0, ...roomHeights) + ZONE_PAD;
+  const roomHeights = rooms.map((r) => roomHeight(r.agentIds.length));
+  rooms.forEach((r, i) => reservedHeights.set(r.position, Math.max(reservedHeights.get(r.position) ?? 0, roomHeights[i])));
+  const roomOrigins = rooms.map((r) => ({ x: deskZoneW + CORRIDOR_H, y: Array.from({length:r.position}, (_,p) => (reservedHeights.get(p) ?? roomHeight(0)) + ROOM_GAP).reduce((a,b)=>a+b,0) }));
+  const roomAnchors = rooms.map((r,i) => roomSeatAnchors(r.agentIds.length, roomOrigins[i].x, roomOrigins[i].y));
+  const canvasWidth = deskZoneW + CORRIDOR_H + ROOM_WIDTH;
+  const canvasHeight = Math.max(deskZoneH, ...rooms.map((r,i) => roomOrigins[i].y + roomHeights[i]));
 
   // Fit the complete floor on both axes; manual zoom keeps native scrolling.
   const fitScale = wrapSize.width > 0 && wrapSize.height > 0
     ? Math.max(0.01, Math.min(1, (wrapSize.width - 2) / Math.max(canvasWidth, 1), (wrapSize.height - 2) / Math.max(canvasHeight, 1))) : 1;
   const effectiveZoom = fitMode ? fitScale : zoom;
-
-  const roomEntrances = useMemo(
-    () => rooms.map((r) => ({ x: r.position * (ROOM_WIDTH + ROOM_GAP) + (ROOM_WIDTH - ROOM_ENTRANCE_W) / 2, width: ROOM_ENTRANCE_W })),
-    [rooms],
-  );
 
   function anchorFor(agentId: string): { point: Point; zone: "home" | RoomKind; sessionId: string | null } {
     const room = roomMap.get(agentId);
@@ -248,11 +254,11 @@ export function OfficeFloor() {
     return { point: roomAnchors[idx][seatIdx], zone: room.kind, sessionId: room.sessionId };
   }
 
-  // Walk agents along the corridor (never straight through desks/tables) whenever
+  // Route agents through the central corridor whenever
   // their session anchor changes. First mount and reduced-motion snap instead —
   // no fake "walk in" on entry, no animation when the user asked for none.
   useEffect(() => {
-    const corridorMidY = corridorY + CORRIDOR_H / 2;
+    const corridorMidX = deskZoneW + CORRIDOR_H / 2 - 48;
     for (const agent of agents) {
       const el = itemRefs.current.get(agent.id);
       const home = homes.get(agent.id);
@@ -274,19 +280,10 @@ export function OfficeFloor() {
       if (motionReduced) {
         el.style.transform = `translate(${dx}px, ${dy}px)`;
       } else {
-        const from = current;
-        const viaFromX = { x: from.x, y: corridorMidY - home.y };
-        const viaToX = { x: dx, y: corridorMidY - home.y };
+        const from = {x:home.x+current.x,y:home.y+current.y};
+        const points=officeRoute(from,anchor,rooms.map((r,i)=>({...roomOrigins[i],height:roomHeights[i]})));
         el.dataset.walking = "true";
-        const animation = el.animate(
-          [
-            { transform: `translate(${from.x}px, ${from.y}px)` },
-            { transform: `translate(${viaFromX.x}px, ${viaFromX.y}px)` },
-            { transform: `translate(${viaToX.x}px, ${viaToX.y}px)` },
-            { transform: `translate(${dx}px, ${dy}px)` },
-          ],
-          { duration: 700, easing: "ease-in-out", fill: "forwards" },
-        );
+        const animation = el.animate(routeFrames(points,home), {duration:1200,easing:"linear",fill:"forwards"});
         animation.onfinish = () => {
           delete el.dataset.walking;
           el.style.transform = `translate(${dx}px, ${dy}px)`;
@@ -295,7 +292,7 @@ export function OfficeFloor() {
       }
       anchorRef.current.set(agent.id, anchor);
     }
-  }, [rooms, agents, homes, corridorY, motionReduced]);
+  }, [rooms, agents, homes, deskZoneW, motionReduced]);
 
   // Bring the selected agent into view at a readable zoom, whether selected via
   // search-Enter or a direct click — never leaves it too small to read.
@@ -332,7 +329,7 @@ export function OfficeFloor() {
   const selectedAgentState = selectedAgentData ? (anchorFor(selectedAgentData.id).zone === "planning" ? "Planning" : statusLabel(agentStates[selectedAgentData.id] ?? "idle")) : null;
   const selectedAnchor = selectedAgentData ? anchorFor(selectedAgentData.id) : null;
   const selectedZone = selectedAnchor?.zone ?? "home";
-  const selectedLocationLabel = selectedZone === "home" ? "At desk" : ZONE_LOCATION_LABEL[selectedZone];
+  const selectedLocationLabel = selectedZone === "home" ? "At desk" : preferences[selectedZone];
 
   const handleAgentClick = (agentId: string) => setSelectedAgent(agentId);
 
@@ -348,7 +345,8 @@ export function OfficeFloor() {
         <span className="dim mono" style={{ fontSize: 10.5 }}>Office</span>
         <span className="dim mono rvHeaderStats">{agents.length} agent{agents.length === 1 ? "" : "s"} · {sessions.length} active session{sessions.length === 1 ? "" : "s"}</span>
       </header>
-      <div className="officeStudio" data-motion-paused={motionPaused}>
+      {settingsOpen && <OfficeSettings key={project.id} projectId={project.id} preferences={preferences} onSave={setPreferences} onClose={()=>setSettingsOpen(false)} />}
+      <div className="officeStudio" data-labels={preferences.labels} data-motion-paused={motionPaused}>
         <div className="osWorkspace">
           <div className="osGrid">
             <div className="osGridTop">
@@ -367,6 +365,7 @@ export function OfficeFloor() {
                   itemRefs.current.get(first.id)?.scrollIntoView({ behavior: motionReduced ? "auto" : "smooth", block: "center", inline: "center" });
                 }}
               />
+              <button id="office-settings-trigger" className="pillBtn ghostBtn" onClick={()=>setSettingsOpen(true)}>Office settings</button>
               <span className="osGridCount dim mono">{matchedAgents.length} / {agents.length}</span>
               <button
                 type="button"
@@ -394,28 +393,21 @@ export function OfficeFloor() {
                   )}
                   <div className="osCanvasSizer" style={{ width: canvasWidth * effectiveZoom, height: canvasHeight * effectiveZoom }}>
                     <div className="osCanvas" style={{ width: canvasWidth, height: canvasHeight, fontSize: `${12 / Math.max(0.3, effectiveZoom)}px`, transform: `scale(${effectiveZoom})` }}>
-                      <OfficeAtmosphere
-                        deskZone={{ x: 0, y: 0, width: deskZoneW, height: deskZoneH }}
-                        corridor={{ x: 0, y: corridorY, width: canvasWidth, height: CORRIDOR_H }}
-                        roomEntrances={roomEntrances}
-                      />
-                      <DeskFurnitureLayer homes={agents.map((a) => homes.get(a.id)!)} width={deskZoneW} height={deskZoneH} />
-                      <div className="osZone osZoneDesk" style={{ top: 0, left: 0, width: deskZoneW, height: deskZoneH }}>
-                        <span className="osZoneLabel mono" style={{ color: accent }}>Desk Studio</span>
-                      </div>
-                      <div className="osZone osZoneCorridor" style={{ top: corridorY, left: 0, width: canvasWidth, height: CORRIDOR_H }}>
-                        <span className="osZoneLabel mono dim">Corridor</span>
-                      </div>
+                      <div className="osStudioArchitecture" style={{width:deskZoneW,height:canvasHeight}} aria-hidden="true" />
+                      <div className="osVerticalCorridor" style={{left:deskZoneW,width:CORRIDOR_H,height:canvasHeight}} aria-hidden="true" />
+                      {Array.from({length:deskRows},(_,row)=><div key={row} className="osStudioDoor" style={{left:950,top:290+(row%3)*282+Math.floor(row/3)*1024}} aria-hidden="true"/>)}
+                      <div className="osStudioTitle">{preferences.studio} <span>{agents.length} agents · {project.name}</span></div>
                       {rooms.map((room, i) => (
                         <RoomFurniture
                           key={room.sessionId ?? `${room.kind}-empty`}
-                          top={roomsY} left={room.position * (ROOM_WIDTH + ROOM_GAP)} width={ROOM_WIDTH} height={roomHeights[i]}
-                          label={room.sessionId ? `${ROOM_BASE_LABEL[room.kind]}${room.slot + 1}` : ROOM_BASE_LABEL[room.kind]}
+                          top={roomOrigins[i].y} left={roomOrigins[i].x} width={ROOM_WIDTH} height={roomHeights[i]}
+                          label={room.sessionId ? `${preferences[room.kind]} ${room.slot + 1}` : preferences[room.kind]}
                           seatCount={room.agentIds.length}
                           accent={accent}
                           shape={ROOM_SHAPE[room.kind]}
                           kind={room.kind}
                           sessionId={room.sessionId}
+                          artRow={room.position % 3}
                           onOpen={() => handleNavigateToRoom(room.kind)}
                         />
                       ))}
@@ -425,7 +417,7 @@ export function OfficeFloor() {
                         const isDimmed = term.length > 0 && !matchedIds.has(agent.id);
                         const home = homes.get(agent.id)!;
                         const { zone, sessionId } = anchorFor(agent.id);
-                        const roomBadge = zone === "home" ? null : ROOM_BASE_LABEL[zone];
+                        const roomBadge = zone === "home" ? null : preferences[zone];
                         return (
                           <button
                             key={`${project.id}:${agent.id}`}
@@ -458,12 +450,14 @@ export function OfficeFloor() {
                 </div>
               )}
             </div>
+            {resultsOpen && <OfficeResultsWall key={project.id} projectId={project.id} onClose={()=>setResultsOpen(false)} />}
             <div className="osGridNav">
               <button className="pillBtn ghostBtn mono" onClick={() => handleNavigateToRoom("meeting")} title="Open meeting room">Meeting</button>
               <button className="pillBtn ghostBtn mono" onClick={() => handleNavigateToRoom("planning")} title="Open planning">Strategy</button>
               <button className="pillBtn ghostBtn mono" onClick={() => handleNavigateToRoom("debate")} title="Open debate">Boardroom</button>
               <button className="pillBtn ghostBtn mono" onClick={() => handleNavigateToRoom("board")} title="Open task board">Board</button>
-              <button className="pillBtn ghostBtn mono" onClick={() => handleNavigateToRoom("workflows")} title="Open results/workflows">Results</button>
+              <button className="pillBtn ghostBtn mono" onClick={() => setResultsOpen(v=>!v)} aria-expanded={resultsOpen}>Results wall</button>
+              <button className="pillBtn ghostBtn mono" onClick={() => handleNavigateToRoom("workflows")}>Workflows</button>
             </div>
           </div>
           {selectedAgentData && (

@@ -112,7 +112,20 @@ export function OfficeAtmosphere({
 const ROOM_RUG_VAR: Record<RoomKind, string> = { meeting: "var(--wood-light)", debate: "var(--wood-dark)", planning: "var(--sage)" };
 
 export function RoomFloor({ width, height, kind }: { width: number; height: number; kind: RoomKind }) {
-  return <rect x="6" y="6" width={width - 12} height={height - 12} rx="8" fill={ROOM_RUG_VAR[kind]} opacity="0.14" />;
+  return <g>
+    <rect x="6" y="6" width={width - 12} height={height - 12} rx="8" fill={ROOM_RUG_VAR[kind]} opacity="0.14" />
+    <rect x="24" y="64" width={width - 48} height={height - 88} rx="18" fill={ROOM_RUG_VAR[kind]} opacity="0.12" />
+    <rect x="30" y="70" width={width - 60} height={height - 100} rx="14" fill="none" stroke="var(--ivory)" strokeOpacity="0.12" />
+    <rect x={width - 112} y="14" width="86" height="30" rx="3" fill="var(--wood-dark)" />
+    {[0,1,2,3,4,5].map(i => <rect key={i} x={width - 106 + i * 12} y={19 + i % 3} width="8" height={19 - i % 3} rx="1" fill={i % 2 ? "var(--ivory)" : "var(--sage)"} opacity="0.7" />)}
+    <PlantDecor x={width - 30} y={height - 30} scale={0.5} />
+    {kind === "meeting" && <g transform="translate(24, 42)">
+      <rect width="82" height="10" rx="3" fill="var(--wood)" />
+      <rect x="8" y="-18" width="18" height="18" rx="3" fill="var(--ivory)" />
+      <rect x="42" y="-9" width="10" height="9" rx="2" fill="var(--sage)" />
+      <rect x="58" y="-9" width="10" height="9" rx="2" fill="var(--sage)" />
+    </g>}
+  </g>;
 }
 
 export function Whiteboard({ x, y, width }: { x: number; y: number; width: number }) {
@@ -137,4 +150,13 @@ export function HeadChair({ x, y }: { x: number; y: number }) {
       <circle cx="0" cy="0" r="11" fill="var(--sage-dark)" />
     </g>
   );
+}
+
+export function UpholsteredChair({ x, y }: { x: number; y: number }) {
+  return <g transform={`translate(${x}, ${y})`}>
+    <ellipse cy="12" rx="16" ry="6" fill="#000" opacity="0.2" />
+    <rect x="-12" y="-10" width="24" height="24" rx="7" fill="var(--sage-dark)" stroke="var(--wood-dark)" />
+    <rect x="-10" y="-14" width="20" height="10" rx="4" fill="var(--sage)" />
+    <path d="M-14 -3 V9 M14 -3 V9" stroke="var(--wood-light)" strokeWidth="3" strokeLinecap="round" />
+  </g>;
 }

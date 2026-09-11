@@ -536,3 +536,62 @@
 @keyframes officeSwing { from {transform:rotate(-10deg)} to {transform:rotate(10deg)} }
 .officeStudio[data-motion-paused=true] .officeCharacter * { animation-play-state:paused !important; }
 @media(prefers-reduced-motion:reduce) { .officeCharacter * { animation:none !important; } }
+
+/* Compact connected floor: architecture stays behind all interactive controls. */
+.osCanvasSizer { margin-inline: auto; }
+.osCanvas { border-radius: 12px; background: var(--floor-a); box-shadow: 0 12px 32px #0003; }
+.osZoneDesk { border: 8px solid var(--wood-dark); border-bottom: none; }
+.osZoneDesk .osZoneLabel { top: 4px; left: 12px; }
+.osRoom { border-width: 6px 6px 10px; border-radius: 4px 4px 10px 10px; box-shadow: inset 0 12px 0 color-mix(in srgb, var(--wood-light) 20%, transparent); }
+.osRoom::after { content: ''; position: absolute; width: 64px; height: 9px; top: -7px; left: calc(50% - 32px); background: var(--floor-b); pointer-events: none; }
+.osRoom .osZoneLabel { top: 14px; left: 14px; font-size: 12px; padding: 3px 7px; background: var(--paper); border-radius: 4px; }
+.osDesk-labelPlate { min-width: 88px; }
+.osDesk-label { font-size: 12px; }
+
+/* Cutaway scene: reusable render assets beneath real, accessible agent controls. */
+.osGridArea { background: #202321; padding:24px; }
+.osCanvas { background:#927552; border-radius:3px; box-shadow:0 20px 45px #0007; overflow:visible; }
+.osStudioArchitecture { position:absolute; left:0;top:0;box-sizing:border-box;border:12px solid #393d37;border-bottom-width:20px;background:repeating-linear-gradient(0deg,#b6956b 0px,#b6956b 29px,#92724e 30px,#c2a478 32px);box-shadow:inset 16px 16px 32px #32281a66; }
+.osStudioTitle {position:absolute;top:8px;left:22px;z-index:3;background:#252b25ed;color:#efe7d7;padding:8px 16px;font:20px Georgia,serif;box-shadow:0 4px 12px #0003;}
+.osStudioTitle span {font:11px var(--font-body);margin-left:16px;color:#b8c4ac;}
+.osVerticalCorridor {position:absolute;top:0;background:repeating-linear-gradient(0deg,#aa875b 0px,#aa875b 38px,#856844 40px);box-shadow:inset 10px 0 14px #0004,inset -10px 0 14px #0004;}
+.osCutawayRoom {overflow:hidden;border:8px solid #373e37 !important;border-bottom-width:14px !important;border-radius:2px;box-shadow:10px 12px 18px #30271c55;}
+.osCutawayRoom::after {top:45%;left:-8px;width:10px;height:64px;background:#aa875b;}
+.osMeetingArt {position:absolute;inset:0;}
+.osCutawayRoom .osRoomSvg {display:none;}
+.osCutawayRoom .osZoneLabel {top:10px;left:10px;color:#eee4d1 !important;background:#232c23e8;padding:6px 12px;font:16px Georgia,serif;}
+.osRoomOccupancy {position:absolute;bottom:10px;right:12px;background:#242b24e8;color:#dce5d5;padding:5px 9px;border-radius:4px;font-size:11px;}
+.osDesk-item.placed {z-index:4;}
+.osDesk-labelPlate {background:#252923ed;border-color:#b7b19b44;color:#f3eedf;box-shadow:0 3px 6px #0003;}
+.osDesk-item .dim {color:#c6d3be;}
+.officeCharacter {filter:drop-shadow(4px 5px 3px #251c1966);}
+
+/* Continuous open studio artwork, repeated only for additional 12-desk wings. */
+.osStudioArchitecture {border:0;border-radius:0;background:url('../assets/office/cutaway-studio.png') 0 0 / 1536px 1024px repeat-y;box-shadow:none;}
+.osVerticalCorridor {background:url('../assets/office/cutaway-studio.png') -976px 0 / 1536px 1024px repeat-y;box-shadow:none;}
+.osMeetingArt {background-image:url('../assets/office/cutaway-studio.png');background-size:1536px 1024px;background-repeat:repeat-y;}
+.osCutawayRoom {border:0 !important;box-shadow:none;}
+.osCutawayRoom::after {display:none;}
+.osCutawayRoom .osZoneLabel {top:20px;left:24px;}
+.osStudioTitle {top:20px;left:80px;}
+.osDesk-item[data-office-zone=home] .officeCharacter {transform:scale(.8);transform-origin:center bottom;}
+.osCanvas { background:#323935; }
+
+.osResultsWall{flex-shrink:0;max-height:260px;overflow:auto;padding:16px 20px;background:#30382f;color:#eee8d9;border-top:3px solid #8c795b;}
+.osResultsWall header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;}
+.osResultsWall header span{font-size:12px;color:#bdc9b3;margin-left:10px;}
+.osResultsWall header button{margin-left:6px;}
+.osResultCards{display:flex;gap:14px;overflow:auto;padding-top:14px;}
+.osResultCards article{min-width:260px;max-width:360px;background:#e5ddc9;color:#2a3128;padding:14px;border-radius:4px;}
+.osResultCards h3{font:18px Georgia,serif;margin:8px 0 14px;overflow-wrap:anywhere;}
+.osResultCards article>span{font-size:11px;text-transform:uppercase;letter-spacing:.06em;}
+.osResultCards button{color:#283323;border-color:#8b947d;background:#f2ecdf;margin-right:5px;}
+
+.osSettingsBackdrop{position:fixed;inset:0;z-index:200;display:grid;place-items:center;background:#1118;}
+.osSettings{width:min(440px,90vw);max-height:90vh;overflow:auto;background:var(--paper);color:var(--ink);padding:24px;border:1px solid var(--rule);border-radius:12px;box-shadow:0 24px 60px #0006;}
+.osSettings h2{font:24px Georgia,serif;margin:0 0 8px;}
+.osSettings label{display:block;margin-top:14px;font-size:13px;}
+.osSettings input:not([type=checkbox]){display:block;box-sizing:border-box;width:100%;margin-top:5px;background:var(--deck);color:var(--ink);border:1px solid var(--rule);border-radius:5px;padding:8px;}
+.osSettings footer{display:flex;gap:8px;justify-content:flex-end;margin-top:24px;}
+.officeStudio[data-labels=false] .osDesk-item:not(:hover):not(:focus):not(.sel) .osDesk-labelPlate{opacity:0;pointer-events:none;}
+.osStudioDoor {position:absolute;z-index:1;width:30px;height:76px;background:#b9976b;border-block:5px solid #353a32;box-sizing:border-box;pointer-events:none;}
