@@ -1,3 +1,4 @@
+import { OfficeSubagentFloor, SUBAGENT_PAGE_SIZE } from './OfficeSubagentFloor';
 import { useOfficeSubagents } from "../lib/useOfficeSubagents";
 import { arrangeDesks, defaultRoomOrder } from "../../officeArrangement";
 import { OfficeSettings, readOfficePreferences } from "./OfficeSettings";
@@ -148,6 +149,8 @@ export function OfficeFloor() {
   const [motionReduced, setMotionReduced] = useState(reducedMotionPreferred);
 
   const sessions = useOfficePresence(selectedProjectId);
+  const [selectedSubagent, setSelectedSubagent] = useState<string | null>(null);
+  const [subagentPage, setSubagentPage] = useState(0);
   const subagentRecords = useOfficeSubagents(selectedProjectId);
 
   const itemRefs = useRef(new Map<string, HTMLButtonElement>());
@@ -193,6 +196,8 @@ export function OfficeFloor() {
 
   useEffect(() => {
     setSearch("");
+    setSelectedSubagent(null);
+    setSubagentPage(0);
     setResultsOpen(false);
     setSettingsOpen(false);
     setPreferences(readOfficePreferences(selectedProjectId ?? ""));
@@ -210,6 +215,8 @@ export function OfficeFloor() {
   const agents = useMemo(() => project?.agents ?? [], [project]);
   const agentIds = useMemo(() => agents.map((a) => a.id), [agents]);
   const rosterIds = useMemo(() => new Set(agentIds), [agentIds]);
+  const floorSubagents = subagentRecords.filter(r => rosterIds.has(r.parentAgentId) && (r.status === 'running' || r.status === 'unobserved'));
+  const parentNames = new Map(agents.map(a => [a.id, a.name]));
   const baseSlots = useOfficeHomes(selectedProjectId, agentIds);
   const slots = useMemo(()=>arrangeDesks(baseSlots,preferences.desks),[baseSlots,preferences.desks]);
 
@@ -243,7 +250,9 @@ export function OfficeFloor() {
   const roomOrigins = rooms.map((r) => ({ x: deskZoneW + CORRIDOR_H, y: Array.from({length:r.position}, (_,p) => (reservedHeights.get(p) ?? roomHeight(0)) + ROOM_GAP).reduce((a,b)=>a+b,0) }));
   const roomAnchors = rooms.map((r,i) => roomSeatAnchors(r.agentIds.length, roomOrigins[i].x, roomOrigins[i].y));
   const canvasWidth = deskZoneW + CORRIDOR_H + ROOM_WIDTH;
-  const canvasHeight = Math.max(deskZoneH, ...rooms.map((r,i) => roomOrigins[i].y + roomHeights[i]));
+  const mainFloorHeight = Math.max(deskZoneH, ...rooms.map((r,i) => roomOrigins[i].y + roomHeights[i]));
+  const annexRows = Math.ceil(Math.min(floorSubagents.length, SUBAGENT_PAGE_SIZE) / 6);
+  const canvasHeight = mainFloorHeight + (annexRows ? 140 + annexRows * 230 : 0);
 
   // Fit the complete floor on both axes; manual zoom keeps native scrolling.
   const fitScale = wrapSize.width > 0 && wrapSize.height > 0
@@ -301,7 +310,7 @@ export function OfficeFloor() {
   // Bring the selected agent into view at a readable zoom, whether selected via
   // search-Enter or a direct click — never leaves it too small to read.
   useEffect(() => {
-    if (!selectedAgent) return;
+    if (!selectedAgent || selectedSubagent) return;
     if (effectiveZoom < READABLE_ZOOM) {
       setFitMode(false);
       setZoom(READABLE_ZOOM);
@@ -311,7 +320,7 @@ export function OfficeFloor() {
     });
     return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedAgent]);
+  }, [selectedAgent, selectedSubagent]);
 
   if (!project) {
     return (
@@ -335,7 +344,7 @@ export function OfficeFloor() {
   const selectedZone = selectedAnchor?.zone ?? "home";
   const selectedLocationLabel = selectedZone === "home" ? "At desk" : preferences[selectedZone];
 
-  const handleAgentClick = (agentId: string) => setSelectedAgent(agentId);
+  const handleAgentClick = (agentId: string) => { setSelectedSubagent(null); setSelectedAgent(agentId); };
 
   const handleNavigateToRoom = (room: "meeting" | "planning" | "debate" | "board" | "workflows") => showView(room);
 
@@ -397,7 +406,7 @@ export function OfficeFloor() {
                   )}
                   <div className="osCanvasSizer" style={{ width: canvasWidth * effectiveZoom, height: canvasHeight * effectiveZoom }}>
                     <div className="osCanvas" style={{ width: canvasWidth, height: canvasHeight, fontSize: `${12 / Math.max(0.3, effectiveZoom)}px`, transform: `scale(${effectiveZoom})` }}>
-                      <div className="osStudioArchitecture" style={{width:deskZoneW,height:canvasHeight}} aria-hidden="true" />
+                      <div className="osStudioArchitecture" style={{width:deskZoneW,height:mainFloorHeight}} aria-hidden="true" />
                       <div className="osVerticalCorridor" style={{left:deskZoneW,width:CORRIDOR_H,height:canvasHeight}} aria-hidden="true" />
                       {Array.from({length:deskRows},(_,row)=><div key={row} className="osStudioDoor" style={{left:950,top:290+(row%3)*282+Math.floor(row/3)*1024}} aria-hidden="true"/>)}
                       <div className="osStudioTitle">{preferences.studio} <span>{agents.length} agents · {project.name}</span></div>
@@ -415,6 +424,7 @@ export function OfficeFloor() {
                           onOpen={() => handleNavigateToRoom(room.kind)}
                         />
                       ))}
+                      {floorSubagents.length > 0 && <OfficeSubagentFloor records={floorSubagents} parents={parentNames} top={mainFloorHeight + 20} page={subagentPage} onPage={setSubagentPage} selectedId={selectedSubagent} onSelect={record => { setSelectedAgent(record.parentAgentId); setSelectedSubagent(record.id); }} />}
                       {agents.map((agent) => {
                         const state = agentStates[agent.id] ?? "idle";
                         const isSelected = selectedAgent === agent.id;
@@ -480,7 +490,7 @@ export function OfficeFloor() {
               </div>
               <div className="osInspectorContent">
                 <section className="osSubagents" aria-label="Delegated agents"><h3>Delegated agents</h3>
-                  {subagentRecords.filter(r=>r.parentAgentId===selectedAgentData.id).length===0?<p>No native subagent events observed. Currently supported: Claude streams.</p>:subagentRecords.filter(r=>r.parentAgentId===selectedAgentData.id).map(r=><details key={r.id} data-subagent-status={r.status}><summary>{r.description} · {r.status==='unobserved'?'Status unavailable':r.status}</summary><p>{r.summary||'No summary reported yet.'}</p>{r.lastTool&&<p>Last tool: {r.lastTool}</p>}<small>Task {r.taskId}</small></details>)}
+                  {subagentRecords.filter(r=>r.parentAgentId===selectedAgentData.id).length===0?<p>No native subagent events observed. Currently supported: Claude streams.</p>:subagentRecords.filter(r=>r.parentAgentId===selectedAgentData.id).map(r=><details key={`${r.id}:${selectedSubagent === r.id}`} open={selectedSubagent === r.id ? true : undefined} data-subagent-status={r.status}><summary>{r.description} · {r.status==='unobserved'?'Status unavailable':r.status}</summary><p>{r.summary||'No summary reported yet.'}</p>{r.lastTool&&<p>Last tool: {r.lastTool}</p>}<small>Task {r.taskId}</small></details>)}
                 </section>
                 <div className="osInspectorField">
                   <div className="osInspectorLabel">Status</div>

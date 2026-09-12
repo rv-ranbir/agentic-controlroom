@@ -619,3 +619,24 @@
 .osSubagents p,.osSubagents small{font-size:11px;line-height:1.5;overflow-wrap:anywhere;}
 .osSubagents details{border:1px solid var(--rule);border-radius:5px;padding:8px;margin-top:8px;font-size:12px;}
 .osSubagents summary{cursor:pointer;overflow-wrap:anywhere;}
+
+/* Temporary delegated workstations share the office canvas and fit controls. */
+.osDelegationFloor{position:absolute;left:0;width:1536px;box-sizing:border-box;padding:20px 26px;background:#343b32;border:8px solid #242b29;color:#f1e6d2;}
+.osDelegationFloor header{display:flex;align-items:center;justify-content:space-between;height:60px;}
+.osDelegationFloor h2{font:24px Georgia,serif;margin:0;}
+.osDelegationFloor p{font-size:15px;margin:6px 0;}
+.osDelegationFloor nav{display:flex;gap:16px;align-items:center;font-size:18px;}
+.osDelegationFloor nav button{background:#f1e6d2;color:#262b25;border:0;border-radius:5px;padding:8px 14px;cursor:pointer;}
+.osDelegationFloor nav button:disabled{opacity:.4;cursor:default;}
+.osDelegationDesks{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));grid-auto-rows:230px;gap:0 16px;}
+.osDelegationDesk{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;min-width:0;background:transparent;color:inherit;border:2px solid transparent;border-radius:8px;cursor:pointer;padding:8px;animation:delegatedArrival .45s ease-out;}
+.osDelegationDesk:hover,.osDelegationDesk:focus-visible,.osDelegationDesk[aria-pressed=true]{border-color:#d3b88b;background:#ffffff08;outline-offset:3px;}
+.osDelegationDesk strong{font-size:17px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.osDelegationDesk span,.osDelegationDesk small{font-size:14px;margin-top:5px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.osDelegationWorkstation{position:relative;width:150px;height:140px;flex-shrink:0;}
+.osDelegationWorkstation:before{content:'';position:absolute;left:5px;top:5px;width:140px;height:60px;background:#a98960;border:3px solid #796346;box-shadow:0 6px 12px #0003;}
+.osDelegationWorkstation .officeCharacter{position:absolute;width:70px;height:100px;left:40px;top:34px;}
+.osDelegationMonitor{position:absolute;left:51px;top:12px;width:48px;height:22px;background:#283b40;border:3px solid #1e292a;border-radius:2px;}
+@keyframes delegatedArrival{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+@media(prefers-reduced-motion:reduce){.osDelegationDesk{animation:none;}}
+.officeStudio[data-motion-paused=true] .osDelegationDesk,.officeStudio[data-motion-paused=true] .osDelegationDesk *{animation-play-state:paused!important;}
