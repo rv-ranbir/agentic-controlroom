@@ -1,3 +1,4 @@
+import { useOfficeSubagents } from "../lib/useOfficeSubagents";
 import { arrangeDesks, defaultRoomOrder } from "../../officeArrangement";
 import { OfficeSettings, readOfficePreferences } from "./OfficeSettings";
 import { OfficeResultsWall } from "./OfficeResultsWall";
@@ -147,6 +148,7 @@ export function OfficeFloor() {
   const [motionReduced, setMotionReduced] = useState(reducedMotionPreferred);
 
   const sessions = useOfficePresence(selectedProjectId);
+  const subagentRecords = useOfficeSubagents(selectedProjectId);
 
   const itemRefs = useRef(new Map<string, HTMLButtonElement>());
   const anchorRef = useRef(new Map<string, Point>());
@@ -441,6 +443,7 @@ export function OfficeFloor() {
                               {roomBadge && <span className="osBadge mono" style={{ borderColor: accent }}>{roomBadge}</span>}
                             </div>
                             <div className="osDesk-labelPlate">
+                              {subagentRecords.some(r=>r.parentAgentId===agent.id)&&<span className="osSubagentBadge">{subagentRecords.filter(r=>r.parentAgentId===agent.id&&r.status==="running").length} active subagents</span>}
                               <div className="osDesk-label">{agent.name}</div>
                               <span className="dim mono">{zone === "planning" ? "Planning" : statusLabel(state)}</span>
                             </div>
@@ -476,6 +479,9 @@ export function OfficeFloor() {
                 </button>
               </div>
               <div className="osInspectorContent">
+                <section className="osSubagents" aria-label="Delegated agents"><h3>Delegated agents</h3>
+                  {subagentRecords.filter(r=>r.parentAgentId===selectedAgentData.id).length===0?<p>No native subagent events observed. Currently supported: Claude streams.</p>:subagentRecords.filter(r=>r.parentAgentId===selectedAgentData.id).map(r=><details key={r.id} data-subagent-status={r.status}><summary>{r.description} · {r.status==='unobserved'?'Status unavailable':r.status}</summary><p>{r.summary||'No summary reported yet.'}</p>{r.lastTool&&<p>Last tool: {r.lastTool}</p>}<small>Task {r.taskId}</small></details>)}
+                </section>
                 <div className="osInspectorField">
                   <div className="osInspectorLabel">Status</div>
                   <div className="osInspectorValue">{selectedAgentState || "—"}</div>

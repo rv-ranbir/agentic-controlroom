@@ -15,3 +15,25 @@ The floor uses a generated continuous cutaway studio with real roster controls. 
 Office settings save studio/room names and label visibility per project in profile-local storage. Results wall lists project artifacts with app/browser preview actions and real child-workflow records linked to their parent. Refresh fetches current records; the wall does not claim native CLI subagent visibility. Minimized artifact tabs reserve vertical room so office controls remain usable.
 
 Verification:154 core tests, desktop fit12/30, project preferences reload/isolation, meeting movement/reduced motion, concurrent rooms/planning cleanup, agent publish/update and nested-workflow results tests. Test models are simulated locally. The final artwork is assets/office/cutaway-studio.png, generated with the built-in image tool. Characters remain simpler than the original concept; customizable geometry, native subagent presence, full lounge composition and freeform obstacle avoidance are not complete.
+
+### Native delegated-agent visibility (2026-09-12)
+
+The office inspector now shows Claude delegated agents under their roster parent, including progress, last tool and observed lifecycle state. Parent badges count active delegated agents. Records are scoped by project, parent and provider session; shell tasks are excluded. A parent stream ending without a completion event produces Status unavailable. Records currently live in memory and are capped at 500. Other providers and separate moving subagent avatars are not implemented.
+
+Event contract: https://code.claude.com/docs/en/agent-sdk/typescript
+
+Verified with 167 core tests, desktop build and an isolated Electron process fixture covering progress, completion, failure, missing completion and project isolation. No authenticated provider call was made for this verification.
+
+### Error diagnostics
+Desktop errors are written locally to userData/logs/errors.jsonl with one rotated errors.jsonl.1 file (1 MiB threshold). Sources include agent runs, rejected app requests, renderer console errors, preload/process failures and uncaught main-process exceptions. Errors retain bounded stack/message context; common credential patterns are redacted. Request arguments and provider streams are not logged. Logging does not swallow fatal exceptions or change failed-request behavior. Restart the rebuilt desktop app to enable this. Default development profile: %APPDATA%/Electron/logs/errors.jsonl; isolated/custom profiles use their own userData directory.
+
+Verified by 169 tests plus an Electron test injecting renderer and IPC failures and checking persisted redacted records. The previously reported exception was not reproduced.
+
+Updated app-owned path: default diagnostics are now %APPDATA%/Agent Room/logs/errors.jsonl, superseding the generic Electron path above. Existing settings/projects remain at their current locations. Custom userData profiles keep isolated diagnostics at <userData>/Agent Room/logs/errors.jsonl. Every entry identifies Agent Room; direct agent failures include structured projectId and agentId when known. Verified with 170 tests and Electron diagnostic fixture.
+
+### Authenticated verification and exception fix — 2026-09-12
+Authenticated Claude Code Haiku delegation passed in real Electron: one arithmetic subagent, completed lifecycle, result 42, no page errors. CLI budget capped at $0.30 per attempt; actual billing not measured. Empty synthetic project; no repository source sent. First test attempt inspected results before asynchronous completion; corrected test waited for parent response.
+
+Reproduced UnhandledPromiseRejectionWarning by starting a meeting with no participants. Direct-send/meeting/debate handlers discarded promises, allowing pre-run validation failures to escape. Added catches that report the error through existing UI and app diagnostics; regression now produces no unhandled stderr and persists project context. Runtime warnings now logged without changing fatal-error semantics.
+
+Final build +170 tests passed; native lifecycle/diagnostic Electron fixture and invalid-meeting regression passed. One isolated pre-fix launch also logged Electron sandbox startupData=null; absent in two subsequent launches. Cannot confirm this or the reproduced rejection matches the user's historical exception without its original trace. Keep monitoring that separate startup symptom. Screenshot and local test scripts are in the Trading agent/delegation workspace.

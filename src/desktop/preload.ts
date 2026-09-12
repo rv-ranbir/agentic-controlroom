@@ -27,6 +27,8 @@ contextBridge.exposeInMainWorld("api", {
     ipcRenderer.invoke("agent:send", { projectId, agentId, prompt }),
   pauseAgent: (projectId: string, agentId: string) => ipcRenderer.invoke("agent:pause", { projectId, agentId }),
   getRunning: () => ipcRenderer.invoke("room:running"),
+  getOfficeSubagents: () => ipcRenderer.invoke('office:subagents:get'),
+  onOfficeSubagents: (cb:(records:unknown[])=>void) => {const handler=(_event:unknown,records:unknown[])=>cb(records);ipcRenderer.on('office:subagents',handler);return()=>ipcRenderer.removeListener('office:subagents',handler);},
   getOfficePresence: () => ipcRenderer.invoke("office:presence:get"),
   onOfficePresence: (cb: (sessions: unknown[]) => void) => {
     const handler = (_evt: unknown, payload: unknown[]) => cb(payload);

@@ -1,3 +1,5 @@
+import { createErrorLog, appErrorLogPath, type ErrorContext } from './errorLog.js';
+import { SubagentRegistry } from "./subagentPresence.js";
 import { app, BrowserWindow, desktopCapturer, dialog, ipcMain, Notification, safeStorage, screen, shell } from "electron";
 import { basename, join, relative, resolve, sep } from "node:path";
 import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
@@ -24,6 +26,26 @@ import { readProjectIntegration } from '../workflow/projectIntegration.js';
 import { createWorkflowHost } from './workflowHost.js';
 import { createHttpBackend, validCredentialBinding, type ModelConfig, type ProviderId } from '../backend/httpBackend.js';
 import { OfficePresenceRegistry } from './officePresence.js';
+
+// Keep diagnostics local; never record request arguments or complete provider streams.
+const recordError = (source: string, error: unknown, context?: ErrorContext) =>
+  createErrorLog(appErrorLogPath(app.getPath('appData'), app.getPath('userData')))(source, error, context);
+process.on('uncaughtExceptionMonitor', error => recordError('main.uncaughtException', error));
+process.on('warning', warning => recordError('main.warning', warning));
+app.on('web-contents-created', (_event, contents) => {
+  contents.on('console-message', (details) => {
+    if (details.level === 'error') recordError('renderer.error', details.message);
+  });
+  contents.on('render-process-gone', (_event, details) => recordError('renderer.processGone', details.reason));
+  contents.on('preload-error', (_event, _path, error) => recordError('renderer.preload', error));
+});
+function registerHandler(channel: string, handler: Parameters<typeof ipcMain.handle>[1]): void {
+  ipcMain.handle(channel, async (event, ...args) => {
+    try { return await handler(event, ...args); }
+    catch (error) { recordError('ipc.' + channel, error); throw error; }
+  });
+}
+
 
 interface AgentRef {
   id: string; // unique per instance — always a generated id, never the bare role id (M9: multiple instances of the same role are allowed)
@@ -143,6 +165,7 @@ const rolesDir = join(__dirname, "..", "..", "roles");
 let win: BrowserWindow | undefined;
 const dashboardWindows = createDashboardWindowManager(options => new BrowserWindow(options));
 const running = new Set<string>(); // "projectId" (room run) or "projectId:agentId" (direct send)
+const subagents = new SubagentRegistry();
 const officePresence = new OfficePresenceRegistry(); // active meeting/debate sessions, for the office floor (starts empty)
 const runningProcs = new Map<string, ChildProcess>(); // "projectId:agentId" -> in-flight direct-send child process
 const ptySessions = new Map<string, IPty>(); // "projectId:agentId" -> live interactive PTY session (M1)
@@ -1160,17 +1183,21 @@ function wiredLog(project: Project): ChatLog {
   });
   log.on("status", (text: string) => send("room:event", { projectId: project.id, kind: "status", text }));
   log.on("agentState", (s: { agentId: string; state: string }) => {
+    if(s.state!=="working"&&subagents.stopObserving(project.id,s.agentId))send("office:subagents",subagents.snapshot());
     statsFor(project.id).agentStates.set(s.agentId, s.state);
     send("room:event", { projectId: project.id, kind: "agentState", ...s });
     if (s.state === "needs") notifyNeedsInput(project, s.agentId);
   });
-  log.on("activity", (a: { agentId: string; line: string }) =>
-    send("room:event", { projectId: project.id, kind: "activity", ...a }),
-  );
+  log.on("activity", (a: { agentId: string; line: string }) => {
+    const provider=project.agents?.find(agent=>agent.id===a.agentId)?.provider??project.backend;
+    if(provider==='claude'&&subagents.consume(project.id,a.agentId,a.line))send('office:subagents',subagents.snapshot());
+    send("room:event", { projectId: project.id, kind: "activity", ...a });
+  });
   return log;
 }
 
-function postError(project: Project, err: unknown): void {
+function postError(project: Project, err: unknown, agentId?: string): void {
+  recordError("agent.run", err, { projectId: project.id, agentId });
   send("room:event", {
     projectId: project.id,
     kind: "message",
@@ -1248,7 +1275,7 @@ async function sendToAgent(project: Project, agent: AgentRef, prompt: string): P
     checkQuota(project, agent, reply);
     log.agentState(agent.id, isQuestionLike(reply) ? "needs" : "done");
   } catch (err) {
-    postError(project, err);
+    postError(project, err, agent.id);
     checkQuota(project, agent, err instanceof Error ? err.message : String(err));
     log.agentState(agent.id, "idle");
   } finally {
@@ -1413,13 +1440,13 @@ function startShellPty(project: Project): { alreadyRunning: boolean } {
 // ── app ────────────────────────────────────────────────────────
 
 app.whenReady().then(() => {
-  ipcMain.handle('projects:dashboard', (_e,id:string) => { const p=loadProjects().find(p=>p.id===id); if(!p)throw new Error('Unknown project');return readProjectDashboard(p.path); });
-  ipcMain.handle('projects:openDashboard', async (_e,id:string) => { const p=loadProjects().find(p=>p.id===id);if(!p)throw new Error('Unknown project');const dashboard=readProjectDashboard(p.path);if(!dashboard)throw new Error('This project has no dashboard');await dashboardWindows.open(id, dashboard, win); });
-  ipcMain.handle("roles:list", () => listRoles());
+  registerHandler('projects:dashboard', (_e,id:string) => { const p=loadProjects().find(p=>p.id===id); if(!p)throw new Error('Unknown project');return readProjectDashboard(p.path); });
+  registerHandler('projects:openDashboard', async (_e,id:string) => { const p=loadProjects().find(p=>p.id===id);if(!p)throw new Error('Unknown project');const dashboard=readProjectDashboard(p.path);if(!dashboard)throw new Error('This project has no dashboard');await dashboardWindows.open(id, dashboard, win); });
+  registerHandler("roles:list", () => listRoles());
 
-  ipcMain.handle("projects:list", () => loadProjects());
+  registerHandler("projects:list", () => loadProjects());
 
-  ipcMain.handle("projects:add", async () => {
+  registerHandler("projects:add", async () => {
     const res = await dialog.showOpenDialog(win!, { properties: ["openDirectory"] });
     if (res.canceled || !res.filePaths[0]) return null;
     const path = res.filePaths[0];
@@ -1438,13 +1465,13 @@ app.whenReady().then(() => {
     return project;
   });
 
-  ipcMain.handle("projects:addRepo", async (_e, { url }: { url: string }) => {
+  registerHandler("projects:addRepo", async (_e, { url }: { url: string }) => {
     const trimmed = (url || "").trim();
     if (!isSafeRepoUrl(trimmed)) throw new Error("That doesn't look like a valid repository URL.");
     return cloneAndRegister(trimmed, repoNameFrom(trimmed));
   });
 
-  ipcMain.handle("github:connect", async (_e, { token }: { token: string }) => {
+  registerHandler("github:connect", async (_e, { token }: { token: string }) => {
     const trimmed = (token || "").trim();
     if (!trimmed) throw new Error("Enter a GitHub personal access token.");
     const res = await githubApi("/user", trimmed);
@@ -1454,7 +1481,7 @@ app.whenReady().then(() => {
     return { login: user.login };
   });
 
-  ipcMain.handle("github:status", () => {
+  registerHandler("github:status", () => {
     const token = loadGithubToken();
     if (!token) return { connected: false as const };
     try {
@@ -1465,9 +1492,9 @@ app.whenReady().then(() => {
     }
   });
 
-  ipcMain.handle("github:disconnect", () => clearGithubToken());
+  registerHandler("github:disconnect", () => clearGithubToken());
 
-  ipcMain.handle("github:listRepos", async () => {
+  registerHandler("github:listRepos", async () => {
     const token = loadGithubToken();
     if (!token) throw new Error("Not connected to GitHub.");
     const res = await githubApi("/user/repos?sort=updated&per_page=100", token);
@@ -1475,13 +1502,13 @@ app.whenReady().then(() => {
     return repos.map((r) => ({ name: r.name, fullName: r.full_name, cloneUrl: r.clone_url, private: r.private, updatedAt: r.updated_at }));
   });
 
-  ipcMain.handle("projects:addGithubRepo", async (_e, { cloneUrl, name }: { cloneUrl: string; name: string }) => {
+  registerHandler("projects:addGithubRepo", async (_e, { cloneUrl, name }: { cloneUrl: string; name: string }) => {
     const token = loadGithubToken();
     if (!token) throw new Error("Not connected to GitHub.");
     return cloneAndRegister(cloneUrl, name.replace(/[^\w.-]/g, "_"), token);
   });
 
-  ipcMain.handle("projects:update", (_e, update: Partial<Project> & { id: string }) => {
+  registerHandler("projects:update", (_e, update: Partial<Project> & { id: string }) => {
     const projects = loadProjects();
     const p = projects.find((x) => x.id === update.id);
     if (p) {
@@ -1491,11 +1518,11 @@ app.whenReady().then(() => {
     return p;
   });
 
-  ipcMain.handle("projects:remove", (_e, id: string) => {
+  registerHandler("projects:remove", (_e, id: string) => {
     saveProjects(loadProjects().filter((p) => p.id !== id));
   });
 
-  ipcMain.handle(
+  registerHandler(
     "agents:add",
     (
       _e,
@@ -1521,7 +1548,7 @@ app.whenReady().then(() => {
     },
   );
 
-  ipcMain.handle(
+  registerHandler(
     "agents:addCustom",
     (
       _e,
@@ -1540,14 +1567,14 @@ app.whenReady().then(() => {
     },
   );
 
-  ipcMain.handle("agent:pause", (_e, { projectId, agentId }: { projectId: string; agentId: string }) => {
+  registerHandler("agent:pause", (_e, { projectId, agentId }: { projectId: string; agentId: string }) => {
     const child = runningProcs.get(`${projectId}:${agentId}`);
     if (!child) return false;
     killProcessTree(child);
     return true;
   });
 
-  ipcMain.handle("agents:remove", (_e, { projectId, agentId }: { projectId: string; agentId: string }) => {
+  registerHandler("agents:remove", (_e, { projectId, agentId }: { projectId: string; agentId: string }) => {
     const projects = loadProjects();
     const p = projects.find((x) => x.id === projectId);
     if (!p) return null;
@@ -1558,7 +1585,7 @@ app.whenReady().then(() => {
     return p;
   });
 
-  ipcMain.handle("room:log", (_e, id: string) => {
+  registerHandler("room:log", (_e, id: string) => {
     const p = loadProjects().find((x) => x.id === id);
     if (!p) return [];
     const file = join(p.path, ".agentic-controlroom", "log.jsonl");
@@ -1566,13 +1593,13 @@ app.whenReady().then(() => {
     return new ChatLog(file).tail(100);
   });
 
-  ipcMain.handle("room:run", (_e, { projectId, task }: { projectId: string; task: string }) => {
+  registerHandler("room:run", (_e, { projectId, task }: { projectId: string; task: string }) => {
     const p = loadProjects().find((x) => x.id === projectId);
     if (!p) throw new Error("Unknown project");
     return workflowHost.start(p, task);
   });
 
-  ipcMain.handle("agent:runtime", (_e, { projectId, agentId, config }: { projectId: string; agentId: string; config: { provider: BackendId | "inherit"; model: string; keyEnv: string } }) => {
+  registerHandler("agent:runtime", (_e, { projectId, agentId, config }: { projectId: string; agentId: string; config: { provider: BackendId | "inherit"; model: string; keyEnv: string } }) => {
     const projects = loadProjects();
     const p = projects.find((x) => x.id === projectId);
     if (!p) throw new Error("Unknown project");
@@ -1602,31 +1629,32 @@ app.whenReady().then(() => {
     return agent;
   });
 
-  ipcMain.handle("agent:send", (_e, { projectId, agentId, prompt }: { projectId: string; agentId: string; prompt: string }) => {
+  registerHandler("agent:send", (_e, { projectId, agentId, prompt }: { projectId: string; agentId: string; prompt: string }) => {
     const p = loadProjects().find((x) => x.id === projectId);
     if (!p) throw new Error("Unknown project");
     const agent = p.agents!.find((a) => a.id === agentId);
     if (!agent) throw new Error("Unknown agent");
-    void sendToAgent(p, agent, prompt);
+    void sendToAgent(p, agent, prompt).catch(error => postError(p, error, agent.id));
   });
 
-  ipcMain.handle("room:meeting", (_e, { projectId, agentIds, topic, rounds }: { projectId: string; agentIds: string[]; topic: string; rounds: number }) => {
+  registerHandler("room:meeting", (_e, { projectId, agentIds, topic, rounds }: { projectId: string; agentIds: string[]; topic: string; rounds: number }) => {
     const p = loadProjects().find((x) => x.id === projectId);
     if (!p) throw new Error("Unknown project");
-    void startMeeting(p, agentIds, topic, rounds);
+    void startMeeting(p, agentIds, topic, rounds).catch(error => postError(p, error));
   });
 
-  ipcMain.handle("room:debate", (_e, { projectId, analystIds, managerId, topic, maxRounds }: { projectId: string; analystIds: string[]; managerId: string; topic: string; maxRounds: number }) => {
+  registerHandler("room:debate", (_e, { projectId, analystIds, managerId, topic, maxRounds }: { projectId: string; analystIds: string[]; managerId: string; topic: string; maxRounds: number }) => {
     const p = loadProjects().find((x) => x.id === projectId);
     if (!p) throw new Error("Unknown project");
-    void startDebate(p, analystIds, managerId, topic, maxRounds);
+    void startDebate(p, analystIds, managerId, topic, maxRounds).catch(error => postError(p, error));
   });
 
-  ipcMain.handle("room:running", () => [...running]);
+  registerHandler("room:running", () => [...running]);
 
-  ipcMain.handle("office:presence:get", () => officePresence.snapshot());
+  registerHandler("office:subagents:get", () => subagents.snapshot());
+  registerHandler("office:presence:get", () => officePresence.snapshot());
 
-  ipcMain.handle("git:branch", (_e, path: string) => {
+  registerHandler("git:branch", (_e, path: string) => {
     try {
       return execFileSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: path, timeout: 2000 })
         .toString()
@@ -1636,9 +1664,9 @@ app.whenReady().then(() => {
     }
   });
 
-  ipcMain.handle("room:diff", (_e, path: string) => getDiff(path));
+  registerHandler("room:diff", (_e, path: string) => getDiff(path));
 
-  ipcMain.handle("projects:stats", () => {
+  registerHandler("projects:stats", () => {
     const out: Record<string, { blocked: number; lastActivityAt: number }> = {};
     for (const p of loadProjects()) {
       const live = projectStats.get(p.id);
@@ -1659,7 +1687,7 @@ app.whenReady().then(() => {
     return out;
   });
 
-  ipcMain.handle("room:approve", async (_e, { projectId, agentId }: { projectId: string; agentId: string }) => {
+  registerHandler("room:approve", async (_e, { projectId, agentId }: { projectId: string; agentId: string }) => {
     const project = loadProjects().find((p) => p.id === projectId);
     if (!project) throw new Error("Unknown project");
     const agent = project.agents!.find((a) => a.id === agentId);
@@ -1671,73 +1699,73 @@ app.whenReady().then(() => {
     return { sha, message };
   });
 
-  ipcMain.handle("room:post", (_e, { projectId, text }: { projectId: string; text: string }) => {
+  registerHandler("room:post", (_e, { projectId, text }: { projectId: string; text: string }) => {
     const project = loadProjects().find((p) => p.id === projectId);
     if (!project) throw new Error("Project not found");
     wiredLog(project).post("user", "user", text);
   });
 
-  ipcMain.handle("library:list", () => loadLibrary());
-  ipcMain.handle("library:importFromGithub", (_e, url: string) => importAgentFromGithub(url));
-  ipcMain.handle("library:add", (_e, { name, systemPrompt, model, extraArgs, skillIds }: { name: string; systemPrompt: string; model?: string; extraArgs?: string[]; skillIds?: string[] }) => {
+  registerHandler("library:list", () => loadLibrary());
+  registerHandler("library:importFromGithub", (_e, url: string) => importAgentFromGithub(url));
+  registerHandler("library:add", (_e, { name, systemPrompt, model, extraArgs, skillIds }: { name: string; systemPrompt: string; model?: string; extraArgs?: string[]; skillIds?: string[] }) => {
     const list = loadLibrary();
     const entry: LibraryAgent = { id: randomUUID(), name, systemPrompt, model, extraArgs, skillIds, createdAt: new Date().toISOString() };
     list.push(entry);
     saveLibrary(list);
     return entry;
   });
-  ipcMain.handle("library:remove", (_e, id: string) => {
+  registerHandler("library:remove", (_e, id: string) => {
     saveLibrary(loadLibrary().filter((a) => a.id !== id));
   });
 
-  ipcMain.handle("teams:list", () => loadTeams());
-  ipcMain.handle("teams:add", (_e, { name, members }: { name: string; members: TeamMember[] }) => {
+  registerHandler("teams:list", () => loadTeams());
+  registerHandler("teams:add", (_e, { name, members }: { name: string; members: TeamMember[] }) => {
     const list = loadTeams();
     const entry: Team = { id: randomUUID(), name, members, createdAt: new Date().toISOString() };
     list.push(entry);
     saveTeams(list);
     return entry;
   });
-  ipcMain.handle("teams:remove", (_e, id: string) => {
+  registerHandler("teams:remove", (_e, id: string) => {
     saveTeams(loadTeams().filter((t) => t.id !== id));
   });
 
-  ipcMain.handle("admin:get", () => loadAdminConfig());
-  ipcMain.handle("admin:setGlobalAllowlist", (_e, list: BackendId[]) => {
+  registerHandler("admin:get", () => loadAdminConfig());
+  registerHandler("admin:setGlobalAllowlist", (_e, list: BackendId[]) => {
     const config = loadAdminConfig();
     config.globalAllowlist = list;
     saveAdminConfig(config);
     return config;
   });
-  ipcMain.handle("admin:setCategoryAllowlist", (_e, { categoryId, list }: { categoryId: string; list: BackendId[] }) => {
+  registerHandler("admin:setCategoryAllowlist", (_e, { categoryId, list }: { categoryId: string; list: BackendId[] }) => {
     const config = loadAdminConfig();
     if (list.length) config.categoryAllowlist[categoryId] = list;
     else delete config.categoryAllowlist[categoryId];
     saveAdminConfig(config);
     return config;
   });
-  ipcMain.handle("admin:addCategory", (_e, label: string) => {
+  registerHandler("admin:addCategory", (_e, label: string) => {
     const config = loadAdminConfig();
     const order = config.categories.length ? Math.max(...config.categories.map((c) => c.order)) + 1 : 0;
     config.categories.push({ id: randomUUID(), label, order, members: [] });
     saveAdminConfig(config);
     return config;
   });
-  ipcMain.handle("admin:renameCategory", (_e, { id, label }: { id: string; label: string }) => {
+  registerHandler("admin:renameCategory", (_e, { id, label }: { id: string; label: string }) => {
     const config = loadAdminConfig();
     const cat = config.categories.find((c) => c.id === id);
     if (cat) cat.label = label;
     saveAdminConfig(config);
     return config;
   });
-  ipcMain.handle("admin:removeCategory", (_e, id: string) => {
+  registerHandler("admin:removeCategory", (_e, id: string) => {
     const config = loadAdminConfig();
     config.categories = config.categories.filter((c) => c.id !== id);
     delete config.categoryAllowlist[id];
     saveAdminConfig(config);
     return config;
   });
-  ipcMain.handle("admin:reorderCategories", (_e, orderedIds: string[]) => {
+  registerHandler("admin:reorderCategories", (_e, orderedIds: string[]) => {
     const config = loadAdminConfig();
     orderedIds.forEach((id, i) => {
       const cat = config.categories.find((c) => c.id === id);
@@ -1746,7 +1774,7 @@ app.whenReady().then(() => {
     saveAdminConfig(config);
     return config;
   });
-  ipcMain.handle("admin:setCategoryMembers", (_e, { categoryId, members }: { categoryId: string; members: TeamMember[] }) => {
+  registerHandler("admin:setCategoryMembers", (_e, { categoryId, members }: { categoryId: string; members: TeamMember[] }) => {
     const config = loadAdminConfig();
     const cat = config.categories.find((c) => c.id === categoryId);
     if (cat) cat.members = members;
@@ -1754,17 +1782,17 @@ app.whenReady().then(() => {
     return config;
   });
 
-  ipcMain.handle("attachments:pick", async () => {
+  registerHandler("attachments:pick", async () => {
     const res = await dialog.showOpenDialog(win!, { properties: ["openFile"] });
     return res.canceled ? null : res.filePaths[0];
   });
-  ipcMain.handle("attachments:open", (_e, path: string) => shell.openPath(path));
+  registerHandler("attachments:open", (_e, path: string) => shell.openPath(path));
 
-  ipcMain.handle("tasks:list", (_e, projectId: string) => {
+  registerHandler("tasks:list", (_e, projectId: string) => {
     const project = loadProjects().find((p) => p.id === projectId);
     return project ? loadTasks(project) : [];
   });
-  ipcMain.handle("tasks:create", (_e, { projectId, title, description, assigneeAgentId, createdBy, attachments, sourcePlanningMessageId }: { projectId: string; title: string; description: string; assigneeAgentId?: string; createdBy: string; attachments?: string[]; sourcePlanningMessageId?: string }) => {
+  registerHandler("tasks:create", (_e, { projectId, title, description, assigneeAgentId, createdBy, attachments, sourcePlanningMessageId }: { projectId: string; title: string; description: string; assigneeAgentId?: string; createdBy: string; attachments?: string[]; sourcePlanningMessageId?: string }) => {
     const project = loadProjects().find((p) => p.id === projectId);
     if (!project) throw new Error("Project not found");
     const task: TaskItem = { id: randomUUID(), title, description, status: "todo", assigneeAgentId, createdBy, attachments, createdAt: new Date().toISOString(), sourcePlanningMessageId };
@@ -1773,7 +1801,7 @@ app.whenReady().then(() => {
     saveTasks(project, tasks);
     return task;
   });
-  ipcMain.handle("tasks:update", (_e, { projectId, id, patch }: { projectId: string; id: string; patch: Partial<TaskItem> }) => {
+  registerHandler("tasks:update", (_e, { projectId, id, patch }: { projectId: string; id: string; patch: Partial<TaskItem> }) => {
     const project = loadProjects().find((p) => p.id === projectId);
     if (!project) throw new Error("Project not found");
     const tasks = loadTasks(project);
@@ -1783,33 +1811,33 @@ app.whenReady().then(() => {
     saveTasks(project, tasks);
     return tasks[idx];
   });
-  ipcMain.handle("tasks:remove", (_e, { projectId, id }: { projectId: string; id: string }) => {
+  registerHandler("tasks:remove", (_e, { projectId, id }: { projectId: string; id: string }) => {
     const project = loadProjects().find((p) => p.id === projectId);
     if (!project) return;
     saveTasks(project, loadTasks(project).filter((t) => t.id !== id));
   });
 
-  ipcMain.handle("planning:list", (_e, projectId: string) => {
+  registerHandler("planning:list", (_e, projectId: string) => {
     const project = loadProjects().find((p) => p.id === projectId);
     return project ? loadPlanning(project) : [];
   });
-  ipcMain.handle("planning:post", (_e, { projectId, authorId, authorName, text, attachments }: { projectId: string; authorId: string; authorName: string; text: string; attachments?: string[] }) => {
+  registerHandler("planning:post", (_e, { projectId, authorId, authorName, text, attachments }: { projectId: string; authorId: string; authorName: string; text: string; attachments?: string[] }) => {
     const project = loadProjects().find((p) => p.id === projectId);
     if (!project) throw new Error("Project not found");
     return postPlanningMessage(project, { authorId, authorName, text, attachments });
   });
-  ipcMain.handle("planning:comment", (_e, { projectId, agentId }: { projectId: string; agentId: string }) => {
+  registerHandler("planning:comment", (_e, { projectId, agentId }: { projectId: string; agentId: string }) => {
     const project = loadProjects().find((p) => p.id === projectId);
     const agent = project?.agents?.find((a) => a.id === agentId);
     if (!project || !agent) throw new Error("Project or agent not found");
     return postPlanningComment(project, agent);
   });
 
-  ipcMain.handle("fs:list", (_e, { path, sub }: { path: string; sub: string }) => listProjectDir(path, sub));
-  ipcMain.handle("fs:read", (_e, { path, sub }: { path: string; sub: string }) => readProjectFile(path, sub));
-  ipcMain.handle("fs:write", (_e, { path, sub, content }: { path: string; sub: string; content: string }) => writeProjectFile(path, sub, content));
+  registerHandler("fs:list", (_e, { path, sub }: { path: string; sub: string }) => listProjectDir(path, sub));
+  registerHandler("fs:read", (_e, { path, sub }: { path: string; sub: string }) => readProjectFile(path, sub));
+  registerHandler("fs:write", (_e, { path, sub, content }: { path: string; sub: string; content: string }) => writeProjectFile(path, sub, content));
 
-  ipcMain.handle("room:commitDiff", (_e, { projectId, agentId, sha }: { projectId: string; agentId: string; sha: string }) => {
+  registerHandler("room:commitDiff", (_e, { projectId, agentId, sha }: { projectId: string; agentId: string; sha: string }) => {
     const project = loadProjects().find((p) => p.id === projectId);
     const agent = project?.agents?.find((a) => a.id === agentId);
     const target = agent?.worktreePath ?? project?.path;
@@ -1817,23 +1845,23 @@ app.whenReady().then(() => {
     return getCommitDiff(target, sha);
   });
 
-  ipcMain.handle("room:commits", (_e, projectId: string) => {
+  registerHandler("room:commits", (_e, projectId: string) => {
     const project = loadProjects().find((p) => p.id === projectId);
     return project ? loadCommits(project) : [];
   });
 
-  ipcMain.handle("pty:start", (_e, { projectId, agentId }: { projectId: string; agentId: string }) => {
+  registerHandler("pty:start", (_e, { projectId, agentId }: { projectId: string; agentId: string }) => {
     const project = loadProjects().find((p) => p.id === projectId);
     if (!project) throw new Error("Unknown project");
     if (!project.agents!.some((a) => a.id === agentId)) throw new Error("Unknown agent");
     return startPty(project, agentId);
   });
 
-  ipcMain.handle("pty:write", (_e, { projectId, agentId, data }: { projectId: string; agentId: string; data: string }) => {
+  registerHandler("pty:write", (_e, { projectId, agentId, data }: { projectId: string; agentId: string; data: string }) => {
     ptySessions.get(ptyKey(projectId, agentId))?.write(data);
   });
 
-  ipcMain.handle(
+  registerHandler(
     "pty:resize",
     (_e, { projectId, agentId, cols, rows }: { projectId: string; agentId: string; cols: number; rows: number }) => {
       try {
@@ -1844,23 +1872,23 @@ app.whenReady().then(() => {
     },
   );
 
-  ipcMain.handle("pty:stop", (_e, { projectId, agentId }: { projectId: string; agentId: string }) => {
+  registerHandler("pty:stop", (_e, { projectId, agentId }: { projectId: string; agentId: string }) => {
     const key = ptyKey(projectId, agentId);
     ptySessions.get(key)?.kill();
     ptySessions.delete(key);
   });
 
-  ipcMain.handle("shellpty:start", (_e, { projectId }: { projectId: string }) => {
+  registerHandler("shellpty:start", (_e, { projectId }: { projectId: string }) => {
     const project = loadProjects().find((p) => p.id === projectId);
     if (!project) throw new Error("Unknown project");
     return startShellPty(project);
   });
 
-  ipcMain.handle("shellpty:write", (_e, { projectId, data }: { projectId: string; data: string }) => {
+  registerHandler("shellpty:write", (_e, { projectId, data }: { projectId: string; data: string }) => {
     ptySessions.get(ptyKey(projectId, SHELL_AGENT_KEY))?.write(data);
   });
 
-  ipcMain.handle("shellpty:resize", (_e, { projectId, cols, rows }: { projectId: string; cols: number; rows: number }) => {
+  registerHandler("shellpty:resize", (_e, { projectId, cols, rows }: { projectId: string; cols: number; rows: number }) => {
     try {
       ptySessions.get(ptyKey(projectId, SHELL_AGENT_KEY))?.resize(cols, rows);
     } catch {
@@ -1868,31 +1896,31 @@ app.whenReady().then(() => {
     }
   });
 
-  ipcMain.handle("shellpty:stop", (_e, { projectId }: { projectId: string }) => {
+  registerHandler("shellpty:stop", (_e, { projectId }: { projectId: string }) => {
     const key = ptyKey(projectId, SHELL_AGENT_KEY);
     ptySessions.get(key)?.kill();
     ptySessions.delete(key);
   });
 
-  ipcMain.handle("screenshot:capture", (_e, { projectId, agentId }: { projectId: string; agentId?: string }) => {
+  registerHandler("screenshot:capture", (_e, { projectId, agentId }: { projectId: string; agentId?: string }) => {
     const project = loadProjects().find((p) => p.id === projectId);
     if (!project) throw new Error("Unknown project");
     return captureScreenshot(project, agentId);
   });
 
-  ipcMain.handle("dictate:transcribe", (_e, { audio }: { audio: Uint8Array }) => transcribeAudio(Buffer.from(audio)));
+  registerHandler("dictate:transcribe", (_e, { audio }: { audio: Uint8Array }) => transcribeAudio(Buffer.from(audio)));
 
-  ipcMain.handle("tunnel:start", (_e, { projectId, port }: { projectId: string; port: number }) => {
+  registerHandler("tunnel:start", (_e, { projectId, port }: { projectId: string; port: number }) => {
     const project = loadProjects().find((p) => p.id === projectId);
     if (!project) throw new Error("Unknown project");
     startTunnel(project, port);
   });
 
-  ipcMain.handle("tunnel:stop", (_e, { projectId }: { projectId: string }) => stopTunnel(projectId));
+  registerHandler("tunnel:stop", (_e, { projectId }: { projectId: string }) => stopTunnel(projectId));
 
-  ipcMain.handle("tunnel:status", (_e, { projectId }: { projectId: string }) => tunnelProcs.has(projectId));
+  registerHandler("tunnel:status", (_e, { projectId }: { projectId: string }) => tunnelProcs.has(projectId));
 
-  ipcMain.handle("db:pick", async () => {
+  registerHandler("db:pick", async () => {
     const res = await dialog.showOpenDialog(win!, {
       properties: ["openFile"],
       filters: [{ name: "SQLite database", extensions: ["db", "sqlite", "sqlite3"] }],
@@ -1901,7 +1929,7 @@ app.whenReady().then(() => {
     return res.filePaths[0];
   });
 
-  ipcMain.handle("db:setPath", (_e, { projectId, path }: { projectId: string; path: string }) => {
+  registerHandler("db:setPath", (_e, { projectId, path }: { projectId: string; path: string }) => {
     const projects = loadProjects();
     const p = projects.find((x) => x.id === projectId);
     if (!p) throw new Error("Unknown project");
@@ -1910,37 +1938,37 @@ app.whenReady().then(() => {
     return p;
   });
 
-  ipcMain.handle("db:query", (_e, { projectId, sql }: { projectId: string; sql: string }) => {
+  registerHandler("db:query", (_e, { projectId, sql }: { projectId: string; sql: string }) => {
     const project = loadProjects().find((p) => p.id === projectId);
     if (!project) throw new Error("Unknown project");
     return runReadOnlyQuery(project, sql);
   });
 
-  ipcMain.handle("secrets:list", (_e, { projectId }: { projectId: string }) => listSecretKeys(projectId));
+  registerHandler("secrets:list", (_e, { projectId }: { projectId: string }) => listSecretKeys(projectId));
 
-  ipcMain.handle("secrets:set", (_e, { projectId, key, value }: { projectId: string; key: string; value: string }) => {
+  registerHandler("secrets:set", (_e, { projectId, key, value }: { projectId: string; key: string; value: string }) => {
     setSecret(projectId, key, value);
     return listSecretKeys(projectId);
   });
 
-  ipcMain.handle("secrets:remove", (_e, { projectId, key }: { projectId: string; key: string }) => {
+  registerHandler("secrets:remove", (_e, { projectId, key }: { projectId: string; key: string }) => {
     removeSecret(projectId, key);
     return listSecretKeys(projectId);
   });
 
-  ipcMain.handle("accounts:list", () => listAccountsSafe());
+  registerHandler("accounts:list", () => listAccountsSafe());
 
-  ipcMain.handle("accounts:add", (_e, { provider, name, env }: { provider: "claude" | "cursor" | "openrouter" | "openai" | "anthropic" | "gemini" | "ollama"; name: string; env: Record<string, string> }) => {
+  registerHandler("accounts:add", (_e, { provider, name, env }: { provider: "claude" | "cursor" | "openrouter" | "openai" | "anthropic" | "gemini" | "ollama"; name: string; env: Record<string, string> }) => {
     addAccount(provider, name, env);
     return listAccountsSafe();
   });
 
-  ipcMain.handle("accounts:remove", (_e, { id }: { id: string }) => {
+  registerHandler("accounts:remove", (_e, { id }: { id: string }) => {
     removeAccount(id);
     return listAccountsSafe();
   });
 
-  ipcMain.handle("accounts:setActive", (_e, { projectId, accountId }: { projectId: string; accountId?: string }) => {
+  registerHandler("accounts:setActive", (_e, { projectId, accountId }: { projectId: string; accountId?: string }) => {
     const projects = loadProjects();
     const project = projects.find((p) => p.id === projectId);
     if (!project) throw new Error("Unknown project");
@@ -1949,7 +1977,7 @@ app.whenReady().then(() => {
     return project;
   });
 
-  ipcMain.handle("agents:setModel", (_e, { projectId, agentId, model }: { projectId: string; agentId: string; model: string }) => {
+  registerHandler("agents:setModel", (_e, { projectId, agentId, model }: { projectId: string; agentId: string; model: string }) => {
     const projects = loadProjects();
     const agent = projects.find((p) => p.id === projectId)?.agents?.find((a) => a.id === agentId);
     if (!agent) throw new Error("Unknown agent");
@@ -1958,11 +1986,11 @@ app.whenReady().then(() => {
     return agent;
   });
 
-  ipcMain.handle('capabilities:get',(_e,projectId:string,agentId:string)=>{const project=loadProjects().find(p=>p.id===projectId);const agent=project?.agents?.find(a=>a.id===agentId);if(!project||!agent)throw new Error('Unknown project agent');return capabilityService(project,agent).catalogue({id:agent.id,name:agent.name,systemPrompt:''});});
-  ipcMain.handle("skills:list", () => listSkills());
-  ipcMain.handle("skills:importFromGithub", (_e, url: string) => importSkillFromGithub(url));
+  registerHandler('capabilities:get',(_e,projectId:string,agentId:string)=>{const project=loadProjects().find(p=>p.id===projectId);const agent=project?.agents?.find(a=>a.id===agentId);if(!project||!agent)throw new Error('Unknown project agent');return capabilityService(project,agent).catalogue({id:agent.id,name:agent.name,systemPrompt:''});});
+  registerHandler("skills:list", () => listSkills());
+  registerHandler("skills:importFromGithub", (_e, url: string) => importSkillFromGithub(url));
 
-  ipcMain.handle("skills:setForAgent", (_e, { projectId, agentId, skillIds }: { projectId: string; agentId: string; skillIds: string[] }) => {
+  registerHandler("skills:setForAgent", (_e, { projectId, agentId, skillIds }: { projectId: string; agentId: string; skillIds: string[] }) => {
     const projects = loadProjects();
     const project = projects.find((p) => p.id === projectId);
     const agent = project?.agents?.find((a) => a.id === agentId);
@@ -1972,13 +2000,13 @@ app.whenReady().then(() => {
     return agent;
   });
 
-  ipcMain.handle("memory:get", (_e, { projectId }: { projectId: string }) => {
+  registerHandler("memory:get", (_e, { projectId }: { projectId: string }) => {
     const project = loadProjects().find((p) => p.id === projectId);
     if (!project) throw new Error("Unknown project");
     return loadMemory(project);
   });
 
-  ipcMain.handle("memory:set", (_e, { projectId, text }: { projectId: string; text: string }) => {
+  registerHandler("memory:set", (_e, { projectId, text }: { projectId: string; text: string }) => {
     const project = loadProjects().find((p) => p.id === projectId);
     if (!project) throw new Error("Unknown project");
     saveMemory(project, text);

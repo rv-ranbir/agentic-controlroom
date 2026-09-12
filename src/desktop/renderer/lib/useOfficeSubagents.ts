@@ -1,0 +1,3 @@
+import {useEffect,useState} from 'react';import type {SubagentRecord} from '../../subagentPresence';
+type SubagentApi={getOfficeSubagents:()=>Promise<SubagentRecord[]>;onOfficeSubagents:(cb:(items:SubagentRecord[])=>void)=>()=>void};
+export function useOfficeSubagents(projectId:string|null){const [items,setItems]=useState<SubagentRecord[]>([]);useEffect(()=>{let active=true,received=false;const bridge=api as unknown as SubagentApi;const unsubscribe=bridge.onOfficeSubagents(records=>{received=true;if(active)setItems(records);});void bridge.getOfficeSubagents().then(records=>{if(active&&!received)setItems(records);}).catch(()=>{});return()=>{active=false;unsubscribe();};},[]);return items.filter(item=>item.projectId===projectId);}
