@@ -10,7 +10,7 @@ const RETAINED_FILES = 5;
 const ALLOWED_METADATA = new Set([
  'count', 'total', 'durationMs', 'status', 'mechanism', 'provider', 'model',
  'artifactId', 'artifactRef', 'referenceId', 'tool', 'surface', 'attemptId', 'callId',
- 'errorCode'
+ 'errorCode', 'input', 'output', 'cacheRead', 'cacheWrite', 'reasoning', 'source', 'reportedCost', 'currency'
 ]);
 const ERROR_CODES = new Set(['unknown', 'timeout', 'cancelled', 'provider-error', 'tool-error', 'validation-error']);
 

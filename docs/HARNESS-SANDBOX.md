@@ -3,7 +3,7 @@
 Milestone 1 delivered, 2026-09-14. Tracking runs automatically for every project. The project room shows active runs and stop controls beside the conversation. Open Activity history for the latest 200 audit events; Advanced protection is collapsed inside it. There is no separate Execution tab or activation step. Filters select event kind, run or agent; event details expose correlation IDs and safe metadata.
 
 ## Protection
-Existing projects remain provider-managed. This means the app does not verify an OS boundary; provider permissions still apply. Requested policy persists per project. Unsupported read-only, isolated-workspace, network or nonzero resource controls reject before dispatch rather than falling back to host execution. Policy changes are rejected while tracked runs or project terminals are active.
+Existing projects remain provider-managed. This means the app does not verify an OS boundary; provider permissions still apply. Requested policy persists per project. Unsupported read-only, isolated-workspace, network controls reject before dispatch rather than falling back to host execution. Policy changes are rejected while tracked runs or project terminals are active.
 
 No app isolation driver is enabled. A read-only host probe found Docker CLI and docker-desktop WSL, but the Docker server pipe was unavailable. No runtime was installed, container launched or credential store copied. Worktrees and process allowlists are not sandboxes. Real outside-write, reparse/symlink escape, network, descendant containment and native-provider compatibility tests remain deferred until a compatible driver exists; fixture tests do not establish isolation.
 
@@ -19,5 +19,4 @@ Interactive agent and shell terminals are policy-gated at launch, but their inte
 ## Verification
 Full build and 218 tests passed. Isolated Electron/Playwright checks passed for two-project policy persistence and rejection, capability/workflow tool events, HTTP and workflow cancellation, filters and restart. Separate regressions passed concurrent meeting/debate and nested workflow correlation. Local Codex/Cursor fixture processes confirmed cancellation and observed settlement. No paid model calls were used. These fixtures do not establish authenticated live-provider behavior or OS isolation.
 
-Milestones 2-6 (usage, context, tools, delegation and goals) remain planned.
-
+Milestone 2 adds automatic usage tracking and app-dispatch call/concurrency limits with a cancellation deadline; see HARNESS-USAGE.md. OS isolation and hard token/cost caps remain unavailable. Milestones 3-6 (context, tools, delegation and goals) remain planned.

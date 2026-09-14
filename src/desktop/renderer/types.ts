@@ -141,6 +141,9 @@ export interface CommitRecord {
 }
 
 export interface DesktopApi {
+  saveProjectUsage(projectId:string,format:'json'|'csv',filter?:import('../../harness/usage').UsageFilter):Promise<boolean>;
+  getProjectUsage(projectId:string,filter?:import('../../harness/usage').UsageFilter):Promise<import('../../harness/usage').UsageReport>;
+  exportProjectUsage(projectId:string,format:'json'|'csv',filter?:import('../../harness/usage').UsageFilter):Promise<string>;
   getExecutionState(projectId: string): Promise<ExecutionState>;
   saveExecutionPolicy(projectId: string, policy: ExecutionPolicy): Promise<ExecutionState>;
   cancelExecutionRun(projectId: string, runId: string): Promise<boolean>;

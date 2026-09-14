@@ -1,3 +1,4 @@
+import {providerUsage} from '../harness/usage.js';
 import type { AgentBackend, OnLine, RoleConfig } from './agentBackend.js';
 export type ProviderId = 'openai' | 'anthropic' | 'gemini' | 'openrouter' | 'ollama';
 export interface ModelConfig { provider:ProviderId; model:string; keyEnv:string; maxTokens:number; timeoutMs:number }
@@ -16,7 +17,7 @@ export function validCredentialBinding(config:ModelConfig):boolean {
   return config.provider==='ollama'||new RegExp(`^${config.provider.toUpperCase()}_API_KEY(?:_[A-Z0-9]+)*$`).test(config.keyEnv);
 }
 
-interface Usage { inputTokens: number | null; outputTokens: number | null; costUsd: null }
+type Usage = import('./agentBackend.js').BackendUsage;
 interface Completion { reply: string; usage: Usage }
 
 function object(value: unknown): Record<string, unknown> {
@@ -26,18 +27,7 @@ function object(value: unknown): Record<string, unknown> {
 function first(value: unknown): Record<string, unknown> {
   return object(Array.isArray(value) ? value[0] : undefined);
 }
-function extractUsage(provider: ProviderId, value: unknown): Usage {
-  const data = object(value);
-  const usage = object(data.usage);
-  const gemini = object(data.usageMetadata);
-  const count = (value: unknown): number | null =>
-    typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null;
-  const [input, output] = provider === 'ollama' ? [data.prompt_eval_count, data.eval_count]
-    : provider === 'gemini' ? [gemini.promptTokenCount, gemini.candidatesTokenCount]
-    : provider === 'anthropic' ? [usage.input_tokens, usage.output_tokens]
-    : [usage.prompt_tokens, usage.completion_tokens];
-  return { inputTokens: count(input), outputTokens: count(output), costUsd: null };
-}
+const extractUsage = providerUsage;
 function extractText(provider: ProviderId, value: unknown): string {
   const data = object(value);
   if (data.error) throw new Error();
@@ -92,6 +82,7 @@ export function createHttpBackend(
     let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
     let timedOut = false;
     let httpStatus: number | undefined;
+    let reportedUsage: Usage | undefined;
     let timer: ReturnType<typeof setTimeout>;
     const timeout = new Promise<never>((_, reject) => {
       timer = setTimeout(() => {
@@ -126,7 +117,7 @@ export function createHttpBackend(
       if (!response.ok && Number.isInteger(response.status) && response.status >= 100 && response.status <= 599) {
         httpStatus = response.status;
       }
-      if (controller.signal.aborted || !response.ok || !response.body ||
+      if (controller.signal.aborted || (!response.ok && !response.headers.get("content-type")?.includes("application/json")) || !response.body ||
           Number(response.headers.get('content-length')) > MAX_RESPONSE_BYTES) {
         void response.body?.cancel().catch(() => {});
         throw new Error();
@@ -144,7 +135,9 @@ export function createHttpBackend(
       }
       json += decoder.decode();
       const data: unknown = JSON.parse(json);
-      return { reply: extractText(provider, data), usage: extractUsage(provider, data) };
+      reportedUsage=extractUsage(provider,data);
+      if(!response.ok)throw new Error();
+      return { reply: extractText(provider, data), usage: reportedUsage };
     }
     let result: Completion;
     try {
@@ -152,8 +145,8 @@ export function createHttpBackend(
     } catch {
       controller.abort();
       void reader?.cancel().catch(() => {});
-      throw new Error(timedOut ? 'HTTP provider timeout.' : httpStatus !== undefined
-        ? `HTTP provider HTTP ${httpStatus}.` : 'HTTP provider request or response failed.');
+      throw Object.assign(new Error(timedOut ? 'HTTP provider timeout.' : httpStatus !== undefined
+        ? `HTTP provider HTTP ${httpStatus}.` : 'HTTP provider request or response failed.'),{usage:reportedUsage});
     } finally {
       clearTimeout(timer!);
     }
@@ -165,6 +158,6 @@ export function createHttpBackend(
       const result = { sessionId: '', ...await complete(role, prompt, onLine) };
       return result;
     },
-    async resume(_sessionId, prompt, role, onLine) { return { reply: (await complete(role, prompt, onLine)).reply }; },
+    async resume(_sessionId, prompt, role, onLine) { return await complete(role, prompt, onLine); },
   };
 }

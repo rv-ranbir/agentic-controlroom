@@ -53,7 +53,7 @@ for (const [provider, endpoint, response] of fixtures) {
         assert.equal(provider === 'ollama' ? body.options.num_predict : provider === 'openai' ? body.max_completion_tokens : body.max_tokens, 128);
       }
     }
-    assert.deepEqual(await backend.resume('ignored', 'Follow up.', role), { reply: 'answer' });
+    assert.deepEqual(await backend.resume('ignored', 'Follow up.', role), { reply: 'answer', usage: {inputTokens:null,outputTokens:null,costUsd:null} });
   });
 }
 
@@ -189,7 +189,7 @@ test('start exposes provider usage counts with unknown counts and cost as null',
       const payload = { ...(response as object), ...(container ? { [container]: counts } : counts) };
       const result = await createHttpBackend(config(provider), env, async () => Response.json(payload)).start(role, 'Analyze.');
       assert.deepEqual((result as typeof result & { usage?: unknown }).usage,
-        { inputTokens: expectedInput, outputTokens: expectedOutput, costUsd: null }, provider);
+        { inputTokens: expectedInput, outputTokens: expectedOutput, costUsd: null, ...(provider==='openrouter'?{reportedCost:99,currency:'credits'}:{}) }, provider);
     }
   }
 });

@@ -1,6 +1,20 @@
+import {cliUsage} from '../harness/usage.js';
 import { spawn } from "node:child_process";
 import type { AgentBackend, OnLine, OnProcess, RoleConfig, StartResult } from "./agentBackend.js";
 import { lineCollector, parseAgentOutput } from "./cursorCliBackend.js";
+
+export function claudeResult(output:string):StartResult {
+  const usage=cliUsage('claude',output);
+  for(const line of output.trim().split('\n').reverse()) {
+    let record;try{record=JSON.parse(line);}catch{continue;}
+    if(record?.type==='result') {
+      if(record.is_error===true)throw Object.assign(new Error('Claude reported an unsuccessful run.'),{usage});
+      break;
+    }
+  }
+  const {reply,sessionId}=parseAgentOutput(output);
+  return {sessionId:sessionId??'',reply,usage};
+}
 
 export interface ClaudeCliOptions {
   bin?: string;
@@ -62,7 +76,7 @@ export class ClaudeCliBackend implements AgentBackend {
       );
       child.on("close", (code) => {
         if (code === 0) resolve(out.done());
-        else reject(new Error(`${this.bin} exited with code ${code}: ${stderr.trim().slice(0, 500)}`));
+        else reject(Object.assign(new Error(`${this.bin} exited with code ${code}: ${stderr.trim().slice(0, 500)}`),{usage:cliUsage("claude",out.done())}));
       });
       child.stdin.write(stdin);
       child.stdin.end();
@@ -81,14 +95,13 @@ export class ClaudeCliBackend implements AgentBackend {
   // (Windows shell shim would mangle multiline argv content)
   async start(role: RoleConfig, prompt: string, onLine?: OnLine, onProcess?: OnProcess): Promise<StartResult> {
     const out = await this.exec(this.baseArgs(!!onLine), `${role.systemPrompt}\n\n${prompt}`, onLine, onProcess);
-    const { reply, sessionId } = parseAgentOutput(out);
-    return { sessionId: sessionId ?? "", reply };
+    return claudeResult(out);
   }
 
-  async resume(sessionId: string, prompt: string, role: RoleConfig, onLine?: OnLine, onProcess?: OnProcess): Promise<{ reply: string }> {
+  async resume(sessionId: string, prompt: string, role: RoleConfig, onLine?: OnLine, onProcess?: OnProcess): Promise<import("./agentBackend.js").ReplyResult> {
     const args = sessionId ? [...this.baseArgs(!!onLine), "--resume", sessionId] : this.baseArgs(!!onLine);
     const stdin = sessionId ? prompt : `${role.systemPrompt}\n\n${prompt}`;
     const out = await this.exec(args, stdin, onLine, onProcess);
-    return { reply: parseAgentOutput(out).reply };
+    const {reply,usage}=claudeResult(out);return {reply,usage};
   }
 }

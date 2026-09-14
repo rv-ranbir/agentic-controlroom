@@ -53,3 +53,29 @@ test('cancellation remains accepted when its audit write fails',()=>{
  assert.equal(h.cancel(scope.runId),true);assert.equal(handle.signal.aborted,true);
  assert.ok(h.state().diagnostics.length>0);handle.finish();
 });
+
+test('shared run limits charge failed calls and block sibling dispatch without reporting termination',async()=>{
+ const h=setup();h.savePolicy({...h.state().policy,maxCalls:1,maxConcurrent:1});const scope=createRunScope('p','a'),root=h.begin(scope);let calls=0;
+ const backend=h.backend({start:async()=>{calls++;throw Error('provider failure')},resume:async()=>({reply:''})},scope,'fixture','m',root.signal);
+ await assert.rejects(backend.start({id:'a',name:'a',systemPrompt:''},'first'),/provider failure/);
+ const child=createChildScope(scope,'b'),handle=h.begin(child),other=h.backend({start:async()=>{calls++;return{sessionId:'',reply:'x'}},resume:async()=>({reply:''})},child,'fixture','m',handle.signal);
+ await assert.rejects(other.start({id:'b',name:'b',systemPrompt:''},'second'),/calls exhausted/);assert.equal(calls,1);handle.finish();root.finish();
+ assert.throws(()=>h.begin(scope),/already has dispatched/);
+});
+test('run deadline requests cancellation while an in-flight call remains unsettled',async()=>{
+ const h=setup();h.savePolicy({...h.state().policy,maxWallMs:20});const scope=createRunScope('p','a'),root=h.begin(scope);let finish!:()=>void;
+ const b=h.backend({start:async()=>{await new Promise<void>(r=>finish=r);return {sessionId:'',reply:'done'}},resume:async()=>({reply:''})},scope,'fixture','m',root.signal);
+ const call=b.start({id:'a',name:'a',systemPrompt:''},'task');await new Promise(r=>setTimeout(r,50));assert.equal(root.signal.aborted,true);assert.equal(h.state().active.length,1);finish();await call;root.finish();
+});
+
+test('backend dispatch requires a live tracked budget owner',async()=>{
+ const h=setup(),scope=createRunScope('p','a'),provider={start:async()=>({sessionId:'',reply:'x'}),resume:async()=>({reply:''})};
+ assert.throws(()=>h.backend(provider,scope,'fixture','m',new AbortController().signal),/tracked run/);
+ const handle=h.begin(scope),backend=h.backend(provider,scope,'fixture','m',handle.signal);handle.finish();
+ await assert.rejects(backend.start({id:'a',name:'a',systemPrompt:''},'x'),/settled/);
+});
+
+test('tool audit records only artifact IDs for existing preview navigation',async()=>{
+ const h=setup(),id='12345678-1234-1234-1234-123456789abc';await h.tool(createRunScope('p','a'),'publish_view',async()=>({artifactId:id,private:'not logged'}));
+ assert.equal(h.state().events.find(e=>e.kind==='tool-settled')?.metadata?.artifactId,id);assert.equal(JSON.stringify(h.state().events).includes('not logged'),false);
+});

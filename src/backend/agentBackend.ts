@@ -6,10 +6,12 @@ export interface RoleConfig {
   systemPrompt: string;
 }
 
+export interface BackendUsage { inputTokens:number|null; outputTokens:number|null; costUsd:number|null; reportedCost?:number|null; currency?:string|null; cacheReadTokens?:number|null; cacheWriteTokens?:number|null; reasoningTokens?:number|null; source?:"provider"|"estimated"|"unavailable" }
+export interface ReplyResult {reply:string;usage?:BackendUsage}
 export interface StartResult {
   sessionId: string;
   reply: string;
-  usage?: { inputTokens:number|null; outputTokens:number|null; costUsd:null };
+  usage?: BackendUsage;
 }
 
 /** Called with each raw output line while the agent works (tool calls, text deltas). */
@@ -20,5 +22,5 @@ export type OnProcess = (child: ChildProcess) => void;
 
 export interface AgentBackend {
   start(role: RoleConfig, prompt: string, onLine?: OnLine, onProcess?: OnProcess): Promise<StartResult>;
-  resume(sessionId: string, prompt: string, role: RoleConfig, onLine?: OnLine, onProcess?: OnProcess): Promise<{ reply: string }>;
+  resume(sessionId: string, prompt: string, role: RoleConfig, onLine?: OnLine, onProcess?: OnProcess): Promise<ReplyResult>;
 }

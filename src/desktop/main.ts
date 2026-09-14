@@ -1,3 +1,4 @@
+import { usageReport, exportUsage } from '../harness/usage.js';
 import { ProjectHarness, type RunHandle } from '../harness/projectHarness.js';
 import { createRunScope, createChildScope } from '../harness/runScope.js';
 import type { RunScope } from '../harness/types.js';
@@ -2043,6 +2044,14 @@ app.whenReady().then(() => {
   });
 
   const executionProject=(id:string)=>{const p=loadProjects().find(p=>p.id===id);if(!p)throw new Error('Unknown project');return p;};
+  registerHandler('harness:usage',(_e,id:string,filter:import('../harness/usage.js').UsageFilter)=>usageReport(projectHarness(executionProject(id)).journal,filter));
+  registerHandler('harness:saveExport',async(_e,id:string,format:'json'|'csv',filter:import('../harness/usage.js').UsageFilter)=>{
+   const text=exportUsage(usageReport(projectHarness(executionProject(id)).journal,filter),format);
+   const result=await dialog.showSaveDialog({title:'Export project usage',defaultPath:`project-usage.${format}`,filters:[{name:format.toUpperCase(),extensions:[format]}]});
+   if(result.canceled||!result.filePath)return false;
+   writeFileSync(result.filePath,text,{encoding:'utf8'});return true;
+  });
+  registerHandler('harness:export',(_e,id:string,format:'json'|'csv',filter:import('../harness/usage.js').UsageFilter)=>exportUsage(usageReport(projectHarness(executionProject(id)).journal,filter),format));
   registerHandler('harness:state',(_e,id:string)=>projectHarness(executionProject(id)).state());
   registerHandler('harness:policy',(_e,id:string,policy:import('../harness/types.js').ExecutionPolicy)=>{
    const p=executionProject(id);if([...running].some(k=>k===id||k.startsWith(id+':'))||[...ptySessions.keys()].some(k=>k.startsWith(id+':')))throw new Error('Wait for running executions to settle before changing policy');

@@ -1,10 +1,13 @@
+import { normalizeUsage } from './usage.js';
 import { randomUUID } from 'node:crypto';
 import type { AgentBackend, RoleConfig } from '../backend/agentBackend.js';
 import type { AuditInput } from './audit.js';
+import type { BudgetPool } from './budget.js';
 import type { RunScope } from './types.js';
 import { assertRunScope, createAttempt } from './runScope.js';
 interface Options {
  beforeInvoke?:()=>void;
+ budget?:BudgetPool;
  scope: RunScope;
  provider: string;
  model: string;
@@ -21,10 +24,12 @@ export function withInvocation(backend: AgentBackend, options: Options): AgentBa
   options.beforeInvoke?.();
   const attempt = createAttempt(scope, options.provider, options.model);
   const start = Date.now();
+  let usage = normalizeUsage(undefined);
   const emit = (kind: string, status: string) => options.journal.append({eventId:randomUUID(),scope,
    callId:attempt.callId,attemptId:attempt.attemptId,kind,
-   metadata:{provider:attempt.provider,model:attempt.model,status,durationMs:Math.max(0,Date.now()-start)}});
-  emit('attempt-started','started');
+   metadata:{provider:attempt.provider,model:attempt.model,status,durationMs:Math.max(0,Date.now()-start),...(kind==='attempt-settled'?usage:{})}});
+  const reservation=options.budget?.reserve(scope.taskId,{attemptId:attempt.attemptId,calls:1});
+  try{emit('attempt-started','started');}catch(error){if(reservation)options.budget?.discardBeforeDispatch(reservation);throw error;}
   // A request is distinct from termination: providers may only settle naturally.
   let cancellationAuditFailure: unknown;
   const cancelled = () => {
@@ -33,7 +38,8 @@ export function withInvocation(backend: AgentBackend, options: Options): AgentBa
   options.signal?.addEventListener('abort',cancelled,{once:true});
   try {
    let result: T;
-   try { result = await execute(); } catch (error) {
+   try { result = await execute(); usage=normalizeUsage((result as {usage?:unknown})?.usage); } catch (error) {
+    usage=normalizeUsage((error as {usage?:unknown})?.usage);
     emit('attempt-failed','failed');
     throw error;
    }
@@ -42,7 +48,7 @@ export function withInvocation(backend: AgentBackend, options: Options): AgentBa
    return result;
   } finally {
    options.signal?.removeEventListener('abort',cancelled);
-   emit('attempt-settled','settled');
+   try{emit('attempt-settled','settled');}finally{options.budget?.settle(attempt.attemptId);}
   }
  }
  return {

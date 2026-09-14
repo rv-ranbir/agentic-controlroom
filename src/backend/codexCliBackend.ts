@@ -1,3 +1,4 @@
+import {providerUsage} from '../harness/usage.js';
 import { spawn } from 'node:child_process';
 import { existsSync, readdirSync } from 'node:fs';
 import { join, delimiter } from 'node:path';
@@ -16,7 +17,7 @@ export class CodexOutput {
   if(e.type==='thread.started'&&typeof e.thread_id==='string')this.sessionId=e.thread_id;
   if(e.type==='item.completed'&&e.item?.type==='agent_message'&&typeof e.item.text==='string')this.reply=e.item.text;
   if(e.type==='turn.failed')this.failure=typeof e.error?.message==='string'?e.error.message:'Codex turn failed.';
-  if(e.type==='turn.completed'){this.completed=true;const count=(v:unknown)=>typeof v==='number'&&Number.isSafeInteger(v)&&v>=0?v:null;this.usage={inputTokens:count(e.usage?.input_tokens),outputTokens:count(e.usage?.output_tokens),costUsd:null};}
+  if(e.type==='turn.completed'){this.completed=true;this.usage=providerUsage('codex',e);}
  }
  result():StartResult{if(this.failure)throw Error(this.failure);if(!this.completed||!this.reply.trim())throw Error('Codex ended without a completed response. Check login, usage limits and app diagnostics.');return{sessionId:this.sessionId,reply:this.reply,usage:this.usage};}
 }
@@ -51,7 +52,7 @@ export class CodexCliBackend implements AgentBackend {
   const args=codexArgs(this.opts.model,this.opts.extraArgs,sessionId);
   const status=await this.run(['login','status'],'',undefined,onProcess);
   if(!/logged in using chatgpt/i.test(status))throw Error('Codex needs ChatGPT login. Run codex login and choose ChatGPT. OpenAI API is a separate provider.');
-  const result=new CodexOutput();await this.run(args,prompt,line=>{result.consume(line);onLine?.(line);},onProcess);return result.result();
+  const result=new CodexOutput();try{await this.run(args,prompt,line=>{result.consume(line);onLine?.(line);},onProcess);return result.result();}catch(error){throw Object.assign(error instanceof Error?error:Error('Codex failed'),{usage:result.usage});}
  }
  start(role:RoleConfig,prompt:string,onLine?:OnLine,onProcess?:OnProcess){return this.execute(`${role.systemPrompt}\n\n${prompt}`,undefined,onLine,onProcess);}
  resume(sessionId:string,prompt:string,role:RoleConfig,onLine?:OnLine,onProcess?:OnProcess){return this.execute(sessionId?prompt:`${role.systemPrompt}\n\n${prompt}`,sessionId||undefined,onLine,onProcess);}

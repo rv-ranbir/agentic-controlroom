@@ -1,6 +1,9 @@
 import { contextBridge, ipcRenderer } from "electron";
 
 contextBridge.exposeInMainWorld("api", {
+  saveProjectUsage: (projectId:string,format:'json'|'csv',filter?:unknown) => ipcRenderer.invoke('harness:saveExport',projectId,format,filter),
+  getProjectUsage: (projectId: string, filter?: unknown) => ipcRenderer.invoke('harness:usage',projectId,filter),
+  exportProjectUsage: (projectId:string,format:'json'|'csv',filter?:unknown) => ipcRenderer.invoke('harness:export',projectId,format,filter),
   getExecutionState: (projectId: string) => ipcRenderer.invoke("harness:state", projectId),
   saveExecutionPolicy: (projectId: string, policy: unknown) => ipcRenderer.invoke("harness:policy", projectId, policy),
   cancelExecutionRun: (projectId: string, runId: string) => ipcRenderer.invoke("harness:cancel", projectId, runId),
