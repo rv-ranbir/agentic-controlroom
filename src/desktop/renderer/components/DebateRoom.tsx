@@ -1,3 +1,5 @@
+import { AgentPicker } from "./AgentPicker";
+import { TopBar } from "./TopBar";
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "../store";
 import { agentIdOf, colorFor, initials } from "../lib/agents";
@@ -17,14 +19,16 @@ export function DebateRoom() {
   const [maxRounds, setMaxRounds] = useState(2);
   const [startedTs, setStartedTs] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const follow = useRef(true);
 
   useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    if (scrollRef.current && follow.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages]);
 
   if (!project) {
     return (
-      <div className="viewRoot">
+      <div className="viewRoot workspaceView viewDebateRoom">
+      <TopBar />
         <header className="rvHeader">
           <button className="pillBtn ghostBtn mono" onClick={() => showView("room")}>&larr; back</button>
         </header>
@@ -53,7 +57,7 @@ export function DebateRoom() {
     if (!topic.trim()) { showToast("Give the debate a topic"); return; }
     setStartedTs(new Date().toISOString());
     void api.startDebate(project.id, [...analysts], manager, topic.trim(), maxRounds)
-      .catch((err) => showToast(err instanceof Error ? err.message : String(err)));
+      .catch((err) => {setStartedTs(null);showToast(err instanceof Error ? err.message : String(err));});
   };
 
   const participantIds = manager ? [...analysts, manager] : [...analysts];
@@ -68,67 +72,38 @@ export function DebateRoom() {
     : null;
 
   return (
-    <div className="viewRoot">
+    <div className="viewRoot workspaceView viewDebateRoom">
+      <TopBar />
       <header className="rvHeader">
         <button className="pillBtn ghostBtn mono" onClick={() => showView("room")}>&larr; back</button>
         <span className="rvName">{project.name}</span>
         <span className="dim mono" style={{ fontSize: 10.5 }}>Debate room</span>
       </header>
-      <RoomScene agents={startedTs ? project.agents.filter((a) => participantIds.includes(a.id)) : project.agents} />
+
 
       {!startedTs && (
-        <div style={{ padding: 20, maxWidth: 640 }}>
-          <div className="fField">
-            <span className="fLabel">Analysts (2+)</span>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-              {project.agents.map((a) => (
-                <div
-                  key={a.id}
-                  className={`roleOpt${analysts.has(a.id) ? " chosen" : ""}`}
-                  style={{ cursor: manager === a.id ? "not-allowed" : "pointer", opacity: manager === a.id ? 0.4 : 1 }}
-                  onClick={() => toggleAnalyst(a.id)}
-                >
-                  <div className="monogram mono" style={{ width: 22, height: 22, fontSize: 9.5, background: colorFor(a.id) }}>{initials(a.name)}</div>
-                  <span>{a.name}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="fField">
-            <span className="fLabel">Manager (judges consensus)</span>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-              {project.agents.map((a) => (
-                <div
-                  key={a.id}
-                  className={`roleOpt${manager === a.id ? " chosen" : ""}`}
-                  style={{ cursor: analysts.has(a.id) ? "not-allowed" : "pointer", opacity: analysts.has(a.id) ? 0.4 : 1 }}
-                  onClick={() => pickManager(a.id)}
-                >
-                  <div className="monogram mono" style={{ width: 22, height: 22, fontSize: 9.5, background: colorFor(a.id) }}>{initials(a.name)}</div>
-                  <span>{a.name}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+        <div className="sessionSetup"><div className="sessionSetupIntro"><span className="dim">Team collaboration</span><h1>Compare perspectives, reach a decision</h1><p>Choose two or more analysts and a separate manager to review their arguments.</p></div>
+          <AgentPicker agents={project.agents} value={analysts} onToggle={toggleAnalyst} blocked={manager??undefined} label="Analysts" />
+          <label className="sessionManager"><span>Manager · reviews the outcome</span><select className="fInput" aria-label="Debate manager" value={manager??''} onChange={e=>setManager(e.target.value||null)}><option value="">Choose a manager</option>{project.agents.filter(a=>!analysts.has(a.id)).map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></label>
           <div className="fField">
             <span className="fLabel">Topic</span>
-            <textarea className="fInput" rows={3} value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="What should they debate?" />
+            <textarea aria-label="Discussion topic" className="fInput" rows={3} value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="What should they debate?" />
           </div>
           <div className="fField">
             <span className="fLabel">Max rounds</span>
             <div className="segGroup">
               {[1, 2, 3].map((r) => (
-                <div key={r} className={`segOpt${maxRounds === r ? " on" : ""}`} onClick={() => setMaxRounds(r)}>{r}</div>
+                <button type="button" key={r} className={`segOpt${maxRounds === r ? " on" : ""}`} onClick={() => setMaxRounds(r)}>{r}</button>
               ))}
             </div>
           </div>
-          <button className="pillBtn fillBtn mono" onClick={start}>start debate</button>
+          <button className="pillBtn fillBtn mono" disabled={running || analysts.size < 2 || !manager || !topic.trim()} onClick={start}>start debate</button>
         </div>
       )}
 
       {startedTs && (
         <>
-          <div ref={scrollRef} style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: 20 }}>
+          <div className="conversationHistory" ref={scrollRef} onScroll={e=>{const el=e.currentTarget;follow.current=el.scrollHeight-el.scrollTop-el.clientHeight<80;}} style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: 20 }}>
             <div className="dim mono" style={{ fontSize: 10.5, marginBottom: 14 }}>
               {running ? "debate in progress…" : outcome === "consensus" ? "consensus reached" : outcome === "no-consensus" ? "no consensus reached" : "debate ended"}
             </div>

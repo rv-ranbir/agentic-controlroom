@@ -1,11 +1,13 @@
+import {officeNavigation,furnitureRoute} from '../../officeNavigation';
+import { TopBar } from "./TopBar";
 import { OfficeSubagentFloor, SUBAGENT_PAGE_SIZE } from './OfficeSubagentFloor';
 import { useOfficeSubagents } from "../lib/useOfficeSubagents";
 import { arrangeDesks, defaultRoomOrder } from "../../officeArrangement";
 import { OfficeSettings, readOfficePreferences } from "./OfficeSettings";
 import { OfficeResultsWall } from "./OfficeResultsWall";
-import { officeRoute, routeFrames } from "../../officeRoutes";
+import { routeFrames } from "../../officeRoutes";
 import { OfficeCharacter } from "./OfficeCharacter";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../store";
 import { useOfficePresence } from "../lib/useOfficePresence";
 import { useOfficeHomes } from "../lib/useOfficeHomes";
@@ -142,9 +144,10 @@ export function OfficeFloor() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [preferences, setPreferences] = useState(() => readOfficePreferences(selectedProjectId ?? ""));
   const [resultsOpen, setResultsOpen] = useState(false);
+  const [peopleOpen, setPeopleOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [zoom, setZoom] = useState(1);
-  const [fitMode, setFitMode] = useState(true);
+  const [fitMode, setFitMode] = useState(false);
   const [wrapSize, setWrapSize] = useState({ width: 0, height: 0 });
   const [motionReduced, setMotionReduced] = useState(reducedMotionPreferred);
 
@@ -154,9 +157,18 @@ export function OfficeFloor() {
   const subagentRecords = useOfficeSubagents(selectedProjectId);
 
   const itemRefs = useRef(new Map<string, HTMLButtonElement>());
+  const previousRoomGeometry = useRef(new Map<string, Array<{x:number;y:number;height:number}>>());
   const anchorRef = useRef(new Map<string, Point>());
   const canvasWrapRef = useRef<HTMLDivElement | null>(null);
   const [motionPaused, setMotionPaused] = useState(document.hidden);
+  useEffect(() => {
+    const observer = new IntersectionObserver(entries => {
+      for (const entry of entries) (entry.target as HTMLElement).dataset.offscreen = String(!entry.isIntersecting);
+    }, {root: canvasWrapRef.current, rootMargin:'80px'});
+    for (const element of itemRefs.current.values()) observer.observe(element);
+    return () => observer.disconnect();
+  }, [project?.agents, selectedProjectId]);
+
   useEffect(() => {
     const update = () => {
       setMotionPaused(document.hidden);
@@ -203,11 +215,12 @@ export function OfficeFloor() {
     setPreferences(readOfficePreferences(selectedProjectId ?? ""));
     setSelectedAgent(null);
     setZoom(1);
-    setFitMode(true);
+    setFitMode(false);
     // Not itemRefs — ref callbacks already ran for the new project's buttons
     // by the time this effect fires, and clearing it here would wipe those
     // entries before the movement effect below gets to use them.
     anchorRef.current.clear();
+    previousRoomGeometry.current.clear();
     // Fresh slot assignment for the new project — room numbering only stays
     // stable within one project's lifetime, per SPEC.
   }, [selectedProjectId]);
@@ -258,6 +271,31 @@ export function OfficeFloor() {
   const fitScale = wrapSize.width > 0 && wrapSize.height > 0
     ? Math.max(0.01, Math.min(1, (wrapSize.width - 2) / Math.max(canvasWidth, 1), (wrapSize.height - 2) / Math.max(canvasHeight, 1))) : 1;
   const effectiveZoom = fitMode ? fitScale : zoom;
+  const zoomAnchor = useRef<{worldX:number;worldY:number;screenX:number;screenY:number}|null>(null);
+  const pan = useRef<{x:number;y:number;left:number;top:number;pointer:number}|null>(null);
+  function changeZoom(next:number, screenX?:number, screenY?:number) {
+    const wrap=canvasWrapRef.current, canvas=wrap?.querySelector<HTMLElement>('.osCanvas');
+    if (wrap && canvas) {
+      const bounds=wrap.getBoundingClientRect(), floor=canvas.getBoundingClientRect();
+      const x=screenX??bounds.left+wrap.clientWidth/2, y=screenY??bounds.top+wrap.clientHeight/2;
+      zoomAnchor.current={worldX:(x-floor.left)/effectiveZoom,worldY:(y-floor.top)/effectiveZoom,screenX:x,screenY:y};
+    }
+    setFitMode(false);setZoom(Math.max(ZOOM_MIN,Math.min(ZOOM_MAX,next)));
+  }
+  useLayoutEffect(()=>{
+    const anchor=zoomAnchor.current,wrap=canvasWrapRef.current,canvas=wrap?.querySelector<HTMLElement>('.osCanvas');
+    if(!anchor||!wrap||!canvas)return;
+    const floor=canvas.getBoundingClientRect();
+    wrap.scrollLeft+=floor.left+anchor.worldX*effectiveZoom-anchor.screenX;
+    wrap.scrollTop+=floor.top+anchor.worldY*effectiveZoom-anchor.screenY;
+    zoomAnchor.current=null;
+  },[effectiveZoom,fitMode]);
+  useEffect(()=>{
+    const wrap=canvasWrapRef.current;if(!wrap)return;
+    const wheel=(event:WheelEvent)=>{if(!event.ctrlKey&&!event.metaKey)return;event.preventDefault();changeZoom(effectiveZoom*Math.exp(-Math.max(-100,Math.min(100,event.deltaY))*.003),event.clientX,event.clientY);};
+    wrap.addEventListener('wheel',wheel,{passive:false});return()=>wrap.removeEventListener('wheel',wheel);
+  },[effectiveZoom,fitMode,Boolean(project?.agents.length)]);
+
 
   function anchorFor(agentId: string): { point: Point; zone: "home" | RoomKind; sessionId: string | null } {
     const room = roomMap.get(agentId);
@@ -278,6 +316,9 @@ export function OfficeFloor() {
       if (!el || !home) continue;
       const { point: anchor } = anchorFor(agent.id);
       const prev = anchorRef.current.get(agent.id);
+      const geometry=rooms.map((r,i)=>({...roomOrigins[i],height:roomHeights[i]}));
+      const oldGeometry=previousRoomGeometry.current.get(agent.id)??geometry;
+      previousRoomGeometry.current.set(agent.id,geometry);
       const dx = anchor.x - home.x;
       const dy = anchor.y - home.y;
       if (!prev) {
@@ -290,11 +331,15 @@ export function OfficeFloor() {
       const current = { x: matrix.m41, y: matrix.m42 };
       el.getAnimations().forEach((animation) => animation.cancel());
       delete el.dataset.walking;
-      if (motionReduced) {
+      if (motionReduced || document.hidden) {
         el.style.transform = `translate(${dx}px, ${dy}px)`;
       } else {
         const from = {x:home.x+current.x,y:home.y+current.y};
-        const points=officeRoute(from,anchor,rooms.map((r,i)=>({...roomOrigins[i],height:roomHeights[i]})));
+        const combined=[...geometry,...oldGeometry.filter(old=>!geometry.some(now=>now.x===old.x&&now.y===old.y))];
+        const map=officeNavigation(combined,deskZoneH);
+        const points=furnitureRoute(from,anchor,map);
+        if(!points){el.dataset.routeUnavailable='true';el.title='No clear walking route. Position updated without animation.';el.style.transform=`translate(${dx}px, ${dy}px)`;anchorRef.current.set(agent.id,anchor);continue;}
+        delete el.dataset.routeUnavailable;el.title='';
         el.dataset.walking = "true";
         const animation = el.animate(routeFrames(points,home), {duration:1200,easing:"linear",fill:"forwards"});
         animation.onfinish = () => {
@@ -306,6 +351,22 @@ export function OfficeFloor() {
       anchorRef.current.set(agent.id, anchor);
     }
   }, [rooms, agents, homes, deskZoneW, motionReduced]);
+
+  const focusedSubagent = useRef<string|null>(null);
+  useEffect(()=>{
+    if(!selectedSubagent){focusedSubagent.current=null;return;}
+    if(focusedSubagent.current===selectedSubagent)return;
+    const index=floorSubagents.findIndex(record=>record.id===selectedSubagent);
+    if(index<0)return; // Completed tasks remain readable in the inspector.
+    const targetPage=Math.floor(index/SUBAGENT_PAGE_SIZE);
+    if(subagentPage!==targetPage){setSubagentPage(targetPage);return;}
+    if(effectiveZoom<READABLE_ZOOM){setFitMode(false);setZoom(READABLE_ZOOM);}
+    const frame=requestAnimationFrame(()=>{
+      const target=Array.from(canvasWrapRef.current?.querySelectorAll<HTMLElement>('[data-subagent-id]')??[]).find(el=>el.dataset.subagentId===selectedSubagent);
+      if(target){target.scrollIntoView({behavior:motionReduced?'auto':'smooth',block:'center',inline:'center'});focusedSubagent.current=selectedSubagent;}
+    });
+    return()=>cancelAnimationFrame(frame);
+  },[selectedSubagent,subagentPage]);
 
   // Bring the selected agent into view at a readable zoom, whether selected via
   // search-Enter or a direct click — never leaves it too small to read.
@@ -351,7 +412,8 @@ export function OfficeFloor() {
   const accent = paletteVar(project.id);
 
   return (
-    <div className="viewRoot">
+    <div className="viewRoot officeView">
+      <TopBar />
       <header className="rvHeader">
         <button className="pillBtn ghostBtn mono" onClick={() => showView("room")}>&larr; back</button>
         <span className="rvName">{project.name}</span>
@@ -378,6 +440,7 @@ export function OfficeFloor() {
                   itemRefs.current.get(first.id)?.scrollIntoView({ behavior: motionReduced ? "auto" : "smooth", block: "center", inline: "center" });
                 }}
               />
+              <button className="pillBtn ghostBtn" aria-pressed={peopleOpen} onClick={()=>setPeopleOpen(v=>!v)}>People</button>
               <button id="office-settings-trigger" className="pillBtn ghostBtn" onClick={()=>setSettingsOpen(true)}>Office settings</button>
               <span className="osGridCount dim mono">{matchedAgents.length} / {agents.length}</span>
               <button
@@ -391,16 +454,38 @@ export function OfficeFloor() {
                 Fit office
               </button>
               <div className="osZoomControls" role="group" aria-label="Zoom">
-                <button type="button" className="pillBtn ghostBtn mono osZoomBtn" onClick={() => { setFitMode(false); setZoom((z) => Math.max(ZOOM_MIN, +((fitMode ? fitScale : z) - ZOOM_STEP).toFixed(2))); }} aria-label="Zoom out">−</button>
-                <button type="button" className="pillBtn ghostBtn mono osZoomBtn" onClick={() => { setFitMode(false); setZoom(1); }} aria-label="Reset zoom">{Math.round(effectiveZoom * 100)}%</button>
-                <button type="button" className="pillBtn ghostBtn mono osZoomBtn" onClick={() => { setFitMode(false); setZoom((z) => Math.min(ZOOM_MAX, +((fitMode ? fitScale : z) + ZOOM_STEP).toFixed(2))); }} aria-label="Zoom in">+</button>
+                <button type="button" className="pillBtn ghostBtn mono osZoomBtn" onClick={() => changeZoom(effectiveZoom-ZOOM_STEP)} aria-label="Zoom out">−</button>
+                <button type="button" className="pillBtn ghostBtn mono osZoomBtn" onClick={() => changeZoom(1)} aria-label="Reset zoom">{Math.round(effectiveZoom * 100)}%</button>
+                <button type="button" className="pillBtn ghostBtn mono osZoomBtn" onClick={() => changeZoom(effectiveZoom+ZOOM_STEP)} aria-label="Zoom in">+</button>
               </div>
             </div>
+            {effectiveZoom < 0.55 && <div className="osOverview" aria-label="Office overview">
+              <span><strong>{agents.filter(a=>agentStates[a.id]==='working').length}</strong> working</span>
+              <span><strong>{agents.filter(a=>agentStates[a.id]==='needs').length}</strong> need input</span>
+              <span><strong>{floorSubagents.length}</strong> delegated tasks</span>
+              {rooms.map(r=><button key={r.sessionId??r.kind} onClick={()=>handleNavigateToRoom(r.kind)}>{preferences[r.kind]}{r.sessionId?` ${r.slot+1}`:''} · {r.agentIds.length}</button>)}
+              <small>Select a person to zoom in</small>
+            </div>}
+            {deskRows > 3 && <nav className="osOverview" aria-label="Office wings"><strong>Work studios</strong>{Array.from({length:Math.ceil(deskRows/3)},(_,wing)=><button key={wing} onClick={()=>{setFitMode(false);setZoom(Math.max(READABLE_ZOOM,Math.min(1,(wrapSize.width-32)/canvasWidth)));requestAnimationFrame(()=>requestAnimationFrame(()=>canvasWrapRef.current?.scrollTo({top:wing*1024*Math.max(READABLE_ZOOM,Math.min(1,(wrapSize.width-32)/canvasWidth)),left:0,behavior:motionReduced?'auto':'smooth'})));}}>Wing {wing+1} · {agents.filter(a=>Math.floor((slots.get(a.id)??0)/12)===wing).length} agents</button>)}</nav>}
+            {peopleOpen && <section className="osPeople" aria-label="Office people">
+              {matchedAgents.map(a=><button key={a.id} aria-pressed={selectedAgent===a.id} onClick={()=>handleAgentClick(a.id)}><strong>{a.name}</strong><span>{statusLabel(agentStates[a.id]??'idle')} · {anchorFor(a.id).zone==='home'?'At desk':preferences[anchorFor(a.id).zone as RoomKind]}</span></button>)}
+              {!matchedAgents.length&&<p>No people match your search.</p>}
+              {subagentRecords.filter(r=>rosterIds.has(r.parentAgentId)&&(!term||`${r.description} ${parentNames.get(r.parentAgentId)}`.toLowerCase().includes(term))).map(r=><button key={r.id} onClick={()=>{setSelectedAgent(r.parentAgentId);setSelectedSubagent(r.id);}}><strong>{r.description}</strong><span>{parentNames.get(r.parentAgentId)} · {r.status==='unobserved'?'Status unavailable':r.status}</span></button>)}
+            </section>}
             <div className="osGridArea">
+              <span className="osExploreHint">Scroll to explore · Ctrl + wheel to zoom · Drag empty space to pan</span>
               {agents.length === 0 ? (
                 <div className="osEmpty">No agents in this project.</div>
               ) : (
-                <div className="osCanvasWrap" ref={canvasWrapRef}>
+                <div className="osCanvasWrap" ref={canvasWrapRef} tabIndex={0} role="region" aria-label="Office floor. Scroll to explore; Control plus wheel to zoom; drag empty space to pan."
+                  onDoubleClick={e=>{if(!(e.target as HTMLElement).closest('button'))changeZoom(1,e.clientX,e.clientY);}}
+                  onKeyDown={e=>{if(e.target!==e.currentTarget)return;if(e.key==='+'||e.key==='='){e.preventDefault();changeZoom(effectiveZoom+ZOOM_STEP);}if(e.key==='-'){e.preventDefault();changeZoom(effectiveZoom-ZOOM_STEP);}if(e.key==='0'){e.preventDefault();changeZoom(1);}}}
+                  onPointerDown={e=>{if(e.button!==1&&(e.button!==0||(e.target as HTMLElement).closest('button,input,a,select,textarea')))return;e.preventDefault();e.currentTarget.focus();pan.current={x:e.clientX,y:e.clientY,left:e.currentTarget.scrollLeft,top:e.currentTarget.scrollTop,pointer:e.pointerId};e.currentTarget.setPointerCapture(e.pointerId);e.currentTarget.dataset.panning='true';}}
+                  onPointerMove={e=>{const start=pan.current;if(!start||start.pointer!==e.pointerId)return;e.currentTarget.scrollLeft=start.left+start.x-e.clientX;e.currentTarget.scrollTop=start.top+start.y-e.clientY;}}
+                  onPointerUp={e=>{if(pan.current?.pointer!==e.pointerId)return;pan.current=null;delete e.currentTarget.dataset.panning;if(e.currentTarget.hasPointerCapture(e.pointerId))e.currentTarget.releasePointerCapture(e.pointerId);}}
+                  onPointerCancel={e=>{pan.current=null;delete e.currentTarget.dataset.panning;}}
+                  onLostPointerCapture={e=>{pan.current=null;delete e.currentTarget.dataset.panning;}}>
+
                   {term && matchedAgents.length === 0 && (
                     <div className="osNoMatch" role="status">No agents match &ldquo;{search.trim()}&rdquo;.</div>
                   )}
@@ -490,7 +575,7 @@ export function OfficeFloor() {
               </div>
               <div className="osInspectorContent">
                 <section className="osSubagents" aria-label="Delegated agents"><h3>Delegated agents</h3>
-                  {subagentRecords.filter(r=>r.parentAgentId===selectedAgentData.id).length===0?<p>No native subagent events observed. Currently supported: Claude streams.</p>:subagentRecords.filter(r=>r.parentAgentId===selectedAgentData.id).map(r=><details key={`${r.id}:${selectedSubagent === r.id}`} open={selectedSubagent === r.id ? true : undefined} data-subagent-status={r.status}><summary>{r.description} · {r.status==='unobserved'?'Status unavailable':r.status}</summary><p>{r.summary||'No summary reported yet.'}</p>{r.lastTool&&<p>Last tool: {r.lastTool}</p>}<small>Task {r.taskId}</small></details>)}
+                  {subagentRecords.filter(r=>r.parentAgentId===selectedAgentData.id).length===0?<p>No native subagent events observed. Supported streams: Claude, Codex and Cursor.</p>:subagentRecords.filter(r=>r.parentAgentId===selectedAgentData.id).map(r=><details key={`${r.id}:${selectedSubagent === r.id}`} open={selectedSubagent === r.id ? true : undefined} data-subagent-status={r.status}><summary>{r.description} · {r.status==='unobserved'?'Status unavailable':r.status}</summary><p>{r.summary||'No summary reported yet.'}</p>{r.lastTool&&<p>Last tool: {r.lastTool}</p>}<small>{r.provider??'claude'} · Task {r.taskId}</small></details>)}
                 </section>
                 <div className="osInspectorField">
                   <div className="osInspectorLabel">Status</div>
@@ -500,6 +585,7 @@ export function OfficeFloor() {
                   <div className="osInspectorLabel">Location</div>
                   <div className="osInspectorValue">{selectedLocationLabel}</div>
                 </div>
+                {sessions.filter(session=>session.agentIds.includes(selectedAgentData.id)).length>0&&<section className="osSubagents" aria-label="Active sessions"><h3>Active sessions</h3>{sessions.filter(session=>session.agentIds.includes(selectedAgentData.id)).map(session=><button className="pillBtn ghostBtn" key={session.id} onClick={()=>handleNavigateToRoom(session.kind)} title={session.id}>{preferences[session.kind]} · {session.agentIds.length} participants</button>)}</section>}
                 {selectedZone !== "home" && (
                   <div className="osInspectorField">
                     <div className="osInspectorLabel">Session</div>

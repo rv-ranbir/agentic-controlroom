@@ -1,3 +1,5 @@
+import { EmptyState } from "./EmptyState";
+import { TopBar } from "./TopBar";
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "../store";
 import { agentIdOf, colorFor, initials } from "../lib/agents";
@@ -12,14 +14,16 @@ export function ChatBoard() {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const follow = useRef(true);
 
   useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    if (scrollRef.current && follow.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages]);
 
   if (!project) {
     return (
-      <div className="viewRoot">
+      <div className="viewRoot workspaceView viewChatBoard">
+      <TopBar />
         <header className="rvHeader">
           <button className="pillBtn ghostBtn mono" onClick={() => showView("room")}>&larr; back</button>
         </header>
@@ -40,19 +44,21 @@ export function ChatBoard() {
     setSending(true);
     void api.postBroadcast(project.id, t)
       .then(() => setText(""))
+      .catch(err=>useStore.getState().showToast(err instanceof Error?err.message:"Could not post message"))
       .finally(() => setSending(false));
   };
 
   return (
-    <div className="viewRoot">
+    <div className="viewRoot workspaceView viewChatBoard">
+      <TopBar />
       <header className="rvHeader">
         <button className="pillBtn ghostBtn mono" onClick={() => showView("room")}>&larr; back</button>
         <span className="rvName">{project.name}</span>
         <span className="dim mono" style={{ fontSize: 10.5 }}>Chat board &middot; everyone sees this</span>
       </header>
-      <RoomScene agents={project.agents} />
-      <div ref={scrollRef} style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "20px" }}>
-        {messages.length === 0 && <div className="rvEmpty">No messages yet.</div>}
+      <div className="conversationContext">Shared with all {project.agents.length} agents in this project</div>
+      <div className="conversationHistory" ref={scrollRef} onScroll={e=>{const el=e.currentTarget;follow.current=el.scrollHeight-el.scrollTop-el.clientHeight<80;}} style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "20px" }}>
+        {messages.length === 0 && <EmptyState title="Keep your team in the loop" description="Share context, decisions and updates here. Every agent in this project can see the conversation." />}
         {messages.map((m, i) => {
           const id = agentIdOf(m);
           const name = senderName(id);
@@ -72,7 +78,7 @@ export function ChatBoard() {
           );
         })}
       </div>
-      <div style={{ borderTop: "1px solid var(--rule)", background: "var(--deck)", padding: "11px 20px 13px", display: "flex", gap: 10 }}>
+      <div className="conversationComposer" style={{ borderTop: "1px solid var(--rule)", background: "var(--deck)", padding: "11px 20px 13px", display: "flex", gap: 10 }}>
         <input
           className="fInput mono"
           style={{ flex: 1 }}

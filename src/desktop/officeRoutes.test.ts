@@ -12,3 +12,12 @@ test('return route reverses the same safe path and additional wings have local a
  const a={x:142,y:1242},b={x:1170,y:482};assert.deepEqual(officeRoute(a,b,rooms).reverse(),officeRoute(b,a,rooms));assert.ok(officeRoute(a,b,rooms).some(p=>p.y===1274));
 });
 test('animation offsets follow travelled distance',()=>{const frames=routeFrames([{x:0,y:0},{x:0,y:100},{x:300,y:100}],{x:0,y:0});assert.deepEqual(frames.map(f=>f.offset),[0,.25,1]);});
+
+test('return from a removed session retains its old doorway geometry',()=>{
+ const from={x:1430,y:482},home={x:142,y:218};
+ const path=officeRoute(from,home,[],rooms);
+ assert.ok(path.some(p=>p.x===1150&&p.y===464));
+ assert.deepEqual(path[0],from);assert.deepEqual(path.at(-1),home);
+ // Previous room table remains an obstacle for the departing character.
+ for(let i=1;i<path.length;i++)for(let t=0;t<=1;t+=.01){const a=path[i-1],b=path[i];const x=a.x+(b.x-a.x)*t+48,y=a.y+(b.y-a.y)*t+78;assert.ok(!(x>1230&&x<1430&&y>482&&y<592));}
+});

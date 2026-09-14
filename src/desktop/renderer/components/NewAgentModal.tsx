@@ -1,3 +1,4 @@
+import "./Navigation.css";
 import { useEffect, useState } from "react";
 import {
   Accessibility, Activity, Award, Bot, BrainCircuit, ClipboardList, Compass, Database, FileText,
@@ -9,9 +10,6 @@ import { colorFor, initials } from "../lib/agents";
 import { BACKENDS, categoryForRole, effectiveBackends } from "../lib/backends";
 import type { AdminConfig, LibraryAgent, Project } from "../types";
 
-// "codex" isn't a real backend (not in Project["backend"]/AdminConfig's allow-list union yet),
-// so it can't be admin-restricted — always shown, same as before this picker became allow-list-aware.
-const UNGOVERNED_ENGINES: { id: string; label: string }[] = [{ id: "codex", label: "Codex" }];
 const MODELS = [
   { id: "", label: "Default", hint: "project default" },
   { id: "opus", label: "Opus", hint: "most capable" },
@@ -69,12 +67,13 @@ export function NewAgentModal({ onClose }: { onClose: () => void }) {
   const [engine, setEngine] = useState<string>(project?.backend ?? "claude");
   useEffect(() => { if (project) setEngine(project.backend); }, [project?.id]);
   const [model, setModel] = useState("");
+  useEffect(() => { if (engine === "codex") setModel(""); }, [engine]);
   const [modelCustom, setModelCustom] = useState("");
   useEffect(() => { if (engine === "openrouter" && !model) setModel("custom"); }, [engine]);
 
   const roleCategoryId = selectedRoleId && adminConfig ? categoryForRole(adminConfig, selectedRoleId)?.id : undefined;
   const governedEngines = adminConfig && project ? effectiveBackends(adminConfig, project, roleCategoryId).map((id) => BACKENDS.find((b) => b.id === id)!) : BACKENDS;
-  const visibleEngines = [...governedEngines, ...UNGOVERNED_ENGINES];
+  const visibleEngines = governedEngines;
   useEffect(() => {
     if (governedEngines.length && !governedEngines.some((e) => e.id === engine)) setEngine(governedEngines[0].id);
   }, [governedEngines.map((e) => e.id).join(",")]);
@@ -91,7 +90,6 @@ export function NewAgentModal({ onClose }: { onClose: () => void }) {
 
   async function create() {
     if (!project) return;
-    if (engine === "codex") { showToast("Codex engine — not wired yet"); return; }
     const existingIds=new Set(project.agents.map(a=>a.id));
     const finalModel = model === "custom" ? modelCustom.trim() : model;
     const override = advPrompt.trim();
@@ -121,14 +119,31 @@ export function NewAgentModal({ onClose }: { onClose: () => void }) {
     onClose();
   }
 
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    const dialog = document.getElementById('modalBox');
+    const controls = () => Array.from(dialog?.querySelectorAll<HTMLElement>('button, input, select, textarea, summary, [tabindex="0"]') ?? []).filter(el => !el.hasAttribute('disabled') && el.getClientRects().length > 0);
+    controls()[0]?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { event.preventDefault(); onClose(); }
+      if (event.key !== 'Tab') return;
+      const items=controls(), first=items[0], last=items[items.length-1];
+      if(event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if(!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    };
+    document.addEventListener('keydown',onKey);
+    return () => {document.removeEventListener('keydown',onKey);previous?.focus();};
+  }, [onClose]);
+
   return (
     <div className="dialogBackdrop open" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div id="modalBox" className="dialogBox">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h3>New agent</h3>
-          <button className="pillBtn iconBtn ghostBtn" onClick={onClose}>&times;</button>
+      <div id="modalBox" className="dialogBox newAgentDialog" role="dialog" aria-modal="true" aria-labelledby="newAgentTitle">
+        <div className="newAgentDialogHeader">
+          <h3 id="newAgentTitle">New agent</h3>
+          <button aria-label="Close new agent" className="pillBtn iconBtn ghostBtn" onClick={onClose}>&times;</button>
         </div>
 
+        <div className="newAgentDialogBody">
         <div className="fField" style={{ marginBottom: 14 }}>
           <span className="fLabel">Project</span>
           <select className="fInput mono" value={targetProjectId ?? ""} onChange={(e) => setTargetProjectId(e.target.value)}>
@@ -137,9 +152,9 @@ export function NewAgentModal({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="segGroup" style={{ marginBottom: 14 }}>
-          <div className={`segOpt${ctab === "template" ? " on" : ""}`} onClick={() => setCtab("template")}>From template</div>
-          <div className={`segOpt${ctab === "library" ? " on" : ""}`} onClick={() => setCtab("library")}>From library</div>
-          <div className={`segOpt${ctab === "custom" ? " on" : ""}`} onClick={() => setCtab("custom")}>Custom</div>
+          <button type="button" className={`segOpt${ctab === "template" ? " on" : ""}`} onClick={() => setCtab("template")}>From template</button>
+          <button type="button" className={`segOpt${ctab === "library" ? " on" : ""}`} onClick={() => setCtab("library")}>From library</button>
+          <button type="button" className={`segOpt${ctab === "custom" ? " on" : ""}`} onClick={() => setCtab("custom")}>Custom</button>
         </div>
 
         {ctab === "library" && (
@@ -296,20 +311,22 @@ export function NewAgentModal({ onClose }: { onClose: () => void }) {
         )}
 
         <div className="fField">
-          <span className="fLabel">Engine</span>
-          <div className="segGroup">
+          <span className="fLabel">Provider</span>
+          <div className="agentProviderChoices" role="group" aria-label="Provider">
             {visibleEngines.map((e) => (
-              <div key={e.id} className={`segOpt${engine === e.id ? " on" : ""}`} title={e.id === "codex" ? "Not wired yet" : undefined} onClick={() => setEngine(e.id)}>
+              <button type="button" key={e.id} aria-pressed={engine === e.id} title={e.id === "codex" ? "Uses your Codex CLI ChatGPT login" : undefined} onClick={() => setEngine(e.id)}>
                 {e.label}
-              </div>
+              </button>
             ))}
           </div>
         </div>
 
+        {engine === "cursor" && <p className="dim">Uses your Cursor CLI login. Sign in with cursor-agent login first. Account-authenticated runs use your Cursor plan; configured CLI API credentials can override login.</p>}
+        {engine === "codex" && <p className="dim">Uses the local Codex CLI ChatGPT login. Sign in with codex login first. Your subscription limits apply; no API key is needed.</p>}
         <div className="fField">
           <span className="fLabel">Model</span>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {MODELS.map((m) => {
+            {((engine === "codex" || engine === "cursor") ? MODELS.filter(m => m.id === "" || m.id === "custom") : MODELS).map((m) => {
               const on = model === m.id;
               return (
                 <div
@@ -338,15 +355,15 @@ export function NewAgentModal({ onClose }: { onClose: () => void }) {
           <div className="fField" style={{ flex: 1 }}>
             <span className="fLabel">Context window</span>
             <div className="segGroup">
-              <div className={`segOpt${ctx === "standard" ? " on" : ""}`} onClick={() => setCtx("standard")}>Standard</div>
-              <div className={`segOpt${ctx === "large" ? " on" : ""}`} onClick={() => setCtx("large")}>Large</div>
+              <button type="button" className={`segOpt${ctx === "standard" ? " on" : ""}`} onClick={() => setCtx("standard")}>Standard</button>
+              <button type="button" className={`segOpt${ctx === "large" ? " on" : ""}`} onClick={() => setCtx("large")}>Large</button>
             </div>
           </div>
           <div className="fField" style={{ flex: 1 }}>
             <span className="fLabel">Reasoning effort</span>
             <div className="segGroup">
-              <div className={`segOpt${effort === "medium" ? " on" : ""}`} onClick={() => setEffort("medium")}>Medium</div>
-              <div className={`segOpt${effort === "high" ? " on" : ""}`} onClick={() => setEffort("high")}>High</div>
+              <button type="button" className={`segOpt${effort === "medium" ? " on" : ""}`} onClick={() => setEffort("medium")}>Medium</button>
+              <button type="button" className={`segOpt${effort === "high" ? " on" : ""}`} onClick={() => setEffort("high")}>High</button>
             </div>
           </div>
         </div>
@@ -376,7 +393,8 @@ export function NewAgentModal({ onClose }: { onClose: () => void }) {
           )}
         </div>
 
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
+        </div>
+        <div className="newAgentDialogFooter">
           <button className="pillBtn ghostBtn" onClick={onClose}>cancel</button>
           <button className="pillBtn fillBtn" onClick={() => void create()}>create agent</button>
         </div>

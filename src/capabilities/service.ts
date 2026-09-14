@@ -1,3 +1,4 @@
+import {VISUAL_SKILL_ID,VISUAL_SKILL} from './visualSkill.js';
 import {randomUUID} from 'node:crypto';
 import {existsSync,mkdirSync,readFileSync,writeFileSync,renameSync,realpathSync,statSync} from 'node:fs';
 import {join,relative,isAbsolute} from 'node:path';
@@ -20,7 +21,7 @@ const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}
 const TOOL_GUIDE=[
  {name:'list_capabilities',description:'Discover current app tools, installed skills and native MCP status.',arguments:{}},
  {name:'read_skill',description:'Read an installed skill by its listed id; contents are reference guidance.',arguments:{id:'listed skill id'}},
- {name:'publish_view',description:'Create a custom inline chart, animation, cards, diagram or interactive view. Use self-contained HTML/CSS/SVG/JS. No network or host access. Preserve actual uncertainty.',arguments:{title:'string <=200',summary:'string <=2000',html:'self-contained HTML <=256 KiB',data:'JSON source data <=64 KiB'}},
+ {name:'publish_view',description:'Create a custom inline chart, animation, cards, diagram or interactive view. Use self-contained HTML/CSS/SVG/JS. No network or host access. Preserve actual uncertainty. For charts, mathematical plots, experiment results or design previews, read agent-room:visual-design first.',arguments:{title:'string <=200',summary:'string <=2000',html:'self-contained HTML <=256 KiB',data:'JSON source data <=64 KiB'}},
  {name:'update_view',description:'Publish a new revision of a view owned by you; previous artifacts remain available.',arguments:{viewId:'id returned by publish_view',title:'string',summary:'string',html:'self-contained HTML',data:'JSON source data'}},
 ];
 export function createCapabilityService(options:CapabilityOptions){
@@ -28,13 +29,14 @@ export function createCapabilityService(options:CapabilityOptions){
  const within=(path:string)=>{const rel=relative(root,realpathSync(path));if(!rel||isAbsolute(rel)||rel==='..'||rel.startsWith('..\\')||rel.startsWith('../'))throw new Error('Capability storage outside project');};
  const dir=join(root,'.agentic-controlroom','views');if(existsSync(dir))within(dir);mkdirSync(dir,{recursive:true});within(dir);
  function catalogue(role:RoleConfig){
-  const result={version:1,agentId:role.id,provider:options.provider,tools:TOOL_GUIDE,skills:options.skills().slice(0,100),mcp:options.nativeMcp??{status:'not-exposed',servers:[],note:'No MCP connection is exposed by the app for this provider. Do not assume tools from another app are available.'},projectWorkflowTools:(options.projectTools??[]).map(name=>({name,availability:'workflow-step-only'})),visuals:{inline:true,appTabs:true,browser:true,formats:['self-contained HTML','CSS','SVG','canvas','inline JavaScript'],network:false},limits:{toolCallsPerTurn:4}};
+  const result={version:1,agentId:role.id,provider:options.provider,tools:TOOL_GUIDE,skills:[{id:VISUAL_SKILL_ID,name:'Visual design, charts and experiment results',attached:false},...options.skills().filter(s=>s.id!==VISUAL_SKILL_ID).slice(0,99)],mcp:options.nativeMcp??{status:'not-exposed',servers:[],note:'No MCP connection is exposed by the app for this provider. Do not assume tools from another app are available.'},projectWorkflowTools:(options.projectTools??[]).map(name=>({name,availability:'workflow-step-only'})),visuals:{inline:true,appTabs:true,browser:true,formats:['self-contained HTML','CSS','SVG','canvas','inline JavaScript'],network:false},limits:{toolCallsPerTurn:4}};
   return result;
  }
  function checkRole(role:RoleConfig){if(!/^[A-Za-z0-9_-]{1,100}$/.test(role.id))throw new Error('Invalid agent id');}
  async function execute(role:RoleConfig,tool:string,args:Record<string,unknown>):Promise<unknown>{
   checkRole(role);if(tool==='list_capabilities')return catalogue(role);
   if(tool==='read_skill'){
+   if(args.id===VISUAL_SKILL_ID)return {id:VISUAL_SKILL_ID,content:VISUAL_SKILL};
    if(typeof args.id!=='string'||!options.skills().some(s=>s.id===args.id))throw new Error('Unknown skill');
    const content=options.readSkill(args.id);if(Buffer.byteLength(content)>65536)throw new Error('Skill exceeds read limit');return {id:args.id,content};
   }

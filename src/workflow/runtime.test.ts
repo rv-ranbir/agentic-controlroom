@@ -345,3 +345,16 @@ test('visual markup never crowds out structured context for following agents',as
  await executeWorkflow({directory:root,definition:{id:'wf',name:'WF',steps:[{id:'one',agentId:'dev'},{id:'two',agentId:'qa'}]},agents:[dev,qa],backendFor:backendFor([], (role,prompt)=>{if(role.id==='qa'){following=prompt;return 'review';}return reply;}),log:log(root),input:'task'});
  assert.match(following,/verified-data/);assert.doesNotMatch(following,/VISUALONLY/);
 });
+
+test('token saving compacts workflow context without changing task or stored evidence', async () => {
+ const rows=Array.from({length:60},(_,i)=>({symbol:`TEST${i}`,price:i===41?-1:i,currency:'INR',evidence:'source-'+i,timestamp:'2026-09-13T06:00:00Z'}));
+ for(const tokenSaving of [false,true]){
+  const root=tmp('wf-saving-');let captured='';
+  const run=await executeWorkflow({directory:root,tokenSaving,definition:{id:'saving',name:'Saving',steps:[{id:'data',tool:'collect'},{id:'analysis',agentId:'dev'}]},agents:[dev],tools:{collect:async()=>rows},backendFor:backendFor([],(_role,p)=>{captured=p;return 'done';}),log:log(root),input:'EXACT USER CONSTRAINT'});
+  assert.equal(run.status,'complete');assert.match(captured,/TASK:\nEXACT USER CONSTRAINT/);
+  if(tokenSaving)assert.match(captured,/TOON data:/);else assert.doesNotMatch(captured,/TOON data:/);
+  const { RunContext }=await import('./context.js');
+  const context=new RunContext(join(root,run.id,'context'));
+  assert.deepEqual(context.list().find(a=>a.key==='data')?.data,rows);
+ }
+});

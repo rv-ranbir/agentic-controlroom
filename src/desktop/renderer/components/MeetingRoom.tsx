@@ -1,3 +1,5 @@
+import { AgentPicker } from "./AgentPicker";
+import { TopBar } from "./TopBar";
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "../store";
 import { agentIdOf, colorFor, initials } from "../lib/agents";
@@ -16,14 +18,16 @@ export function MeetingRoom() {
   const [rounds, setRounds] = useState(2);
   const [startedTs, setStartedTs] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const follow = useRef(true);
 
   useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    if (scrollRef.current && follow.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages]);
 
   if (!project) {
     return (
-      <div className="viewRoot">
+      <div className="viewRoot workspaceView viewMeetingRoom">
+      <TopBar />
         <header className="rvHeader">
           <button className="pillBtn ghostBtn mono" onClick={() => showView("room")}>&larr; back</button>
         </header>
@@ -45,7 +49,7 @@ export function MeetingRoom() {
     if (!topic.trim()) { showToast("Give the meeting a topic"); return; }
     setStartedTs(new Date().toISOString());
     void api.startMeeting(project.id, [...picked], topic.trim(), rounds)
-      .catch((err) => showToast(err instanceof Error ? err.message : String(err)));
+      .catch((err) => {setStartedTs(null);showToast(err instanceof Error ? err.message : String(err));});
   };
 
   const transcript = startedTs
@@ -53,51 +57,37 @@ export function MeetingRoom() {
     : [];
 
   return (
-    <div className="viewRoot">
+    <div className="viewRoot workspaceView viewMeetingRoom">
+      <TopBar />
       <header className="rvHeader">
         <button className="pillBtn ghostBtn mono" onClick={() => showView("room")}>&larr; back</button>
         <span className="rvName">{project.name}</span>
         <span className="dim mono" style={{ fontSize: 10.5 }}>Meeting room</span>
       </header>
-      <RoomScene agents={startedTs ? project.agents.filter((a) => picked.has(a.id)) : project.agents} />
+
 
       {!startedTs && (
-        <div style={{ padding: 20, maxWidth: 640 }}>
-          <div className="fField">
-            <span className="fLabel">Who's in the meeting</span>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-              {project.agents.map((a) => (
-                <div
-                  key={a.id}
-                  className={`roleOpt${picked.has(a.id) ? " chosen" : ""}`}
-                  style={{ cursor: "pointer" }}
-                  onClick={() => toggle(a.id)}
-                >
-                  <div className="monogram mono" style={{ width: 22, height: 22, fontSize: 9.5, background: colorFor(a.id) }}>{initials(a.name)}</div>
-                  <span>{a.name}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+        <div className="sessionSetup"><div className="sessionSetupIntro"><span className="dim">Team collaboration</span><h1>Bring the right people together</h1><p>Choose at least two agents and give them a focused topic.</p></div>
+          <AgentPicker agents={project.agents} value={picked} onToggle={toggle} label="Participants" />
           <div className="fField">
             <span className="fLabel">Topic</span>
-            <textarea className="fInput" rows={3} value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="What should they discuss?" />
+            <textarea aria-label="Discussion topic" className="fInput" rows={3} value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="What should they discuss?" />
           </div>
           <div className="fField">
             <span className="fLabel">Rounds</span>
             <div className="segGroup">
               {[1, 2, 3].map((r) => (
-                <div key={r} className={`segOpt${rounds === r ? " on" : ""}`} onClick={() => setRounds(r)}>{r}</div>
+                <button type="button" key={r} className={`segOpt${rounds === r ? " on" : ""}`} onClick={() => setRounds(r)}>{r}</button>
               ))}
             </div>
           </div>
-          <button className="pillBtn fillBtn mono" onClick={start}>start meeting</button>
+          <button className="pillBtn fillBtn mono" disabled={running || picked.size < 2 || !topic.trim()} onClick={start}>start meeting</button>
         </div>
       )}
 
       {startedTs && (
         <>
-          <div ref={scrollRef} style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: 20 }}>
+          <div className="conversationHistory" ref={scrollRef} onScroll={e=>{const el=e.currentTarget;follow.current=el.scrollHeight-el.scrollTop-el.clientHeight<80;}} style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: 20 }}>
             <div className="dim mono" style={{ fontSize: 10.5, marginBottom: 14 }}>
               {running ? "meeting in progress…" : "meeting ended"}
             </div>

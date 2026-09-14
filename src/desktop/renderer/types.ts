@@ -15,7 +15,7 @@ export interface Project {
   id: string;
   name: string;
   path: string;
-  backend: "cursor" | "claude" | "openrouter" | "openai" | "anthropic" | "gemini" | "ollama";
+  backend: "codex" | "cursor" | "claude" | "openrouter" | "openai" | "anthropic" | "gemini" | "ollama";
   model?: string;
   agents: AgentRef[];
   repoUrl?: string;
@@ -66,6 +66,7 @@ export interface Category {
   members: TeamMember[];
 }
 export interface AdminConfig {
+  tokenSaving: boolean;
   globalAllowlist: Project["backend"][];
   categoryAllowlist: Record<string, Project["backend"][]>;
   categories: Category[];
@@ -169,6 +170,7 @@ export interface DesktopApi {
   removeTeam(id: string): Promise<void>;
 
   getAdminConfig(): Promise<AdminConfig>;
+  setTokenSaving(enabled: boolean): Promise<AdminConfig>;
   setGlobalAllowlist(list: Project["backend"][]): Promise<AdminConfig>;
   setCategoryAllowlist(categoryId: string, list: Project["backend"][]): Promise<AdminConfig>;
   addCategory(label: string): Promise<AdminConfig>;
@@ -214,7 +216,7 @@ export interface DesktopApi {
   removeSecret(projectId: string, key: string): Promise<string[]>;
   setAgentModel(projectId: string, agentId: string, model: string): Promise<AgentRef>;
   listAccounts(): Promise<{ id: string; provider: string; name: string; envKeys: string[] }[]>;
-  addAccount(provider: "claude" | "cursor" | "openrouter" | "openai" | "anthropic" | "gemini" | "ollama", name: string, env: Record<string, string>): Promise<{ id: string; provider: string; name: string; envKeys: string[] }[]>;
+  addAccount(provider: "codex" | "claude" | "cursor" | "openrouter" | "openai" | "anthropic" | "gemini" | "ollama", name: string, env: Record<string, string>): Promise<{ id: string; provider: string; name: string; envKeys: string[] }[]>;
   removeAccount(id: string): Promise<{ id: string; provider: string; name: string; envKeys: string[] }[]>;
   setActiveAccount(projectId: string, accountId?: string): Promise<Project>;
   onQuotaEvent(cb: (e: { projectId: string; agentId: string }) => void): () => void;

@@ -1,3 +1,4 @@
+import { TopBar } from "./TopBar";
 import { useEffect, useState, type CSSProperties } from "react";
 import { useStore } from "../store";
 import { colorFor, initials } from "../lib/agents";
@@ -37,7 +38,8 @@ export function TaskBoard() {
 
   if (!project) {
     return (
-      <div className="viewRoot">
+      <div className="viewRoot workspaceView viewTaskBoard">
+      <TopBar />
         <header className="rvHeader">
           <button className="pillBtn ghostBtn mono" onClick={() => showView("room")}>&larr; back</button>
         </header>
@@ -71,7 +73,8 @@ export function TaskBoard() {
   };
 
   return (
-    <div className="viewRoot">
+    <div className="viewRoot workspaceView viewTaskBoard">
+      <TopBar />
       <header className="rvHeader">
         <button className="pillBtn ghostBtn mono" onClick={() => showView("room")}>&larr; back</button>
         <span className="rvName">{project.name}</span>
@@ -79,9 +82,9 @@ export function TaskBoard() {
         <div className="spacer" />
         <button className="pillBtn fillBtn mono" onClick={() => setFormOpen(true)}>+ task</button>
       </header>
-      <div className="corkboard" style={{ flex: 1, minHeight: 0, display: "flex", gap: 14, padding: 16, overflowX: "auto" }}>
+      <div className="corkboard workspaceTaskBoard" style={{ flex: 1, minHeight: 0, display: "flex", gap: 14, padding: 16, overflowX: "auto" }}>
         {COLUMNS.map((col) => (
-          <div key={col.id} style={{ width: 300, flexShrink: 0, display: "flex", flexDirection: "column", minHeight: 0 }}>
+          <div className="taskColumn" key={col.id} style={{ width: 300, flexShrink: 0, display: "flex", flexDirection: "column", minHeight: 0 }}>
             <div className="bucketHead corkColHead">
               <span>{col.label}</span>
               <span className="n">{tasks.filter((t) => t.status === col.id).length}</span>
@@ -93,7 +96,7 @@ export function TaskBoard() {
                   <div key={t.id} className="stickyNote" style={noteStyle(t.id)}>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 6 }}>
                       <span className="stickyTitle">{t.title}</span>
-                      <span className="pillBtn ghostBtn mono" style={{ padding: "1px 7px", cursor: "pointer" }} onClick={() => void remove(t)}>&times;</span>
+                      <button aria-label={`Remove ${t.title}`} className="pillBtn ghostBtn mono" onClick={() => void remove(t)}>&times;</button>
                     </div>
                     {t.description && <div className="stickyBody" style={{ fontSize: 11.5, marginTop: 4 }}>{t.description}</div>}
                     {!!t.attachments?.length && (
@@ -137,7 +140,7 @@ export function TaskBoard() {
                   </div>
                 );
               })}
-              {tasks.filter((t) => t.status === col.id).length === 0 && <div className="rvEmpty" style={{ fontSize: 11.5 }}>Nothing here.</div>}
+              {tasks.filter((t) => t.status === col.id).length === 0 && <div className="boardEmpty"><strong>{col.id === "todo" ? "Plan your next task" : col.id === "in_progress" ? "Nothing in progress" : "Completed work lives here"}</strong><p>{col.id === "todo" ? "Capture a clear outcome and choose an owner." : col.id === "in_progress" ? "Move a task here when work begins." : "Move finished tasks here to keep a record."}</p>{col.id === "todo" && <button className="pillBtn" onClick={()=>setFormOpen(true)}>Create a task</button>}</div>}
             </div>
           </div>
         ))}

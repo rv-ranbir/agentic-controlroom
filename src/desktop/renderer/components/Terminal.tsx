@@ -1,3 +1,4 @@
+import { TopBar } from "./TopBar";
 import { useEffect, useRef } from "react";
 import { Terminal as XTerm } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
@@ -59,7 +60,8 @@ export function Terminal() {
 
   if (!project || !selectedAgent) {
     return (
-      <div className="viewRoot">
+      <div className="viewRoot workspaceView viewTerminal">
+      <TopBar />
         <header className="rvHeader">
           <button className="pillBtn ghostBtn mono" onClick={() => showView("room")}>&larr; back</button>
         </header>
@@ -71,7 +73,8 @@ export function Terminal() {
   const agent = project.agents.find((a) => a.id === selectedAgent);
 
   return (
-    <div className="viewRoot">
+    <div className="viewRoot workspaceView viewTerminal">
+      <TopBar />
       <header className="rvHeader">
         <button className="pillBtn ghostBtn mono" onClick={() => showView("room")}>&larr; back</button>
         <div className="monogram mono" style={{ width: 26, height: 26, fontSize: 10, background: colorFor(selectedAgent) }}>

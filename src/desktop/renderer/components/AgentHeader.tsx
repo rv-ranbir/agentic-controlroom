@@ -102,8 +102,8 @@ export function AgentHeader({ onOpenReview, agentId, interactive = true }: { onO
           <button className="pillBtn ghostBtn mono" onClick={() => { togglePaused(selectedAgent); showToast(`${paused ? "Resumed" : "Paused"} · ${agent?.name}`); }}>
             {paused ? "resume" : "pause"}
           </button>
-          <button className="pillBtn ghostBtn mono" onClick={() => showToast("Reassign — not wired yet")}>reassign</button>
-          <button className="pillBtn ghostBtn mono" onClick={() => showToast("Fork — not wired yet")}>fork</button>
+          <button className="pillBtn ghostBtn mono" disabled title="Reassign is not available yet">reassign</button>
+          <button className="pillBtn ghostBtn mono" disabled title="Fork is not available yet">fork</button>
           <button className="pillBtn ghostBtn mono" onClick={() => showView("terminal")}>terminal ↗</button>
           <button className="pillBtn ghostBtn mono" onClick={() => setTaskModalOpen(true)}>+ task</button>
           {bucket === "review" && (

@@ -59,10 +59,10 @@ export function resolveLauncher(bin: string): { cmd: string; prefixArgs: string[
   const root = join(process.env.LOCALAPPDATA ?? "", "cursor-agent", "versions");
   try {
     // ponytail: lexical sort works because versions are zero-padded YYYY.MM.DD
-    for (const v of readdirSync(root).sort().reverse()) {
+    for (const v of readdirSync(root).filter(v => /^\d{4}\.\d{2}\.\d{2}-[a-zA-Z0-9]+$/.test(v)).sort().reverse()) {
       const node = join(root, v, "node.exe");
       const idx = join(root, v, "index.js");
-      if (existsSync(node) && existsSync(idx)) return { cmd: node, prefixArgs: [idx], shell: false };
+      if (existsSync(node) && existsSync(idx)) return { cmd: node, prefixArgs: ["--use-system-ca", idx], shell: false };
     }
   } catch {
     // fall through to shell shim

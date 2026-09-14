@@ -5,7 +5,7 @@ import type { AgentBackend,RoleConfig } from '../backend/agentBackend.js';
 import type { RunContext } from './context.js';
 import type { ArtifactKind } from './artifacts.js';
 import type { WorkflowDefinition,WorkflowTool,WorkflowAgentArgs,PreparedAgent } from './runtime.js';
-export type IntegrationProvider='claude'|'cursor'|'openrouter'|'openai'|'anthropic'|'gemini'|'ollama';
+export type IntegrationProvider='codex'|'claude'|'cursor'|'openrouter'|'openai'|'anthropic'|'gemini'|'ollama';
 export interface IntegrationAgent extends RoleConfig {provider?:IntegrationProvider;model?:string;keyEnv?:string;extraArgs?:string[]}
 export interface ProjectIntegrationDescriptor {version:1;id:string;name:string;module:string;envKeys:string[];agents:IntegrationAgent[];workflow:WorkflowDefinition}
 export interface ProjectIntegration {
@@ -15,7 +15,7 @@ export interface ProjectIntegration {
  fixtureBackendFor?:(role:RoleConfig)=>AgentBackend;
  artifacts?:(context:RunContext)=>Array<{title:string;kind:ArtifactKind;path?:string;url?:string;runId:string;agentId?:string}>;
 }
-const providers=['claude','cursor','openrouter','openai','anthropic','gemini','ollama'];
+const providers=['codex','claude','cursor','openrouter','openai','anthropic','gemini','ollama'];
 function within(root:string,path:string){const rel=relative(root,path);return !!rel&&!isAbsolute(rel)&&rel!=='..'&&!rel.startsWith('../')&&!rel.startsWith('..\\');}
 export function readProjectIntegration(projectPath:string):ProjectIntegrationDescriptor|undefined {
  const root=realpathSync(projectPath),file=join(root,'agent-room.integration.json');if(!existsSync(file))return undefined;

@@ -1,3 +1,5 @@
+import { EmptyState } from "./EmptyState";
+import { TopBar } from "./TopBar";
 import { collapseVisualMessages } from "../../../visualMessages";
 import { AgentMessage } from "./AgentMessage";
 import { useEffect, useState } from "react";
@@ -14,6 +16,7 @@ export function PlanningBoard() {
   const [text, setText] = useState("");
   const [attachments, setAttachments] = useState<string[]>([]);
   const [pathInput, setPathInput] = useState("");
+  const [advisor, setAdvisor] = useState("");
   const [busyAgentId, setBusyAgentId] = useState<string | null>(null);
   const [promoting, setPromoting] = useState<PlanningMessage | null>(null);
 
@@ -50,13 +53,14 @@ export function PlanningBoard() {
   };
 
   return (
-    <div className="viewRoot">
+    <div className="viewRoot workspaceView viewPlanningBoard">
+      <TopBar />
       <header className="rvHeader">
         <button className="pillBtn ghostBtn mono" onClick={() => showView("room")}>&larr; back</button>
         <span className="rvName">Planning &mdash; {project.name}</span>
       </header>
-      <div style={{ flex: 1, overflowY: "auto", padding: "18px 20px", display: "flex", flexDirection: "column", gap: 12, maxWidth: 720 }}>
-        {messages.length === 0 && <div className="dim" style={{ fontSize: 12.5 }}>No ideas posted yet — start the thread below.</div>}
+      <div className="conversationHistory planningHistory" style={{ flex: 1, overflowY: "auto", padding: "18px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
+        {messages.length === 0 && <EmptyState title="Give the next task a clear starting point" description="Post an idea, attach context, then invite an agent to contribute. Turn a useful proposal into a task when it is ready." />}
         {messages.map((m) => (
           <div key={m.id} style={{ display: "flex", gap: 10, padding: "10px 12px", border: "1px solid var(--rule)", borderRadius: 8, background: "var(--paper)" }}>
             <div className="monogram mono" style={{ width: 26, height: 26, fontSize: 10, background: colorFor(m.authorId), flexShrink: 0 }}>{initials(m.authorName)}</div>
@@ -79,15 +83,9 @@ export function PlanningBoard() {
         ))}
       </div>
 
-      <div style={{ padding: "12px 20px", borderTop: "1px solid var(--rule)", display: "flex", flexDirection: "column", gap: 8, maxWidth: 720 }}>
+      <div className="conversationComposer" style={{ padding: "12px 20px", borderTop: "1px solid var(--rule)", display: "flex", flexDirection: "column", gap: 8 }}>
         {project.agents.length > 0 && (
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {project.agents.map((a) => (
-              <button key={a.id} className="pillBtn ghostBtn mono" style={{ fontSize: 10.5 }} disabled={busyAgentId === a.id} onClick={() => void askAgent(a.id)}>
-                {busyAgentId === a.id ? "…" : `ask ${a.name}`}
-              </button>
-            ))}
-          </div>
+          <div className="planningAdvisor"><select className="fInput" aria-label="Invite an agent" value={advisor} onChange={e=>setAdvisor(e.target.value)}><option value="">Choose an agent to contribute</option>{project.agents.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select><button className="pillBtn" disabled={!!busyAgentId || !advisor || !messages.length} onClick={()=>void askAgent(advisor)}>{busyAgentId?'Thinking…':'Ask agent'}</button></div>
         )}
         {attachments.length > 0 && (
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>

@@ -16,15 +16,15 @@ function LnItem({ p, withBadge, withZone }: { p: Project; withBadge?: boolean; w
   const stats = useStore((s) => s.projectStats[p.id]);
   const { selectProject, showView } = useStore.getState();
   return (
-    <div className="lnItem" onClick={async () => { await selectProject(p); showView("room"); }}>
+    <div className="lnItem" role="group" onClick={async () => { await selectProject(p); showView("room"); }}>
       <span className="statusDot" style={{ background: isRunning(runningKeys, p) ? "var(--live)" : "var(--rule)" }} />
       <div style={{ minWidth: 0, flex: 1 }}>
-        <div className="liName">{p.name}</div>
+        <button className="projectOpenButton" onClick={async e=>{e.stopPropagation();await selectProject(p);showView("room");}}>{p.name}</button>
         <div className="liPath">{p.path}</div>
       </div>
       {withZone && (
         <select
-          className="mono"
+          aria-label={`Zone for ${p.name}`} className="mono"
           style={{ background: "var(--sink)", color: "var(--ink)", border: "1px solid var(--rule)", borderRadius: 5, fontSize: 10 }}
           value={p.zone ?? ""}
           onClick={(e) => e.stopPropagation()}
@@ -103,18 +103,18 @@ export function Launcher({ onNewAgent }: { onNewAgent: () => void }) {
         <span className="wordmark">Agentic Control Room</span>
         <div className="spacer" />
         {toast && <span className="mono dim toast">{toast}</span>}
-        <button className="pillBtn ghostBtn mono" onClick={() => showView("admin")}>admin</button>
+        <button className="pillBtn ghostBtn mono" onClick={() => showView("admin")}>settings</button>
         <button className="pillBtn iconBtn" title="Toggle theme" onClick={toggleTheme}>{theme === "light" ? "☀" : "☽"}</button>
       </header>
       <div className="lnScroll">
         <div className="lnCol">
           <div className="lnGreetRow">
-            <h1>Open project</h1>
+            <h1>Projects</h1>
             <button className="pillBtn fillBtn" onClick={() => void handleNewAgent()}>
               + new agent
             </button>
           </div>
-          <p className="lnSub dim">Open a local folder or connect a repository, then bring in the agents who'll work it.</p>
+          <p className="lnSub dim">Open a workspace, assemble a team and keep its work in one place.</p>
 
           {projects.length > 0 && (
             <input
@@ -127,8 +127,8 @@ export function Launcher({ onNewAgent }: { onNewAgent: () => void }) {
           )}
 
           <div className="segGroup">
-            <div className={`segOpt${tab === "local" ? " on" : ""}`} onClick={() => setTab("local")}>Local folder</div>
-            <div className={`segOpt${tab === "repo" ? " on" : ""}`} onClick={() => setTab("repo")}>Repository</div>
+            <button type="button" className={`segOpt${tab === "local" ? " on" : ""}`} onClick={() => setTab("local")}>Local folder</button>
+            <button type="button" className={`segOpt${tab === "repo" ? " on" : ""}`} onClick={() => setTab("repo")}>Repository</button>
           </div>
 
           {tab === "local" && (
@@ -140,12 +140,7 @@ export function Launcher({ onNewAgent }: { onNewAgent: () => void }) {
                 onDragLeave={() => setDrag(false)}
                 onDrop={(e) => { e.preventDefault(); setDrag(false); void createProject(); }}
               >
-                Drop a folder, or <button className="pillBtn ghostBtn" onClick={(e) => { e.stopPropagation(); void createProject(); }}>browse&hellip;</button>
-              </div>
-              <div className="lnList">
-                {recent.length === 0
-                  ? <div className="lnEmpty">{query ? "No matches." : "No local folders opened yet."}</div>
-                  : recent.map((p) => <LnItem key={p.id} p={p} />)}
+                Choose a project folder <button className="pillBtn ghostBtn" onClick={(e) => { e.stopPropagation(); void createProject(); }}>browse&hellip;</button>
               </div>
             </div>
           )}
@@ -177,7 +172,7 @@ export function Launcher({ onNewAgent }: { onNewAgent: () => void }) {
             </div>
           )}
 
-          <h6 className="lnRoomsHead dim">Open rooms</h6>
+          <h6 className="lnRoomsHead dim">Your projects</h6>
           {filtered.length === 0 ? (
             <div className="lnList"><div className="lnEmpty">{query ? "No matches." : "No rooms yet — open a folder above."}</div></div>
           ) : anyZoned ? (

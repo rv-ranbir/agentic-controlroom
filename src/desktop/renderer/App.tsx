@@ -1,3 +1,4 @@
+import "./Workspace.css";
 import { useEffect, useState } from "react";
 import { useStore } from "./store";
 import { Launcher } from "./components/Launcher";
@@ -18,6 +19,7 @@ import { NewAgentModal } from "./components/NewAgentModal";
 import { ArtifactTabs } from "./components/ArtifactTabs";
 
 export function App() {
+  const projectId = useStore((s) => s.selectedProjectId);
   const view = useStore((s) => s.view);
   const init = useStore((s) => s.init);
   const showView = useStore.getState().showView;
@@ -28,19 +30,19 @@ export function App() {
   return (
     <>
       {view === "launcher" && <Launcher onNewAgent={() => setModalOpen(true)} />}
-      {view === "room" && <Room onAddAgent={() => setModalOpen(true)} onOpenReview={() => showView("review")} />}
-      {view === "review" && <Review />}
-      {view === "terminal" && <Terminal />}
-      {view === "env" && <Environment />}
-      {view === "ide" && <Ide />}
-      {view === "board" && <TaskBoard />}
-      {view === "chat" && <ChatBoard />}
-      {view === "meeting" && <MeetingRoom />}
-      {view === "debate" && <DebateRoom />}
-      {view === "planning" && <PlanningBoard />}
+      {view === "room" && <Room key={projectId} onAddAgent={() => setModalOpen(true)} onOpenReview={() => showView("review")} />}
+      {view === "review" && <Review key={projectId} />}
+      {view === "terminal" && <Terminal key={projectId} />}
+      {view === "env" && <Environment key={projectId} />}
+      {view === "ide" && <Ide key={projectId} />}
+      {view === "board" && <TaskBoard key={projectId} />}
+      {view === "chat" && <ChatBoard key={projectId} />}
+      {view === "meeting" && <MeetingRoom key={projectId} />}
+      {view === "debate" && <DebateRoom key={projectId} />}
+      {view === "planning" && <PlanningBoard key={projectId} />}
       {view === "admin" && <AdminPanel />}
-      {view === "floor" && <OfficeFloor />}
-      {view === "workflows" && <ProjectWorkflows />}
+      {view === "floor" && <OfficeFloor key={projectId} />}
+      {view === "workflows" && <ProjectWorkflows key={projectId} />}
       {modalOpen && <NewAgentModal onClose={() => setModalOpen(false)} />}
       <ArtifactTabs />
     </>

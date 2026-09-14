@@ -1,3 +1,4 @@
+import { TopBar } from "./TopBar";
 import { useEffect, useState } from "react";
 import { useStore } from "../store";
 import { agentIdOf, colorFor, initials } from "../lib/agents";
@@ -25,7 +26,8 @@ export function Review() {
   const agent = project?.agents.find((a) => a.id === selectedAgent);
   if (!project || !agent || !selectedAgent) {
     return (
-      <div className="viewRoot">
+      <div className="viewRoot workspaceView viewReview">
+      <TopBar />
         <header className="rvHeader">
           <button className="pillBtn ghostBtn mono" onClick={() => showView("room")}>&larr; back</button>
         </header>
@@ -38,7 +40,8 @@ export function Review() {
   const turns = messages.filter((m) => { const id = agentIdOf(m); return id === selectedAgent || id === "user"; });
 
   return (
-    <div className="viewRoot">
+    <div className="viewRoot workspaceView viewReview">
+      <TopBar />
       <header className="rvHeader">
         <button className="pillBtn ghostBtn mono" onClick={() => showView("room")}>&larr; back</button>
         <div className="monogram mono" style={{ width: 26, height: 26, fontSize: 10, background: colorFor(selectedAgent) }}>{initials(agent.name)}</div>

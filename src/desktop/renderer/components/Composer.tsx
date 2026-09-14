@@ -87,7 +87,7 @@ export function Composer() {
 
   const submit = () => {
     const v = text.trim();
-    if (!v || !project) return;
+    if (!v || !project || !project.agents.length) return;
     setText("");
     submitComposer(v);
   };
@@ -151,7 +151,7 @@ export function Composer() {
             if (e.key === "Escape") (e.target as HTMLInputElement).blur();
           }}
         />
-        <button className="pillBtn sendBtn mono" disabled={!project} onClick={submit}>{sendLabel}</button>
+        <button className="pillBtn sendBtn mono" disabled={!project || !project.agents.length || !text.trim()} onClick={submit}>{sendLabel}</button>
       </div>
       <div className="hintRow dim mono">&crarr; {busy ? "queue" : "send"} &middot; esc roster</div>
       {libOpen && <PromptLibraryModal onClose={() => { setLibOpen(false); setPrompts(loadPrompts()); }} />}

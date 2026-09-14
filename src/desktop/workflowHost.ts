@@ -12,9 +12,9 @@ import { ArtifactStore } from '../workflow/artifacts.js';
 import { RunContext } from '../workflow/context.js';
 import { readProjectDashboard } from '../projectDashboard.js';
 import { createDashboardWindowManager } from './projectDashboardWindow.js';
-export interface RuntimeAgent {id:string;name:string;roleId?:string;systemPrompt?:string;provider?:"cursor"|"claude"|"openrouter"|"openai"|"anthropic"|"gemini"|"ollama";model?:string;keyEnv?:string}
+export interface RuntimeAgent {id:string;name:string;roleId?:string;systemPrompt?:string;provider?:"codex"|"cursor"|"claude"|"openrouter"|"openai"|"anthropic"|"gemini"|"ollama";model?:string;keyEnv?:string}
 export interface RuntimeProject {id:string;name:string;path:string;agents?:RuntimeAgent[]}
-interface Options {environment?(p:RuntimeProject):Record<string,string|undefined>;projects():RuntimeProject[];role(p:RuntimeProject,a:RuntimeAgent):RoleConfig;backend(p:RuntimeProject,a:RuntimeAgent):AgentBackend;running:Set<string>;log(p:RuntimeProject):ChatLog;event(id:string,event:Record<string,unknown>):void}
+interface Options {tokenSaving?():boolean;environment?(p:RuntimeProject):Record<string,string|undefined>;projects():RuntimeProject[];role(p:RuntimeProject,a:RuntimeAgent):RoleConfig;backend(p:RuntimeProject,a:RuntimeAgent):AgentBackend;running:Set<string>;log(p:RuntimeProject):ChatLog;event(id:string,event:Record<string,unknown>):void}
 export function createWorkflowHost(o:Options){
  const controllers=new Map<string,AbortController>();
  const windows=createDashboardWindowManager(options=>new BrowserWindow(options));
@@ -35,7 +35,7 @@ export function createWorkflowHost(o:Options){
   const roles=p.agents.map(a=>o.role(p,a)); new ArtifactStore(p.path);
   const controller=new AbortController();controllers.set(p.id,controller);o.running.add(p.id);o.event(p.id,{kind:'running',running:true});
   const log=o.log(p);log.post('user','user',`${fixture?'[FIXTURE] ':''}${input}`);
-  void (async()=>{const integration=await loadProjectIntegration(p.path,{fixture,environment:Object.fromEntries(Object.entries(o.environment?.(p)??process.env).filter((entry):entry is [string,string]=>typeof entry[1]==='string'))});return {integration,run:await executeWorkflow({publishPresentation:artifact=>new ArtifactStore(p.path).add({...artifact,kind:'dashboard'}).id,tools:integration?.tools,prepareAgent:integration?.prepareAgent,afterAgent:integration?.afterAgent,directory:directory(p),definition,agents:roles,log,input:fixture?`SYNTHETIC FIXTURE: ${input}`:input,signal:controller.signal,backendFor:role=>fixture?(integration?.fixtureBackendFor?.(role)??{
+  void (async()=>{const integration=await loadProjectIntegration(p.path,{fixture,environment:Object.fromEntries(Object.entries(o.environment?.(p)??process.env).filter((entry):entry is [string,string]=>typeof entry[1]==='string'))});return {integration,run:await executeWorkflow({tokenSaving:o.tokenSaving?.()===true,publishPresentation:artifact=>new ArtifactStore(p.path).add({...artifact,kind:'dashboard'}).id,tools:integration?.tools,prepareAgent:integration?.prepareAgent,afterAgent:integration?.afterAgent,directory:directory(p),definition,agents:roles,log,input:fixture?`SYNTHETIC FIXTURE: ${input}`:input,signal:controller.signal,backendFor:role=>fixture?(integration?.fixtureBackendFor?.(role)??{
    start:async()=>({sessionId:'',reply:`SYNTHETIC FIXTURE — ${role.name} completed its assigned step. No external model or tool was called.`}),resume:async()=>({reply:'SYNTHETIC FIXTURE'})
   }):o.backend(p,p.agents!.find(a=>a.id===role.id)!)} )};})().then(({run,integration})=>{
    const context=new RunContext(join(directory(p),run.id,'context'));const output=join('.agentic-controlroom','runs',run.id,'report.html');

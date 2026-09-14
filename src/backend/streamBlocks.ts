@@ -12,6 +12,14 @@ export function classifyLine(line: string): AgentBlock {
     const o = obj as Record<string, unknown>;
     const type = String(o.type ?? "event");
 
+    if (type.startsWith("item.")) {
+      const item = o.item as Record<string, unknown> | undefined;
+      if (item?.type === "agent_message") return {kind:"prose",text:String(item.text ?? "").slice(0,400),raw:line};
+      if (item?.type === "command_execution" || item?.type === "mcp_tool_call") return {kind:"tool",text:String(item.command ?? item.tool ?? "Tool").slice(0,300),toolName:String(item.tool ?? item.type),raw:line};
+    }
+    if (type === "turn.failed") return {kind:"error",text:String((o.error as {message?:string})?.message ?? "Codex turn failed").slice(0,300),raw:line};
+    if (type === "thread.started" || type === "turn.started" || type === "turn.completed") return {kind:"system",text:type,raw:line};
+
     if (type === "assistant" || type === "message") {
       const message = o.message as { content?: unknown; text?: unknown } | undefined;
       const content = message?.content;

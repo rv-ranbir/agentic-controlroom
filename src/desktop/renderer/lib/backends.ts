@@ -1,10 +1,11 @@
 import type { AdminConfig, Category, Project } from "../types";
 
 export const BACKENDS: { id: Project["backend"]; label: string }[] = [
+  { id: "codex", label: "Codex (ChatGPT login)" },
   { id: "claude", label: "Claude Code" },
-  { id: "cursor", label: "Cursor CLI" },
+  { id: "cursor", label: "Cursor (account login)" },
   { id: "openrouter", label: "OpenRouter" },
-  { id: "openai", label: "OpenAI" },
+  { id: "openai", label: "OpenAI API" },
   { id: "anthropic", label: "Anthropic" },
   { id: "gemini", label: "Gemini" },
   { id: "ollama", label: "Ollama" },

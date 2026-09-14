@@ -51,6 +51,7 @@ contextBridge.exposeInMainWorld("api", {
   addTeam: (name: string, members: { source: "role" | "library"; refId: string }[]) => ipcRenderer.invoke("teams:add", { name, members }),
   removeTeam: (id: string) => ipcRenderer.invoke("teams:remove", id),
   getAdminConfig: () => ipcRenderer.invoke("admin:get"),
+  setTokenSaving: (enabled: boolean) => ipcRenderer.invoke("admin:setTokenSaving", enabled),
   setGlobalAllowlist: (list: string[]) => ipcRenderer.invoke("admin:setGlobalAllowlist", list),
   setCategoryAllowlist: (categoryId: string, list: string[]) => ipcRenderer.invoke("admin:setCategoryAllowlist", { categoryId, list }),
   addCategory: (label: string) => ipcRenderer.invoke("admin:addCategory", label),
@@ -107,7 +108,7 @@ contextBridge.exposeInMainWorld("api", {
   removeSecret: (projectId: string, key: string) => ipcRenderer.invoke("secrets:remove", { projectId, key }),
   setAgentModel: (projectId: string, agentId: string, model: string) => ipcRenderer.invoke("agents:setModel", { projectId, agentId, model }),
   listAccounts: () => ipcRenderer.invoke("accounts:list"),
-  addAccount: (provider: "claude" | "cursor" | "openrouter" | "openai" | "anthropic" | "gemini" | "ollama", name: string, env: Record<string, string>) => ipcRenderer.invoke("accounts:add", { provider, name, env }),
+  addAccount: (provider: "codex" | "claude" | "cursor" | "openrouter" | "openai" | "anthropic" | "gemini" | "ollama", name: string, env: Record<string, string>) => ipcRenderer.invoke("accounts:add", { provider, name, env }),
   removeAccount: (id: string) => ipcRenderer.invoke("accounts:remove", { id }),
   setActiveAccount: (projectId: string, accountId?: string) => ipcRenderer.invoke("accounts:setActive", { projectId, accountId }),
   onQuotaEvent: (cb: (e: { projectId: string; agentId: string }) => void) => {

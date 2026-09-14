@@ -1,3 +1,4 @@
+import { EmptyState } from "./EmptyState";
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "../store";
 import { agentIdOf, bucketOf } from "../lib/agents";
@@ -19,13 +20,15 @@ export function Stream({ agentId, interactive = true }: { agentId?: string; inte
   const project = useStore((s) => s.projects.find((p) => p.id === s.selectedProjectId));
   const fetchDiff = useStore((s) => s.fetchDiff);
   const streamRef = useRef<HTMLDivElement>(null);
+  const follow = useRef(true);
+  useEffect(() => { follow.current=true; }, [selectedAgent]);
   const [commits, setCommits] = useState<CommitRecord[]>([]);
 
   const bucket = selectedAgent ? bucketOf(selectedAgent, { agentStates, localSeen, localForceActive }) : null;
   const agentName = project?.agents.find((a) => a.id === selectedAgent)?.name;
 
   useEffect(() => {
-    if (streamRef.current) streamRef.current.scrollTop = streamRef.current.scrollHeight;
+    if (streamRef.current && follow.current) streamRef.current.scrollTop = streamRef.current.scrollHeight;
   }, [messages, activityLog, selectedAgent, rawMode]);
 
   useEffect(() => {
@@ -63,7 +66,7 @@ export function Stream({ agentId, interactive = true }: { agentId?: string; inte
   const acts = selectedAgent ? (activityLog[selectedAgent] ?? []) : [];
 
   if (visibleMessages.length === 0 && acts.length === 0 && commits.length === 0) {
-    return <div id="stream" ref={streamRef}><div className="streamEmpty">No activity yet.</div></div>;
+    return <div id="stream" ref={streamRef} onScroll={e=>{const el=e.currentTarget;follow.current=el.scrollHeight-el.scrollTop-el.clientHeight<80;}}><EmptyState title={project?.agents.length ? (agentName ? `Work with ${agentName}` : 'Start a conversation or workflow') : 'Build your project team'} description={project?.agents.length ? 'Describe a task below. Agent replies, evidence and interactive results will appear here.' : 'Add agents with the roles and providers your project needs. No default team is required.'}>{!project?.agents.length ? <button className="pillBtn fillBtn" onClick={()=>document.querySelector<HTMLButtonElement>('#rosterTop button:last-child')?.click()}>Add your first agent</button> : <button className="pillBtn" onClick={()=>useStore.getState().showView('workflows')}>Explore workflows</button>}</EmptyState></div>;
   }
 
   if (rawMode) {
@@ -72,7 +75,7 @@ export function Stream({ agentId, interactive = true }: { agentId?: string; inte
       ...acts.map((a) => `$ ${a.raw ?? a.text}`),
     ];
     return (
-      <div id="stream" ref={streamRef}>
+      <div id="stream" ref={streamRef} onScroll={e=>{const el=e.currentTarget;follow.current=el.scrollHeight-el.scrollTop-el.clientHeight<80;}}>
         <pre className="mono" style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontSize: 11, color: "var(--ink-70)", margin: 0 }}>
           {lines.join("\n\n")}
         </pre>
@@ -97,7 +100,7 @@ export function Stream({ agentId, interactive = true }: { agentId?: string; inte
   }
 
   return (
-    <div id="stream" ref={streamRef}>
+    <div id="stream" ref={streamRef} onScroll={e=>{const el=e.currentTarget;follow.current=el.scrollHeight-el.scrollTop-el.clientHeight<80;}}>
       {combined.map((item, i) => {
         if ("m" in item) {
           return i === askIndex

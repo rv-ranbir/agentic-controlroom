@@ -1,3 +1,4 @@
+import { CodexCliBackend, resolveCodexBinary } from '../backend/codexCliBackend.js';
 import { createErrorLog, appErrorLogPath, type ErrorContext } from './errorLog.js';
 import { SubagentRegistry } from "./subagentPresence.js";
 import { app, BrowserWindow, desktopCapturer, dialog, ipcMain, Notification, safeStorage, screen, shell } from "electron";
@@ -76,8 +77,8 @@ interface Project {
 }
 
 // ── Admin panel (M10): provider governance + user-extensible role/agent categories ──
-type BackendId = "cursor" | "claude" | "openrouter" | "openai" | "anthropic" | "gemini" | "ollama";
-const ALL_BACKENDS: BackendId[] = ["claude", "cursor", "openrouter", "openai", "anthropic", "gemini", "ollama"];
+type BackendId = "codex" | "cursor" | "claude" | "openrouter" | "openai" | "anthropic" | "gemini" | "ollama";
+const ALL_BACKENDS: BackendId[] = ["codex", "claude", "cursor", "openrouter", "openai", "anthropic", "gemini", "ollama"];
 const HTTP_BACKENDS = new Set<BackendId>(["openai", "anthropic", "gemini", "ollama"]);
 
 interface Category {
@@ -88,6 +89,7 @@ interface Category {
 }
 
 interface AdminConfig {
+  tokenSaving: boolean;
   globalAllowlist: BackendId[];
   categoryAllowlist: Record<string, BackendId[]>; // categoryId -> subset of globalAllowlist
   categories: Category[];
@@ -102,6 +104,7 @@ function defaultAdminConfig(): AdminConfig {
     { label: "Community", ids: ["tech-writer", "sre", "growth", "support-triage"] },
   ];
   return {
+    tokenSaving: false,
     globalAllowlist: [...ALL_BACKENDS],
     categoryAllowlist: {},
     categories: seed.map((g, i) => ({
@@ -119,7 +122,8 @@ function adminConfigFile(): string {
 
 function loadAdminConfig(): AdminConfig {
   try {
-    return JSON.parse(readFileSync(adminConfigFile(), "utf8"));
+    const config = JSON.parse(readFileSync(adminConfigFile(), "utf8"));
+    return { ...config, tokenSaving: config.tokenSaving === true };
   } catch {
     const config = defaultAdminConfig();
     saveAdminConfig(config);
@@ -177,7 +181,7 @@ const ptySessions = new Map<string, IPty>(); // "projectId:agentId" -> live inte
 // bash tool) run inside that CLI's process and are outside our reach —
 // this only gates what Agentic Control Room itself decides to spawn.
 const ALLOWED_BIN_NAMES = new Set([
-  "claude", "cursor-agent", "cloudflared", "whisper",
+  "codex", "claude", "cursor-agent", "cloudflared", "whisper",
   "cmd", "powershell", "pwsh",
   "bash", "sh", "zsh", "fish", "dash", "ash", "ksh", "tcsh", "csh",
 ]);
@@ -882,7 +886,7 @@ function prependMemory<T extends { systemPrompt: string }>(role: T, project: Pro
 // project can switch which login/key an agent spawns with once a provider's
 // quota is hit. Agentic Control Room can't reliably auto-detect *which* account failed
 // or auto-switch mid-run — it surfaces the option and lets the user pick.
-interface Account { id: string; provider: "claude" | "cursor" | "openrouter" | "openai" | "anthropic" | "gemini" | "ollama"; name: string; env: StoredSecret[] }
+interface Account { id: string; provider: "codex" | "claude" | "cursor" | "openrouter" | "openai" | "anthropic" | "gemini" | "ollama"; name: string; env: StoredSecret[] }
 
 function accountsFile(): string {
   return join(app.getPath("userData"), "accounts.json");
@@ -904,7 +908,7 @@ function listAccountsSafe(): { id: string; provider: string; name: string; envKe
   return loadAccounts().map((a) => ({ id: a.id, provider: a.provider, name: a.name, envKeys: a.env.map((e) => e.key) }));
 }
 
-function addAccount(provider: "claude" | "cursor" | "openrouter" | "openai" | "anthropic" | "gemini" | "ollama", name: string, env: Record<string, string>): void {
+function addAccount(provider: "codex" | "claude" | "cursor" | "openrouter" | "openai" | "anthropic" | "gemini" | "ollama", name: string, env: Record<string, string>): void {
   const list = loadAccounts();
   list.push({
     id: randomUUID(),
@@ -1136,6 +1140,7 @@ function createProviderBackend(project: Project, agent?: AgentRef): AgentBackend
     extraArgs: agent?.extraArgs,
     env,
   };
+  if (provider === "codex") { const bin = resolveCodexBinary(); assertAllowedBin(bin); return new CodexCliBackend({...opts, bin}); }
   if (provider === "openrouter") return new OpenRouterBackend(opts);
   assertAllowedBin(provider === "claude" ? (process.env.CLAUDE_BIN ?? "claude") : (process.env.CURSOR_AGENT_BIN ?? "cursor-agent"));
   return provider === "claude" ? new ClaudeCliBackend(opts) : new CursorCliBackend(opts);
@@ -1144,7 +1149,7 @@ function createProviderBackend(project: Project, agent?: AgentRef): AgentBackend
 function capabilityService(project:Project,agent?:AgentRef,surface?:'planning') {
  const provider=effectiveProvider(project,agent);
  let projectTools:string[]=[];try{projectTools=readProjectIntegration(project.path)?.workflow.steps.flatMap(s=>s.tool?[s.tool]:[])??[];}catch{/* Discovery does not run project code. */}
- const cli=provider==='claude'||provider==='cursor';
+ const cli=provider==='claude'||provider==='cursor'||provider==='codex';
  return createCapabilityService({projectPath:project.path,provider,
   skills:()=>listSkills().map(s=>({...s,attached:!!agent?.skillIds?.includes(s.id)})),
   readSkill:id=>{if(!/^[A-Za-z0-9_-]+$/.test(id))throw new Error('Invalid skill id');const path=realpathSync(join(skillsDir,id+'.md'));const rel=relative(realpathSync(skillsDir),path);if(rel.startsWith('..')||rel.includes(':')||statSync(path).size>65536)throw new Error('Invalid skill file');return readFileSync(path,'utf8');},
@@ -1155,7 +1160,7 @@ function capabilityService(project:Project,agent?:AgentRef,surface?:'planning') 
 }
 function makeBackend(project:Project,agent?:AgentRef,surface?:'planning'):AgentBackend {
  const service=capabilityService(project,agent,surface);
- return withCapabilities(createProviderBackend(project,agent),{catalogue:service.catalogue,execute:service.execute});
+ return withCapabilities(createProviderBackend(project,agent),{catalogue:service.catalogue,execute:service.execute,tokenSaving:loadAdminConfig().tokenSaving,retainedSession:['claude','cursor','codex'].includes(effectiveProvider(project,agent))});
 }
 
 // M4 Launcher stats: main.ts is the one place that sees every project's
@@ -1190,7 +1195,7 @@ function wiredLog(project: Project): ChatLog {
   });
   log.on("activity", (a: { agentId: string; line: string }) => {
     const provider=project.agents?.find(agent=>agent.id===a.agentId)?.provider??project.backend;
-    if(provider==='claude'&&subagents.consume(project.id,a.agentId,a.line))send('office:subagents',subagents.snapshot());
+    if(['claude','cursor','codex'].includes(provider)&&subagents.consume(project.id,a.agentId,a.line,provider))send('office:subagents',subagents.snapshot());
     send("room:event", { projectId: project.id, kind: "activity", ...a });
   });
   return log;
@@ -1228,6 +1233,7 @@ const workflowHost = createWorkflowHost({
   running,
   role: roleFor,
   backend: makeBackend,
+  tokenSaving: () => loadAdminConfig().tokenSaving,
   log: wiredLog,
   event: (projectId, event) => send("room:event", { projectId, ...event }),
 });
@@ -1262,13 +1268,15 @@ async function sendToAgent(project: Project, agent: AgentRef, prompt: string): P
     const backend = makeBackend(project, agent);
     const onLine = (line: string) => { log.activity(agent.id, line); checkQuota(project, agent, line); };
     const onProcess = (child: ChildProcess) => runningProcs.set(key, child);
-    const sessionId = loadSessions(project)[agent.id];
+    const sessionKey = `${effectiveProvider(project, agent)}:${agent.id}`;
+    const sessions = loadSessions(project);
+    const sessionId = sessions[sessionKey] ?? (effectiveProvider(project, agent) === "codex" ? undefined : sessions[agent.id]);
     let reply: string;
     if (sessionId) {
       reply = (await backend.resume(sessionId, fullPrompt, role, onLine, onProcess)).reply;
     } else {
       const r = await backend.start(role, fullPrompt, onLine, onProcess);
-      if (r.sessionId) saveSession(project, agent.id, r.sessionId);
+      if (r.sessionId) saveSession(project, sessionKey, r.sessionId);
       reply = r.reply;
     }
     log.post(agent.id, agent.name, reply);
@@ -1386,10 +1394,11 @@ function ptyKey(projectId: string, agentId: string): string {
 }
 
 function startPty(project: Project, agentId: string): { alreadyRunning: boolean } {
-  if (project.backend === "openrouter") throw new Error("OpenRouter has no interactive CLI — the terminal pane only works with the Cursor or Claude Code backends.");
+  const provider = effectiveProvider(project, project.agents?.find(a => a.id === agentId));
+  if (!["claude", "cursor", "codex"].includes(provider)) throw new Error("This provider has no interactive CLI.");
   const key = ptyKey(project.id, agentId);
   if (ptySessions.has(key)) return { alreadyRunning: true };
-  const bin = project.backend === "claude" ? (process.env.CLAUDE_BIN ?? "claude") : (process.env.CURSOR_AGENT_BIN ?? "cursor-agent");
+  const bin = provider === "codex" ? resolveCodexBinary() : provider === "claude" ? (process.env.CLAUDE_BIN ?? "claude") : (process.env.CURSOR_AGENT_BIN ?? "cursor-agent");
   assertAllowedBin(bin);
   const shell = process.platform === "win32" ? "cmd.exe" : (process.env.SHELL ?? "/bin/bash");
   assertAllowedBin(shell);
@@ -1731,6 +1740,13 @@ app.whenReady().then(() => {
   });
 
   registerHandler("admin:get", () => loadAdminConfig());
+  registerHandler("admin:setTokenSaving", (_e, enabled: unknown) => {
+    if (typeof enabled !== 'boolean') throw new Error('Token saving must be a boolean.');
+    const config = loadAdminConfig();
+    config.tokenSaving = enabled;
+    saveAdminConfig(config);
+    return config;
+  });
   registerHandler("admin:setGlobalAllowlist", (_e, list: BackendId[]) => {
     const config = loadAdminConfig();
     config.globalAllowlist = list;
@@ -1958,7 +1974,7 @@ app.whenReady().then(() => {
 
   registerHandler("accounts:list", () => listAccountsSafe());
 
-  registerHandler("accounts:add", (_e, { provider, name, env }: { provider: "claude" | "cursor" | "openrouter" | "openai" | "anthropic" | "gemini" | "ollama"; name: string; env: Record<string, string> }) => {
+  registerHandler("accounts:add", (_e, { provider, name, env }: { provider: "codex" | "claude" | "cursor" | "openrouter" | "openai" | "anthropic" | "gemini" | "ollama"; name: string; env: Record<string, string> }) => {
     addAccount(provider, name, env);
     return listAccountsSafe();
   });

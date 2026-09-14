@@ -3,6 +3,7 @@ import { create } from "zustand";
 import type { AgentRef, Project, Msg, RoomEvent, DiffResult } from "./types";
 import { bucketOf, deriveAgentStates } from "./lib/agents";
 import { pushTick, clearTicks } from "./lib/rail";
+import { APP_THEME_PRESET_KEY, PROJECT_THEME_PRESETS_KEY, applyThemePreset, effectiveThemePreset, isThemePreset, readProjectThemePresets, readThemePreset, type ProjectThemePresets, type ThemePreset } from "./lib/themes";
 
 export type View = "launcher" | "room" | "review" | "terminal" | "env" | "ide" | "planning" | "board" | "chat" | "meeting" | "admin" | "floor" | "debate" | "workflows";
 
@@ -16,6 +17,8 @@ interface State {
   branch: string;
   view: View;
   theme: "dark" | "light";
+  appThemePreset: ThemePreset;
+  projectThemePresets: ProjectThemePresets;
   toast: string;
   rawMode: boolean;
   repoCloning: boolean;
@@ -38,6 +41,8 @@ interface State {
   fetchProjectStats(): Promise<void>;
   showView(v: View): void;
   toggleTheme(): void;
+  setAppThemePreset(preset: ThemePreset): void;
+  setProjectThemePreset(projectId: string, preset: ThemePreset | undefined): void;
   showToast(text: string): void;
   refreshProjects(): Promise<void>;
   selectProject(p: Project): Promise<void>;
@@ -69,6 +74,10 @@ function composerKey(projectId: string, agentId: string | null): string {
   return `${projectId}:${agentId ?? ""}`;
 }
 
+function applyPresetForView(view: View, appPreset: ThemePreset, selectedProjectId: string | null, projectThemePresets: ProjectThemePresets): void {
+  applyThemePreset(view === "launcher" || view === "admin" ? appPreset : effectiveThemePreset(appPreset, selectedProjectId, projectThemePresets));
+}
+
 // Pop and send the next queued message for a target once it's gone idle —
 // each send re-busies the target, so the following agentState/running event
 // drives the next pop (one at a time, never a burst).
@@ -95,7 +104,9 @@ export const useStore = create<State>((set, get) => ({
   messages: [],
   branch: "",
   view: "launcher",
-  theme: (localStorage.getItem("agentic-controlroom-theme") as "dark" | "light") ?? "dark",
+  theme: localStorage.getItem("agentic-controlroom-theme") === "light" ? "light" : "dark",
+  appThemePreset: readThemePreset(localStorage.getItem(APP_THEME_PRESET_KEY)),
+  projectThemePresets: readProjectThemePresets(localStorage.getItem(PROJECT_THEME_PRESETS_KEY)),
   toast: "",
   rawMode: false,
   repoCloning: false,
@@ -137,6 +148,7 @@ export const useStore = create<State>((set, get) => ({
   },
 
   async init() {
+    applyPresetForView("launcher", get().appThemePreset, null, get().projectThemePresets);
     if (get().theme === "light") document.documentElement.setAttribute("data-theme", "light");
     const [roles, projects, running] = await Promise.all([api.listRoles(), api.listProjects(), api.getRunning()]);
     const runningKeys: Record<string, true> = {};
@@ -144,7 +156,12 @@ export const useStore = create<State>((set, get) => ({
     set({ roles, projects, runningKeys, view: "launcher" });
   },
 
-  showView(v) { set({ view: v }); },
+  showView(v) {
+    set({ view: v });
+    const state = get();
+    applyPresetForView(v, state.appThemePreset, state.selectedProjectId, state.projectThemePresets);
+  },
+
 
   toggleTheme() {
     const next = get().theme === "dark" ? "light" : "dark";
@@ -152,6 +169,24 @@ export const useStore = create<State>((set, get) => ({
     else document.documentElement.removeAttribute("data-theme");
     localStorage.setItem("agentic-controlroom-theme", next);
     set({ theme: next });
+  },
+
+  setAppThemePreset(preset) {
+    if (!isThemePreset(preset)) return;
+    localStorage.setItem(APP_THEME_PRESET_KEY, preset);
+    set({ appThemePreset: preset });
+    const state = get();
+    applyPresetForView(state.view, preset, state.selectedProjectId, state.projectThemePresets);
+  },
+
+  setProjectThemePreset(projectId, preset) {
+    if (preset !== undefined && !isThemePreset(preset)) return;
+    const projectThemePresets = { ...get().projectThemePresets };
+    if (preset) projectThemePresets[projectId] = preset; else delete projectThemePresets[projectId];
+    localStorage.setItem(PROJECT_THEME_PRESETS_KEY, JSON.stringify(projectThemePresets));
+    set({ projectThemePresets });
+    const state = get();
+    applyPresetForView(state.view, state.appThemePreset, state.selectedProjectId, projectThemePresets);
   },
 
   showToast(text) {
@@ -175,6 +210,7 @@ export const useStore = create<State>((set, get) => ({
       needsInputCounts: {}, modelSuggestion: {},
       diff: null,
     });
+    applyPresetForView(get().view, get().appThemePreset, get().selectedProjectId, get().projectThemePresets);
     void api.gitBranch(p.path).then((b) => set({ branch: b }));
     const lastOpenedAt = Date.now();
     void api.updateProject({ id: p.id, lastOpenedAt });

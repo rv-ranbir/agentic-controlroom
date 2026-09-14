@@ -59,9 +59,9 @@ export function EnvSecretsTab({ project }: { project: Project }) {
         <button className="pillBtn fillBtn" onClick={() => void add()}>add</button>
       </div>
 
-      <h4 style={{ marginTop: 28, marginBottom: 4 }}>Accounts ({project.backend})</h4>
+      <h4 style={{ marginTop: 28, marginBottom: 4 }}>Credential profiles ({project.backend})</h4>
       <p className="dim" style={{ fontSize: 11, marginTop: 0 }}>
-        Switch which credentials this project's agents spawn with — useful after a quota or rate-limit hit.
+        Profiles supply environment credentials. They do not switch Claude, Cursor or Codex subscription accounts. Use the provider’s official login for subscription access.
       </p>
       <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13, marginBottom: 6 }}>
         <input type="radio" checked={!project.activeAccountId} onChange={() => void setActive(undefined)} />

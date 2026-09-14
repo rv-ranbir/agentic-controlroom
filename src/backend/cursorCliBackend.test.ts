@@ -23,3 +23,20 @@ test("falls back to raw text when output is not json", () => {
   assert.equal(parsed.reply, "plain text reply");
   assert.equal(parsed.sessionId, undefined);
 });
+
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { resolveLauncher } from './cursorCliBackend.js';
+test('Windows Cursor launcher ignores staging folders and retains system certificate trust', {skip:process.platform!=='win32'}, () => {
+ const root=mkdtempSync(join(tmpdir(),'cursor-launcher-'));const previous=process.env.LOCALAPPDATA;
+ try {
+  process.env.LOCALAPPDATA=root;
+  for(const version of ['2026.08.25-release','2026.07.16-old','dist-package']) {
+   const dir=join(root,'cursor-agent','versions',version);mkdirSync(dir,{recursive:true});writeFileSync(join(dir,'node.exe'),'');writeFileSync(join(dir,'index.js'),'');
+  }
+  const launcher=resolveLauncher('cursor-agent');
+  assert.equal(launcher.cmd,join(root,'cursor-agent','versions','2026.08.25-release','node.exe'));
+  assert.equal(launcher.prefixArgs[0],'--use-system-ca');assert.equal(launcher.shell,false);
+ } finally { if(previous===undefined)delete process.env.LOCALAPPDATA;else process.env.LOCALAPPDATA=previous; }
+});

@@ -2,3 +2,12 @@ import {test} from 'node:test';import assert from 'node:assert/strict';import {m
 const role={id:'custom',name:'Custom',systemPrompt:'Custom role'};
 test('new custom agents discover tools and skills without invented MCP availability',async()=>{const projectPath=mkdtempSync(join(tmpdir(),'cap-'));const service=createCapabilityService({projectPath,provider:'openai',skills:()=>[{id:'research',name:'Research',attached:false}],readSkill:()=> 'Skill content'});const c=service.catalogue(role);assert.equal(c.tools.length,4);assert.equal(c.mcp.status,'not-exposed');assert.equal(c.skills[0].attached,false);assert.deepEqual(await service.execute(role,'read_skill',{id:'research'}),{id:'research',content:'Skill content'});await assert.rejects(service.execute(role,'read_skill',{id:'../secret'}));});
 test('publish/update preserves raw data and revision history with ownership checks',async()=>{const projectPath=mkdtempSync(join(tmpdir(),'views-'));const service=createCapabilityService({projectPath,provider:'claude',skills:()=>[],readSkill:()=>''});const args={title:'Sales',summary:'Two observations',html:'<h1>Sales</h1>',data:[1,2]};const first=await service.execute(role,'publish_view',args) as any;const second=await service.execute(role,'update_view',{...args,viewId:first.viewId,data:[1,2,3]}) as any;assert.equal(second.revision,2);assert.equal(second.previousArtifactId,first.artifactId);assert.equal(new ArtifactStore(projectPath).list().length,4);await assert.rejects(service.execute({...role,id:'other'},'update_view',{...args,viewId:first.viewId}));await assert.rejects(service.execute(role,'update_view',{...args,viewId:'../../escape'}));await assert.rejects(service.execute(role,'publish_view',{...args,data:'x'.repeat(65537)}));});
+
+ test('built-in visual skill is discoverable without installation for any provider',async()=>{
+ for(const provider of ['claude','codex','cursor','openai']){
+ const service=createCapabilityService({projectPath:mkdtempSync(join(tmpdir(),'visual-skill-')),provider,skills:()=>[],readSkill:()=>{throw Error('Not installed');}});
+ const skill=service.catalogue(role).skills.find(s=>s.id==='agent-room:visual-design');assert.ok(skill);
+ const result=await service.execute(role,'read_skill',{id:skill.id}) as {content:string};
+ assert.match(result.content,/publish_view/);assert.match(result.content,/executed backtest/);assert.match(result.content,/prefers-reduced-motion/);
+ }
+ });

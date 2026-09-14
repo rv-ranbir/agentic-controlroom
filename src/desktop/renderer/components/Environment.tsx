@@ -1,3 +1,4 @@
+import { TopBar } from "./TopBar";
 import { useState } from "react";
 import { useStore } from "../store";
 import { EnvTerminalTab } from "./env/EnvTerminalTab";
@@ -25,7 +26,8 @@ export function Environment() {
 
   if (!project) {
     return (
-      <div className="viewRoot">
+      <div className="viewRoot workspaceView viewEnvironment">
+      <TopBar />
         <header className="rvHeader">
           <button className="pillBtn ghostBtn mono" onClick={() => showView("room")}>&larr; back</button>
         </header>
@@ -35,18 +37,19 @@ export function Environment() {
   }
 
   return (
-    <div className="viewRoot">
+    <div className="viewRoot workspaceView viewEnvironment">
+      <TopBar />
       <header className="rvHeader">
         <button className="pillBtn ghostBtn mono" onClick={() => showView("room")}>&larr; back</button>
         <span className="rvName">{project.name}</span>
         <span className="dim mono" style={{ fontSize: 10.5 }}>Environment</span>
       </header>
-      <div className="segGroup" style={{ margin: "10px 16px" }}>
+      <div className="segGroup environmentTabs" role="tablist" aria-label="Environment tools">
         {TABS.map((t) => (
-          <div key={t.id} className={`segOpt${tab === t.id ? " on" : ""}`} onClick={() => setTab(t.id)}>{t.label}</div>
+          <button type="button" role="tab" aria-selected={tab === t.id} key={t.id} className={`segOpt${tab === t.id ? " on" : ""}`} onClick={() => setTab(t.id)}>{t.label}</button>
         ))}
       </div>
-      <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", padding: "0 16px 16px" }}>
+      <div className="environmentContent" role="tabpanel" aria-label={TABS.find(t=>t.id===tab)?.label}>
         {tab === "terminal" && <EnvTerminalTab project={project} />}
         {tab === "tunnel" && <EnvTunnelTab project={project} />}
         {tab === "database" && <EnvDatabaseTab project={project} />}

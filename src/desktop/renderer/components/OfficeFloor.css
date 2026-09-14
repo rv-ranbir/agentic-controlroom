@@ -640,3 +640,25 @@
 @keyframes delegatedArrival{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
 @media(prefers-reduced-motion:reduce){.osDelegationDesk{animation:none;}}
 .officeStudio[data-motion-paused=true] .osDelegationDesk,.officeStudio[data-motion-paused=true] .osDelegationDesk *{animation-play-state:paused!important;}
+
+/* Readable information stays outside the scaled floor. */
+.osOverview{display:flex;align-items:center;gap:10px 18px;flex-wrap:wrap;padding:10px 18px;border-bottom:1px solid var(--rule);font-size:13px;background:var(--deck);color:var(--ink);flex-shrink:0;}
+.osOverview strong{font-variant-numeric:tabular-nums;}
+.osOverview button{font:inherit;color:inherit;background:var(--paper);border:1px solid var(--rule);border-radius:6px;padding:6px 9px;cursor:pointer;}
+.osOverview small{font-size:12px;color:var(--ink-70);}
+.osPeople{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;max-height:240px;overflow:auto;padding:14px 18px;border-bottom:1px solid var(--rule);flex-shrink:0;}
+.osPeople button{display:flex;flex-direction:column;gap:6px;text-align:left;padding:12px;background:var(--deck);color:var(--ink);border:1px solid var(--rule);border-radius:8px;cursor:pointer;min-width:0;}
+.osPeople strong,.osPeople span{overflow-wrap:anywhere;font-size:13px;}
+.osPeople button[aria-pressed=true]{border-color:var(--live);}
+.osPeople button:focus-visible,.osOverview button:focus-visible{outline:2px solid var(--live);outline-offset:2px;}
+.officeView .rvHeader{flex-shrink:0;}
+@media(max-width:700px){.osOverview{gap:8px;font-size:12px;}.osPeople{max-height:190px;grid-template-columns:repeat(2,minmax(0,1fr));}}
+
+.osDesk-item[data-offscreen=true] .officeCharacter *{animation-play-state:paused!important;}
+
+.osCanvasWrap{cursor:grab;overscroll-behavior:contain;}
+.osCanvasWrap[data-panning=true]{cursor:grabbing;user-select:none;}
+.osCanvasWrap:focus-visible{outline:2px solid var(--live);outline-offset:-3px;}
+.osExploreHint{position:sticky;top:8px;left:12px;display:block;width:max-content;max-width:calc(100% - 24px);z-index:8;background:var(--deck);color:var(--ink);border:1px solid var(--rule);border-radius:6px;padding:6px 10px;font-size:12px;pointer-events:none;margin:8px 12px;}
+
+.osExploreHint{position:absolute;top:26px;left:26px;margin:0;}

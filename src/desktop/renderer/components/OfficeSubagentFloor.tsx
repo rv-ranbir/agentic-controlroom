@@ -10,7 +10,7 @@ export function OfficeSubagentFloor({ records, parents, top, page, onPage, onSel
  const current = Math.min(page, Math.max(0, pages - 1));
  const visible = records.slice(current * SUBAGENT_PAGE_SIZE, (current + 1) * SUBAGENT_PAGE_SIZE);
  return <section className="osDelegationFloor" style={{ top }} aria-label="Delegated work floor">
-  <header><div><h2>Delegated work</h2><p>{records.length} observed subagents · temporary workstations</p></div>
+  <header><div><h2>Delegated work</h2><p>{records.length} observed subagents Â· temporary workstations</p></div>
    {pages > 1 && <nav aria-label="Subagent pages"><button onClick={() => onPage(current - 1)} disabled={current === 0}>Previous</button><span>{current + 1} / {pages}</span><button onClick={() => onPage(current + 1)} disabled={current + 1 === pages}>Next</button></nav>}
   </header>
   <div className="osDelegationDesks">{visible.map(record => <button key={record.id} className="osDelegationDesk" data-subagent-id={record.id} data-status={record.status} aria-label={`Subagent ${record.description}`} aria-pressed={selectedId === record.id} onClick={() => onSelect(record)}>

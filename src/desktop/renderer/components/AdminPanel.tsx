@@ -1,3 +1,5 @@
+import "./Settings.css";
+import { AppearanceSettings } from "./AppearanceSettings";
 import { useEffect, useState } from "react";
 import { useStore } from "../store";
 import { colorFor, initials } from "../lib/agents";
@@ -17,6 +19,7 @@ export function AdminPanel() {
   const [newAgentPrompt, setNewAgentPrompt] = useState("");
   const [githubUrl, setGithubUrl] = useState("");
   const [busy, setBusy] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const refresh = () => {
     void api.getAdminConfig().then(setConfig);
@@ -28,7 +31,7 @@ export function AdminPanel() {
 
   if (!config) {
     return (
-      <div className="viewRoot">
+      <div className="viewRoot settingsRoot">
         <header className="rvHeader">
           <button className="pillBtn ghostBtn mono" onClick={() => showView("launcher")}>&larr; back</button>
         </header>
@@ -129,12 +132,37 @@ export function AdminPanel() {
   const sortedCategories = [...config.categories].sort((a, b) => a.order - b.order);
 
   return (
-    <div className="viewRoot">
+    <div className="viewRoot settingsRoot">
       <header className="rvHeader">
         <button className="pillBtn ghostBtn mono" onClick={() => showView("launcher")}>&larr; back</button>
-        <span className="rvName">Admin</span>
+        <span className="rvName">Settings</span>
       </header>
-      <div style={{ flex: 1, overflowY: "auto", padding: "18px 20px", display: "flex", flexDirection: "column", gap: 22 }}>
+      <div className="settingsScroll"><main className="settingsContent">
+        <div className="settingsIntro"><span className="settingsEyebrow">Agent Room / Preferences</span><h1>Workspace settings</h1><p>Choose your workspace’s appearance and how your agents use context.</p></div>
+        <div className="settingsGrid">
+        <AppearanceSettings />
+        <section aria-label="Token saving" className="settingsCard savingCard">
+          <div className="settingsCardHeading"><div><span className="settingsEyebrow">Efficiency</span><h2>Token saving</h2></div><span className="settingsBadge">Experimental</span></div>
+          <p className="settingsDescription">Give your agents the same data in a smaller format.</p>
+          <label className="savingControl">
+            <input aria-label="Save tokens (experimental)" type="checkbox" checked={config.tokenSaving} disabled={saving} onChange={async e => {
+              const enabled = e.target.checked;
+              const previous = config;
+              setConfig({ ...config, tokenSaving: enabled });
+              setSaving(true);
+              try { setConfig(await api.setTokenSaving(enabled)); }
+              catch (error) { setConfig(previous); showToast(error instanceof Error ? error.message : 'Could not save setting'); }
+              finally { setSaving(false); }
+            }} />
+            <span className="savingControlText"><strong>Save tokens</strong><span>{saving ? 'Saving preference…' : config.tokenSaving ? 'Enabled for new tasks' : 'Off by default'}</span></span>
+            <span className="savingTrack" aria-hidden="true"><span /></span>
+          </label>
+          <ul className="savingBenefits"><li>Compact large tables without losing values</li><li>Avoid repeating results already in a session</li><li>Keep original data and instructions intact</li></ul>
+          <details className="savingDetails"><summary>What’s included?</summary><p>Applies to new tasks across projects. Small or unsupported results stay unchanged. Covers app-managed data; native provider tools and custom project prompts are excluded. Savings vary and are not a subscription quota measurement.</p></details>
+          <div className="savingFootnote"><span aria-hidden="true">↳</span> Change this any time. Applies when an agent starts its next task.</div>
+        </section>
+        </div>
+        <details className="settingsAdvanced"><summary><span><strong>Providers &amp; agents</strong><span>Provider access, project permissions and your agent library</span></span><span className="settingsExpand" aria-hidden="true">+</span></summary><div className="settingsAdvancedContent">
         <section>
           <div className="dim mono" style={{ fontSize: 9.5, letterSpacing: ".1em", textTransform: "uppercase", marginBottom: 8 }}>Global provider allow-list</div>
           <div className="segGroup">
@@ -258,7 +286,9 @@ export function AdminPanel() {
             </div>
           </div>
         </section>
-      </div>
+        </div></details>
+        <p className="settingsLocalNote">Appearance preferences are saved on this device. Project presets override the app default.</p>
+      </main></div>
     </div>
   );
 }

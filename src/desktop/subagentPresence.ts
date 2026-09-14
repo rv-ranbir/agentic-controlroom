@@ -1,26 +1,33 @@
+import {subagentEvents} from './subagentAdapters.js';
 export interface SubagentRecord {
  id:string;projectId:string;parentAgentId:string;sessionId:string;taskId:string;toolUseId?:string;
  description:string;status:'running'|'completed'|'failed'|'stopped'|'unobserved';summary?:string;lastTool?:string;updatedAt:number;
- background:boolean;
+ background:boolean;provider?:string;lastResumeId?:string;
 }
 const text=(v:unknown,max=500)=>typeof v==='string'?v.slice(0,max):'';
 export class SubagentRegistry {
  private records=new Map<string,SubagentRecord>();
  snapshot(){return [...this.records.values()].map(r=>({...r}));}
- consume(projectId:string,parentAgentId:string,line:string):boolean {
+ consume(projectId:string,parentAgentId:string,line:string,provider:string="claude"):boolean {
   if(line.length>262144)return false;let e:any;try{e=JSON.parse(line);}catch{return false;}
-  const sessionId=text(e?.session_id,200);if(!sessionId)return false;
-  const find=(taskId:string,toolId:string)=>[...this.records.values()].find(r=>r.projectId===projectId&&r.parentAgentId===parentAgentId&&r.sessionId===sessionId&&((taskId&&r.taskId===taskId)||(toolId&&r.toolUseId===toolId)));
+  if(provider!=='claude'){let changed=false;for(const event of subagentEvents(provider,e))changed=this.consumeNormalized(projectId,parentAgentId,event,provider)||changed;return changed;}
+  return this.consumeNormalized(projectId,parentAgentId,e,provider);
+ }
+ private consumeNormalized(projectId:string,parentAgentId:string,e:any,provider:string):boolean {
+  const rawSession=text(e?.session_id,200);
+  const sessionId=rawSession?(provider==='claude'?rawSession:provider+':'+rawSession):'';if(!sessionId)return false;
+  const find=(taskId:string,toolId:string)=>[...this.records.values()].find(r=>r.projectId===projectId&&r.parentAgentId===parentAgentId&&r.sessionId===sessionId&&(r.provider??'claude')===provider&&((taskId&&r.taskId===taskId)||(toolId&&r.toolUseId===toolId)));
   const start=(taskId:string,toolUseId:string,description:string,background:boolean)=>{
-   if(!taskId)return false;const prior=find(taskId,toolUseId);if(prior){if(prior.status!=='running'&&prior.status!=='unobserved')return false;prior.taskId=taskId;prior.background=background;prior.description=description||prior.description;prior.updatedAt=Date.now();return true;}
+   if(!taskId)return false;const prior=find(taskId,toolUseId);if(prior){if(e.is_resume===true&&text(e.invocation_id,200)&&prior.lastResumeId!==e.invocation_id){prior.status='running';prior.lastResumeId=text(e.invocation_id,200);prior.summary=undefined;}if(prior.status!=='running'&&prior.status!=='unobserved')return false;prior.taskId=taskId;prior.background=background;prior.description=description||prior.description;prior.updatedAt=Date.now();return true;}
    if(this.records.size>=500){const oldest=[...this.records.values()].find(r=>r.status!=='running');if(oldest)this.records.delete(oldest.id);else return false;}
-   const id=JSON.stringify([projectId,parentAgentId,sessionId,toolUseId||taskId]);
-   this.records.set(id,{id,projectId,parentAgentId,sessionId,taskId,toolUseId:toolUseId||undefined,description:description||'Delegated agent',status:'running',background,updatedAt:Date.now()});return true;
+   const id=JSON.stringify([projectId,parentAgentId,provider,sessionId,toolUseId||taskId]);
+   this.records.set(id,{id,projectId,parentAgentId,sessionId,taskId,toolUseId:toolUseId||undefined,description:description||'Delegated agent',status:'running',provider,background,updatedAt:Date.now()});return true;
   };
   if(e.type==='system'){
    const taskId=text(e.task_id,200),toolId=text(e.tool_use_id,200);
    if(e.subtype==='task_started')return ['local_agent','remote_agent'].includes(e.task_type)&&start(taskId,toolId,text(e.description),true);
    const record=find(taskId,toolId);if(!record)return false;
+   if(e.subtype==='task_unobserved'&&record.status==='running'){record.status='unobserved';record.summary=text(e.summary,1000);record.updatedAt=Date.now();return true;}
    if(e.subtype==='task_progress'&&(record.status==='running'||record.status==='unobserved')){record.status='running';record.description=text(e.description)||record.description;record.summary=text(e.summary,1000)||record.summary;record.lastTool=text(e.last_tool_name,100)||record.lastTool;record.updatedAt=Date.now();return true;}
    if(e.subtype==='task_notification'&&['completed','failed','stopped'].includes(e.status)&&(record.status==='running'||record.status==='unobserved')){record.status=e.status;record.summary=text(e.summary,1000);record.updatedAt=Date.now();return true;}
   }

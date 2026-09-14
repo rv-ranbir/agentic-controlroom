@@ -1,0 +1,27 @@
+#topbar.projectTopbar {height:auto;display:block;padding:0 20px;z-index:12;}
+.projectIdentityRow {display:flex;align-items:center;gap:10px;min-height:54px;min-width:0;}
+.projectIdentityRow .wordmark {white-space:nowrap;flex-shrink:0;font-size:15px;}
+.projectIdentityRow .switcher {min-width:0;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.projectIdentityRow .statusDot,.projectIdentityRow .iconBtn {flex-shrink:0;}
+.projectIdentityRow .toast {max-width:180px;}
+.projectNavigation {display:flex;gap:4px;align-items:center;min-height:44px;border-top:1px solid var(--rule);flex-wrap:wrap;padding:4px 0;}
+.projectNavigation>button,.projectMore>summary {border:0;background:none;padding:9px 13px;font:500 12px var(--font-body);border-radius:6px;color:var(--ink-70);cursor:pointer;white-space:nowrap;}
+.projectNavigation>button:hover,.projectMore>summary:hover {background:var(--deck);color:var(--ink);}
+.projectNavigation>button[aria-current=page] {background:var(--deck);color:var(--ink);box-shadow:inset 0 -2px var(--live);}
+.projectMore {position:relative;}.projectMore>summary {list-style:none;}.projectMore>summary::-webkit-details-marker {display:none;}
+.projectMorePanel {position:absolute;top:calc(100% + 6px);left:0;width:180px;background:var(--deck);border:1px solid var(--rule);border-radius:9px;padding:6px;box-shadow:0 8px 24px #0003;z-index:30;}
+.projectMorePanel button {display:block;width:100%;border:0;text-align:left;border-radius:5px;padding:11px 12px;background:none;font:500 12px var(--font-body);cursor:pointer;}.projectMorePanel button:hover {background:var(--sink);}
+.projectTopbar #projectMenu {top:50px;max-width:calc(100vw - 32px);}
+.projectTopbar :is(button,summary):focus-visible,.newAgentDialog :is(button,input,select,textarea,summary):focus-visible {outline:2px solid var(--live);outline-offset:2px;}
+#modalBox.newAgentDialog {width:min(640px,calc(100vw - 32px));max-height:88dvh;display:flex;flex-direction:column;overflow:hidden;padding:0;}
+.newAgentDialogHeader {display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 22px;border-bottom:1px solid var(--rule);flex-shrink:0;}
+.newAgentDialogHeader h3 {margin:0;font:600 20px var(--font-body);}
+.newAgentDialogBody {padding:20px 22px;min-height:0;overflow-y:auto;overflow-x:hidden;}
+.newAgentDialogBody .fField {min-width:0;}.newAgentDialogBody .segGroup {max-width:100%;flex-wrap:wrap;border-radius:8px;}.newAgentDialogBody .fInput {max-width:100%;}
+.newAgentDialogBody p {font-size:12px;line-height:1.6;overflow-wrap:anywhere;}
+.agentProviderChoices {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;}
+.agentProviderChoices button {padding:10px;border:1px solid var(--rule);background:var(--sink);border-radius:7px;text-align:left;font:500 12px/1.4 var(--font-body);overflow-wrap:anywhere;cursor:pointer;}
+.agentProviderChoices button[aria-pressed=true] {border-color:var(--live);background:var(--ink-16);}
+.newAgentDialogFooter {display:flex;justify-content:flex-end;gap:10px;padding:14px 22px;border-top:1px solid var(--rule);background:var(--deck);flex-shrink:0;}.newAgentDialogFooter button {min-height:34px;padding:7px 17px;font-size:12px;}
+@media(max-width:1100px){.projectIdentityRow .branch {display:none;}}
+@media(max-width:640px){#topbar.projectTopbar {padding:0 12px;}.projectIdentityRow {flex-wrap:wrap;padding:8px 0;}.projectIdentityRow .wordmark {font-size:12px;}.projectIdentityRow .switcher {max-width:180px;}.projectNavigation>button,.projectMore>summary {padding:8px 10px;font-size:11px;}.projectMorePanel {left:auto;right:0;}.projectTopbar #projectMenu {left:12px;}.agentProviderChoices {grid-template-columns:repeat(2,minmax(0,1fr));}.newAgentDialogBody {padding:16px;}.newAgentDialogBody .roleGrid {grid-template-columns:repeat(2,minmax(0,1fr));}}

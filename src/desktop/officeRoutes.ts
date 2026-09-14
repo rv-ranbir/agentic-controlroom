@@ -1,16 +1,16 @@
 export interface OfficePoint { x:number; y:number }
 export interface RouteRoom { x:number; y:number; height:number }
 // Coordinates refer to the avatar button's top-left; feet are 48px right, 78px down.
-export function officeRoute(from:OfficePoint,to:OfficePoint,rooms:RouteRoom[]):OfficePoint[] {
+export function officeRoute(from:OfficePoint,to:OfficePoint,rooms:RouteRoom[],previousRooms:RouteRoom[]=rooms):OfficePoint[] {
   const corridorX=1000;
-  function exit(p:OfficePoint):OfficePoint[] {
+  function exit(p:OfficePoint,geometry:RouteRoom[]):OfficePoint[] {
     if(p.x<928){
       const wing=Math.max(0,Math.floor((p.y+78)/1024));
       const row=Math.max(0,Math.min(2,Math.round((p.y-wing*1024-218)/282)));
       const aisle=wing*1024+250+row*282;
       return [p,{x:p.x,y:aisle},{x:corridorX,y:aisle}];
     }
-    const room=rooms.find(r=>p.x>=r.x-48 && p.y+78>=r.y && p.y+78<=r.y+r.height);
+    const room=geometry.find(r=>p.x>=r.x-48 && p.y+78>=r.y && p.y+78<=r.y+r.height);
     if(room){
       const doorway=room.y+122;
       const left=room.x+30;
@@ -20,7 +20,7 @@ export function officeRoute(from:OfficePoint,to:OfficePoint,rooms:RouteRoom[]):O
     }
     return [p,{x:corridorX,y:p.y}];
   }
-  const points=[...exit(from),...exit(to).reverse()];
+  const points=[...exit(from,previousRooms),...exit(to,rooms).reverse()];
   return points.filter((p,i)=>!i||p.x!==points[i-1].x||p.y!==points[i-1].y);
 }
 export function routeFrames(points:OfficePoint[],home:OfficePoint) {

@@ -1,4 +1,5 @@
 import "./ProjectWorkflows.css";
+import { EmptyState } from "./EmptyState";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { TopBar } from "./TopBar";
 import { useStore } from "../store";
@@ -207,7 +208,7 @@ export function ProjectWorkflows() {
   };
 
   return (
-    <><TopBar/><div className="workflowPanel" style={{padding:24,maxWidth:1100,margin:"0 auto",overflow:"auto",height:"calc(100vh - 90px)"}}>
+    <div className="viewRoot workspaceView viewWorkflows"><TopBar/><div className="workflowPanel workspaceWorkflow">
       <div className="tabBar">
         <button className="pillBtn ghostBtn mono" onClick={() => showView("room")}>&larr; back</button>
         <button className={`tab ${tab === "workflow" ? "active" : ""}`} onClick={() => setTab("workflow")}>Workflow</button>
@@ -239,7 +240,7 @@ export function ProjectWorkflows() {
 
           <div className="stepsContainer">
             {workflow.steps.map((step, idx) => (
-              <div key={step.id} className="stepRow">{workflow.projectManaged && <span>{step.id}{step.tool ? " · project tool" : ""}</span>}{step.workflow&&<span>Child workflow: {step.workflow.name}</span>}
+              <div key={step.id} className="stepRow"><span className="stepOrdinal">{idx + 1}</span>{workflow.projectManaged && <span>{step.id}{step.tool ? " · project tool" : ""}</span>}{step.workflow&&<span>Child workflow: {step.workflow.name}</span>}
                 <select
                   disabled={workflow.projectManaged}
                   className="stepAgent"
@@ -261,22 +262,22 @@ export function ProjectWorkflows() {
 
           <button className="pillBtn" disabled={workflow.projectManaged} onClick={() => addStep()}>+ Add Step</button>
           <button className="pillBtn" disabled={workflow.projectManaged} onClick={()=>{setWorkflow({...workflow,steps:[...workflow.steps,{id:crypto.randomUUID(),workflow:{id:crypto.randomUUID(),name:"Delegated workflow",steps:[{id:"delegated",agentId:selected.agents[0].id}]}}]});setDirty(true);}}>+ Add Child Workflow</button>
-          <p className="dim">Fixture runs use synthetic replies and make no external model calls.</p>
+          <p className="workflowHint">{!workflow.steps.length ? "Add a step and choose an agent to begin." : dirty ? "Save your changes before running this workflow." : "Ready to run. Sample data uses synthetic replies without calling external models."}</p>
 
           <div className="taskSection">
             <textarea
               className="taskInput"
               value={taskInput}
               onChange={(e) => setTaskInput(e.target.value)}
-              placeholder="Task input..."
+              aria-label="Workflow task" placeholder="What should this workflow accomplish?"
               rows={4}
             />
             <div className="buttonRow">
               <button className="pillBtn" onClick={() => startWorkflow(false)} disabled={loading || isBusy || dirty || !taskInput.trim() || !workflow.steps.length}>
                 Run
               </button>
-              <button className="pillBtn ghostBtn" onClick={() => startWorkflow(true)} disabled={loading || isBusy || !workflow.steps.length}>
-                Run Fixture
+              <button className="pillBtn ghostBtn" onClick={() => startWorkflow(true)} disabled={loading || isBusy || dirty || !workflow.steps.length}>
+                Try with sample data
               </button>
               <button className="pillBtn ghostBtn" onClick={cancelWorkflowRun} disabled={!isBusy}>
                 Cancel
@@ -289,7 +290,7 @@ export function ProjectWorkflows() {
       {tab === "runs" && (
         <div className="tabContent runsList">
           {runs.length === 0 ? (
-            <div className="empty">No workflow runs yet.</div>
+            <EmptyState title="Follow each run from start to finish" description="Run a saved workflow to see step progress, completion and errors here." />
           ) : (
             runs.map((run) => (
               <div key={run.id} className="runItem">
@@ -318,7 +319,7 @@ export function ProjectWorkflows() {
       {tab === "artifacts" && (
         <div className="tabContent artifactsList">
           {artifacts.length === 0 ? (
-            <div className="empty">No artifacts yet.</div>
+            <EmptyState title="A home for your team’s results" description="Reports, charts and interactive views published by agents appear here. Open a result in the app or your browser." />
           ) : (
             artifacts.map((art) => (
               <div key={art.id} className="artifactItem">
@@ -369,6 +370,7 @@ export function ProjectWorkflows() {
                         }
                       >
                         <option>inherit</option>
+                        <option>codex</option>
                         <option>claude</option>
                         <option>cursor</option>
                         <option>openrouter</option>
@@ -420,7 +422,7 @@ export function ProjectWorkflows() {
           </table>
         </div>
       )}
-    </div></>
+    </div></div>
   );
 }
 
