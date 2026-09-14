@@ -1,6 +1,6 @@
 # Execution protection and harness status
 
-Milestone 1 delivered, 2026-09-14. Open a project's Environment > Execution tab for execution policy, active runs, stop requests and the latest 200 audit events. Filters select event kind, run or agent; event details expose correlation IDs and safe metadata.
+Milestone 1 delivered, 2026-09-14. Tracking runs automatically for every project. The project room shows active runs and stop controls beside the conversation. Open Activity history for the latest 200 audit events; Advanced protection is collapsed inside it. There is no separate Execution tab or activation step. Filters select event kind, run or agent; event details expose correlation IDs and safe metadata.
 
 ## Protection
 Existing projects remain provider-managed. This means the app does not verify an OS boundary; provider permissions still apply. Requested policy persists per project. Unsupported read-only, isolated-workspace, network or nonzero resource controls reject before dispatch rather than falling back to host execution. Policy changes are rejected while tracked runs or project terminals are active.
@@ -20,3 +20,4 @@ Interactive agent and shell terminals are policy-gated at launch, but their inte
 Full build and 218 tests passed. Isolated Electron/Playwright checks passed for two-project policy persistence and rejection, capability/workflow tool events, HTTP and workflow cancellation, filters and restart. Separate regressions passed concurrent meeting/debate and nested workflow correlation. Local Codex/Cursor fixture processes confirmed cancellation and observed settlement. No paid model calls were used. These fixtures do not establish authenticated live-provider behavior or OS isolation.
 
 Milestones 2-6 (usage, context, tools, delegation and goals) remain planned.
+

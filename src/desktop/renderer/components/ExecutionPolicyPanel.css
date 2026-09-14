@@ -43,3 +43,13 @@
 .executionEventMeta { color: var(--ink-50); font-size: 10px; text-align: right; }
 .executionEventDetail { display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 0 10px 11px 20px; color: var(--ink-50); font: 10.5px/1.5 var(--mono); overflow-wrap: anywhere; }
 @media (max-width: 720px) { .executionIntro { align-items: flex-start; flex-direction: column; } .executionFacts, .executionFilters { grid-template-columns: 1fr; } .executionEvent summary { align-items: flex-start; flex-direction: column; gap: 5px; } .executionEventMeta { text-align: left; } }
+
+/* Activity belongs to the project conversation; protection is optional detail. */
+.executionInline { flex: 0 0 auto; max-height: 45vh; overflow: auto; border-bottom: 1px solid var(--rule); }
+.executionInline .executionScroll { height: auto; overflow: visible; padding: 10px 16px; }
+.executionInline .executionSection { max-width: none; padding: 10px; margin-bottom: 8px; }
+.executionInline .executionSection:first-child { border: 0; background: transparent; padding: 0; }
+.executionInline .executionEmpty { margin: 4px 0; }
+.executionHistory > summary, .executionAdvanced > summary { cursor: pointer; padding: 7px 0; font-size: 12px; color: var(--ink-70); }
+.executionAdvanced { margin-top: 10px; }
+.executionInline .executionRuns { margin-top: 6px; }

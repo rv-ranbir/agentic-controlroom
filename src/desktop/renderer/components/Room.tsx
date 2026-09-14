@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useStore } from "../store";
+import { ExecutionPolicyPanel } from "./ExecutionPolicyPanel";
 import { TopBar } from "./TopBar";
 import { Roster } from "./Roster";
 import { Rail } from "./Rail";
@@ -12,6 +13,7 @@ import type { Bucket } from "../types";
 const ORDER: Bucket[] = ["needs", "review", "active", "seen", "idle"];
 
 export function Room({ onAddAgent, onOpenReview }: { onAddAgent: () => void; onOpenReview: () => void }) {
+  const project = useStore((s) => s.projects.find((p) => p.id === s.selectedProjectId));
   const splitAgent = useStore((s) => s.splitAgent);
   const toggleSplit = useStore.getState().toggleSplit;
 
@@ -44,6 +46,7 @@ export function Room({ onAddAgent, onOpenReview }: { onAddAgent: () => void; onO
         <Roster onAddAgent={onAddAgent} />
         <Rail />
         <main id="mainPane">
+          {project && <ExecutionPolicyPanel key={project.id} project={project} />}
           {splitAgent ? (
             <div className="splitRow">
               <div className="splitPane">

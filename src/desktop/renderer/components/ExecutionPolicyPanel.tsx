@@ -145,23 +145,25 @@ export function ExecutionPolicyPanel({ project }: { project: Project }) {
   const currentUnavailable = policy.mode !== "provider-managed";
 
   return (
-    <div className="executionPanel">
+    <div className="executionPanel executionInline">
       <div className="executionScroll">
-        <section className="executionIntro">
-          <div>
-            <div className="executionKicker mono">Execution</div>
-            <h1>Execution policy</h1>
-            <p className="dim">Choose the protection required for future runs.</p>
-          </div>
-          <span className={`executionBadge ${state.canRun ? "provider" : "blocked"}`}>
-            <span className="executionBadgeDot" aria-hidden="true" />
-            {state.canRun ? "Provider-managed" : "Execution blocked"}
-          </span>
-        </section>
-
+        {!state.canRun && <div className="executionNotice" role="status">Runs are blocked by this project’s protection policy. Open Activity history → Advanced protection to review it.</div>}
         {loadError && <div className="executionError" role="alert">Refresh failed: {loadError}</div>}
         {actionError && <div className="executionError" role="alert">{actionError}</div>}
 
+        <section className="executionSection">
+          <div className="executionSectionHead"><div><h2>Project activity</h2></div></div>
+          {state.active.length === 0 ? <p className="executionEmpty">No active runs. Activity is recorded automatically.</p> : <div className="executionRuns">{state.active.map((run) => { const stopRequested = canceling.includes(run.runId) || run.state === "cancel-requested"; return <div className="executionRun" key={run.runId}><div><strong>{run.agentIds.map(id => project.agents.find(agent => agent.id === id)?.name ?? id).join(", ") || "Project workflow"}</strong><div className="dim">{run.agentIds.length} agent{run.agentIds.length === 1 ? "" : "s"} · {readable(run.state)}</div>{stopRequested && <small>Stop requested; waiting for current call</small>}{!run.canInterrupt && !stopRequested && <small>Provider process interruption is unavailable; the run can still stop between calls.</small>}</div><button type="button" className="pillBtn ghostBtn" disabled={stopRequested} onClick={() => void requestStop(run.runId)}>{stopRequested ? "requested" : "request stop"}</button></div>; })}</div>}
+        </section>
+
+        <details className="executionHistory">
+          <summary>Activity history</summary>
+        <section className="executionSection executionTimelineSection">
+          <div className="executionSectionHead"><div><h2>Recent activity</h2><p className="dim">Newest events first. Showing the latest 200 events.</p><p className="dim">Timeline and stop controls cover app-managed runs. Interactive terminal activity is not recorded here.</p></div></div>
+          <div className="executionFilters"><input className="fInput" aria-label="Filter by run ID" placeholder="Filter run ID" value={runFilter} onChange={(event: ChangeEvent<HTMLInputElement>) => setRunFilter(event.target.value)} /><input className="fInput" aria-label="Filter by agent ID" placeholder="Filter agent ID" value={agentFilter} onChange={(event: ChangeEvent<HTMLInputElement>) => setAgentFilter(event.target.value)} /><select className="fInput" aria-label="Filter by event kind" value={kindFilter} onChange={(event: ChangeEvent<HTMLSelectElement>) => setKindFilter(event.target.value)}><option value="">All event kinds</option>{kinds.map((kind: string) => <option key={kind} value={kind}>{readable(kind)}</option>)}</select></div>
+          {visibleEvents.length === 0 ? <p className="executionEmpty">No audit events match these filters.</p> : <div className="executionTimeline">{visibleEvents.map((event) => <details className="executionEvent" key={event.eventId}><summary><span className="executionEventMain"><strong>{readable(event.kind)}</strong><span className="executionEventStatus">{eventStatus(event)}</span></span><span className="mono executionEventMeta">{new Date(event.timestamp).toLocaleString()} · {shortId(event.scope.agentId)} · run {shortId(event.scope.runId)}</span></summary><div className="executionEventDetail"><span>Event {event.eventId}</span><span>Agent {event.scope.agentId}</span><span>Run {event.scope.runId}</span><span>Sequence {event.sequence}</span>{eventDetail(event) && <span>{eventDetail(event)}</span>}</div></details>)}</div>}
+        </section>
+        <details className="executionAdvanced"><summary>Advanced protection</summary>
         <section className="executionSection">
           <div className="executionSectionHead">
             <div><h2>Requested protection</h2><p className="dim">Unavailable protection blocks new runs instead of falling back to broader permissions.</p></div>
@@ -185,16 +187,8 @@ export function ExecutionPolicyPanel({ project }: { project: Project }) {
           {state.diagnostics.length > 0 && <div className="executionDiagnostics"><span className="fLabel">Diagnostics</span>{state.diagnostics.map((item: string) => <p key={item}>{item}</p>)}</div>}
         </section>
 
-        <section className="executionSection">
-          <div className="executionSectionHead"><div><h2>Active runs</h2><p className="dim">A stop request prevents subsequent dispatch. The current provider call may continue.</p></div></div>
-          {state.active.length === 0 ? <p className="executionEmpty">No active runs.</p> : <div className="executionRuns">{state.active.map((run) => { const stopRequested = canceling.includes(run.runId) || run.state === "cancel-requested"; return <div className="executionRun" key={run.runId}><div><strong className="mono">{shortId(run.runId)}</strong><div className="dim">{run.agentIds.length} agent{run.agentIds.length === 1 ? "" : "s"} · {readable(run.state)}</div>{stopRequested && <small>Stop requested; waiting for current call</small>}{!run.canInterrupt && !stopRequested && <small>Provider process interruption is unavailable; the run can still stop between calls.</small>}</div><button type="button" className="pillBtn ghostBtn" disabled={stopRequested} onClick={() => void requestStop(run.runId)}>{stopRequested ? "requested" : "request stop"}</button></div>; })}</div>}
-        </section>
-
-        <section className="executionSection executionTimelineSection">
-          <div className="executionSectionHead"><div><h2>Audit timeline</h2><p className="dim">Newest events first. Showing the latest 200 events.</p><p className="dim">Timeline and stop controls cover app-managed runs. Interactive terminal activity is not recorded here.</p></div></div>
-          <div className="executionFilters"><input className="fInput" aria-label="Filter by run ID" placeholder="Filter run ID" value={runFilter} onChange={(event: ChangeEvent<HTMLInputElement>) => setRunFilter(event.target.value)} /><input className="fInput" aria-label="Filter by agent ID" placeholder="Filter agent ID" value={agentFilter} onChange={(event: ChangeEvent<HTMLInputElement>) => setAgentFilter(event.target.value)} /><select className="fInput" aria-label="Filter by event kind" value={kindFilter} onChange={(event: ChangeEvent<HTMLSelectElement>) => setKindFilter(event.target.value)}><option value="">All event kinds</option>{kinds.map((kind: string) => <option key={kind} value={kind}>{readable(kind)}</option>)}</select></div>
-          {visibleEvents.length === 0 ? <p className="executionEmpty">No audit events match these filters.</p> : <div className="executionTimeline">{visibleEvents.map((event) => <details className="executionEvent" key={event.eventId}><summary><span className="executionEventMain"><strong>{readable(event.kind)}</strong><span className="executionEventStatus">{eventStatus(event)}</span></span><span className="mono executionEventMeta">{new Date(event.timestamp).toLocaleString()} · {shortId(event.scope.agentId)} · run {shortId(event.scope.runId)}</span></summary><div className="executionEventDetail"><span>Event {event.eventId}</span><span>Agent {event.scope.agentId}</span><span>Run {event.scope.runId}</span><span>Sequence {event.sequence}</span>{eventDetail(event) && <span>{eventDetail(event)}</span>}</div></details>)}</div>}
-        </section>
+        </details>
+        </details>
       </div>
     </div>
   );
