@@ -19,3 +19,10 @@ Validation: full build and208 tests passed; isolated Electron Codex/Cursor fixtu
 Meeting/debate office session IDs now equal their shared harness run ID. Each participant keeps a distinct task ID under a shared orchestration parent. The backend factory rejects a supplied scope from another project or agent. Direct/planning calls keep independent scopes; workflow child correlation and lifecycle/tool/policy UI remain pending.
 
 Verified with208 automated tests and an actual Electron local-provider test: two concurrent meetings, separate participant tasks, shared parent IDs, and a three-agent debate; eight local calls, zero paid calls. The test uses explicit awaited polling for asynchronous IPC state so completion checks cannot pass early.
+
+## Workflow scope correlation
+Desktop workflow runs now receive an app-owned root scope. Every executed step gets a distinct child task, including repeated uses of the same agent. Nested workflows inherit the parent step scope and produce their own child tasks. Scope metadata persists in workflow run/step snapshots and is passed to the shared provider wrapper. Existing workflow storage IDs and parentRunId links are unchanged; scope.runId is the shared harness correlation ID, not a replacement storage directory ID.
+
+The optional runtime scope preserves existing unscoped callers. Invalid scope rejects before run storage or backend dispatch. Input scopes are copied into immutable, explicitly selected fields. Sample-mode backends bypass model invocation logging while retaining workflow scopes.
+
+Validation: full build210 tests pass. Actual Electron two-project nested-workflow test passes with six local provider calls, unique repeated-agent tasks, immediate-parent links, project separation and no invented sample-mode attempts. Tool events, cancellation wiring and execution policy/timeline UI remain pending.

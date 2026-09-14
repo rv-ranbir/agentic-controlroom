@@ -1255,7 +1255,7 @@ const workflowHost = createWorkflowHost({
   environment: p => ({...process.env,...resolveSecretsEnv(p.id)}),
   running,
   role: roleFor,
-  backend: makeBackend,
+  backend(project:Project,agent:AgentRef,scope?:RunScope) { return makeBackend(project,agent,undefined,scope); },
   tokenSaving: () => loadAdminConfig().tokenSaving,
   log: wiredLog,
   event: (projectId, event) => send("room:event", { projectId, ...event }),

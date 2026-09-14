@@ -1,3 +1,5 @@
+import type { RunScope } from '../harness/types.js';
+import { assertRunScope, createChildScope } from '../harness/runScope.js';
 import { compactData } from '../backend/tokenSaving.js';
 import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
@@ -44,6 +46,7 @@ export interface WorkflowDefinition {
 export type StepStatus = 'pending' | 'running' | 'complete' | 'failed' | 'cancelled' | 'interrupted' | 'skipped';
 
 export interface WorkflowRunStep {
+  scope?: RunScope;
   id: string;
   status: StepStatus;
   agentId?: string;
@@ -53,6 +56,7 @@ export interface WorkflowRunStep {
 export type WorkflowRunStatus = 'running' | 'complete' | 'failed' | 'cancelled' | 'interrupted';
 
 export interface WorkflowRun {
+  scope?: RunScope;
   id: string;
   workflowId: string;
   name: string;
@@ -67,11 +71,12 @@ export interface WorkflowRun {
 export type WorkflowTool = (args: { context: RunContext; input: string; signal?: AbortSignal }) => Promise<unknown>;
 
 export interface ExecuteWorkflowOptions {
+  scope?: RunScope;
   tokenSaving?: boolean;
   directory: string;
   definition: WorkflowDefinition;
   agents: RoleConfig[];
-  backendFor: (role: RoleConfig) => AgentBackend;
+  backendFor: (role: RoleConfig, scope?: RunScope) => AgentBackend;
   log: ChatLog;
   input: string;
   tools?: Record<string, WorkflowTool>;
@@ -224,6 +229,7 @@ async function runWorkflowInternal(opts: ExecuteWorkflowOptions, limits: Resolve
     status: 'running',
     startedAt: new Date().toISOString(),
     parentRunId: opts.parentRunId,
+    ...(opts.scope ? {scope: opts.scope} : {}),
     steps: opts.definition.steps.map((s) => ({ id: s.id, status: 'pending', agentId: s.agentId })),
   };
   persistRun(runDir, run);
@@ -243,6 +249,8 @@ async function runWorkflowInternal(opts: ExecuteWorkflowOptions, limits: Resolve
       }
 
       const step = opts.definition.steps[i];
+      const stepScope = opts.scope ? createChildScope(opts.scope, step.agentId ?? step.ownerId ?? 'orchestrator') : undefined;
+      if (stepScope) run.steps[i].scope = stepScope;
       run.steps[i].status = 'running';
       persistRun(runDir, run);
 
@@ -271,7 +279,7 @@ async function runWorkflowInternal(opts: ExecuteWorkflowOptions, limits: Resolve
             effectiveSystemPrompt = prepared.systemPrompt;
           }
           const effectiveRole = { ...role, systemPrompt: (effectiveSystemPrompt ?? role.systemPrompt) + '\n\nOptional visual output: you may add a presentation object alongside the required JSON data fields: {title,summary,html}. Choose the layout yourself (cards, SVG charts, tables, canvas, interactive HTML). HTML must be self-contained; no external resources, network, host APIs or credentials. Inline CSS/JavaScript supported in an isolated frame. Title <=200 chars, summary <=2000, HTML <=256 KiB. Keep the required data unchanged and accurately represent its uncertainty; omit presentation if not useful. Never replace evidence with a visual.' };
-          const backend = opts.backendFor(effectiveRole);
+          const backend = opts.backendFor(effectiveRole, stepScope);
           const originalReply = await runAgentStep(effectiveRole, backend, effectivePrompt, opts.log, context, opts.signal);
           const raw = context.add({type:'raw-output',producer:role.id,key:step.id,data:originalReply,parents:[prevArtifactId]});
           const {dataReply:reply,presentation}=parsePresentation(originalReply);
@@ -303,7 +311,7 @@ async function runWorkflowInternal(opts: ExecuteWorkflowOptions, limits: Resolve
           producer = step.tool;
         } else {
           const childRun = await runWorkflowInternal(
-            { ...opts, definition: step.workflow!, input: prompt, parentRunId: run.id },
+            { ...opts, definition: step.workflow!, input: prompt, parentRunId: run.id, scope: stepScope },
             limits,
           );
           if (childRun.status !== 'complete') {
@@ -355,6 +363,12 @@ async function runWorkflowInternal(opts: ExecuteWorkflowOptions, limits: Resolve
 }
 
 export async function executeWorkflow(opts: ExecuteWorkflowOptions): Promise<WorkflowRun> {
+  if (opts.scope !== undefined) {
+    assertRunScope(opts.scope);
+    const s = opts.scope;
+    opts = { ...opts, scope: Object.freeze({projectId:s.projectId,runId:s.runId,agentId:s.agentId,taskId:s.taskId,
+      ...(s.parentTaskId === undefined ? {} : {parentTaskId:s.parentTaskId})}) };
+  }
   const limits = resolveLimits(opts.limits);
   validateDefinition(opts.definition, opts.agents, opts.tools, 1, new Set(), { count: 0 }, limits);
   return runWorkflowInternal(opts, limits);
