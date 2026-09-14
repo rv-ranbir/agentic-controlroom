@@ -1,3 +1,6 @@
+import { AuditJournal } from '../harness/audit.js';
+import { createRunScope } from '../harness/runScope.js';
+import { withInvocation } from '../harness/invocation.js';
 import { CodexCliBackend, resolveCodexBinary } from '../backend/codexCliBackend.js';
 import { createErrorLog, appErrorLogPath, type ErrorContext } from './errorLog.js';
 import { SubagentRegistry } from "./subagentPresence.js";
@@ -673,7 +676,7 @@ function saveCommit(project: Project, record: CommitRecord): void {
 
 async function generateCommitMessage(project: Project, agent: AgentRef, diffText: string): Promise<string> {
   const role: RoleConfig = {
-    id: "committer",
+    id: agent.id,
     name: "Committer",
     systemPrompt:
       "You write concise git commit messages in the Conventional Commits format (type(scope): summary). " +
@@ -1158,9 +1161,27 @@ function capabilityService(project:Project,agent?:AgentRef,surface?:'planning') 
   onPublish:v=>{const name=agent?.name??v.agentId;wiredLog(project).post(v.agentId,name,v.summary,{artifactId:v.artifactId,viewId:v.viewId,revision:v.revision,previousArtifactId:v.previousArtifactId,rawReply:JSON.stringify({viewId:v.viewId,revision:v.revision})});if(surface==='planning')postPlanningMessage(project,{authorId:v.agentId,authorName:name,text:v.summary,artifactId:v.artifactId,viewId:v.viewId,revision:v.revision});}
  });
 }
-function makeBackend(project:Project,agent?:AgentRef,surface?:'planning'):AgentBackend {
+// One writer per physical project directory; never create competing per-call journals.
+const harnessJournals = new Map<string, { projectId: string; journal: AuditJournal }>();
+function harnessJournal(project: Project): AuditJournal {
+ const path = realpathSync(project.path);
+ const key = process.platform === 'win32' ? path.toLowerCase() : path;
+ const existing = harnessJournals.get(key);
+ if (existing) {
+  if (existing.projectId !== project.id) throw new Error('Harness directory is already owned by another project');
+  return existing.journal;
+ }
+ const journal = new AuditJournal(project.path);
+ harnessJournals.set(key, { projectId: project.id, journal });
+ return journal;
+}
+function makeBackend(project:Project,agent:AgentRef,surface?:'planning'):AgentBackend {
  const service=capabilityService(project,agent,surface);
- return withCapabilities(createProviderBackend(project,agent),{catalogue:service.catalogue,execute:service.execute,tokenSaving:loadAdminConfig().tokenSaving,retainedSession:['claude','cursor','codex'].includes(effectiveProvider(project,agent))});
+ const provider=effectiveProvider(project,agent);
+ const backend=withInvocation(createProviderBackend(project,agent),{
+  scope:createRunScope(project.id,agent.id),provider,model:agent.model||project.model||'',journal:harnessJournal(project)
+ });
+ return withCapabilities(backend,{catalogue:service.catalogue,execute:service.execute,tokenSaving:loadAdminConfig().tokenSaving,retainedSession:['claude','cursor','codex'].includes(provider)});
 }
 
 // M4 Launcher stats: main.ts is the one place that sees every project's
