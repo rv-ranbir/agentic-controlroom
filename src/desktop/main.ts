@@ -1,5 +1,6 @@
 import { AuditJournal } from '../harness/audit.js';
-import { createRunScope } from '../harness/runScope.js';
+import { createRunScope, createChildScope } from '../harness/runScope.js';
+import type { RunScope } from '../harness/types.js';
 import { withInvocation } from '../harness/invocation.js';
 import { CodexCliBackend, resolveCodexBinary } from '../backend/codexCliBackend.js';
 import { createErrorLog, appErrorLogPath, type ErrorContext } from './errorLog.js';
@@ -1175,11 +1176,12 @@ function harnessJournal(project: Project): AuditJournal {
  harnessJournals.set(key, { projectId: project.id, journal });
  return journal;
 }
-function makeBackend(project:Project,agent:AgentRef,surface?:'planning'):AgentBackend {
+function makeBackend(project:Project,agent:AgentRef,surface?:'planning',scope?:RunScope):AgentBackend {
+ if (scope && (scope.projectId !== project.id || scope.agentId !== agent.id)) throw new Error('Harness scope does not match project agent');
  const service=capabilityService(project,agent,surface);
  const provider=effectiveProvider(project,agent);
  const backend=withInvocation(createProviderBackend(project,agent),{
-  scope:createRunScope(project.id,agent.id),provider,model:agent.model||project.model||'',journal:harnessJournal(project)
+  scope:scope??createRunScope(project.id,agent.id),provider,model:agent.model||project.model||'',journal:harnessJournal(project)
  });
  return withCapabilities(backend,{catalogue:service.catalogue,execute:service.execute,tokenSaving:loadAdminConfig().tokenSaving,retainedSession:['claude','cursor','codex'].includes(provider)});
 }
@@ -1324,7 +1326,8 @@ async function startMeeting(project: Project, agentIds: string[], topic: string,
   keys.forEach((k) => running.add(k));
   const log = wiredLog(project);
   send("room:event", { projectId: project.id, kind: "running", running: true });
-  const sessionId = randomUUID();
+  const scope = createRunScope(project.id, 'orchestrator');
+  const sessionId = scope.runId;
   officePresence.start(sessionId, project.id, "meeting", agents.map((a) => a.id));
   sendOfficePresence();
   try {
@@ -1338,7 +1341,7 @@ async function startMeeting(project: Project, agentIds: string[], topic: string,
         ),
         project,
       ),
-      backend: makeBackend(project, agent),
+      backend: makeBackend(project, agent, undefined, createChildScope(scope, agent.id)),
     }));
     await runMeeting(topic, log, participants, rounds, true);
   } catch (err) {
@@ -1366,7 +1369,8 @@ async function startDebate(project: Project, analystIds: string[], managerId: st
   keys.forEach((k) => running.add(k));
   const log = wiredLog(project);
   send("room:event", { projectId: project.id, kind: "running", running: true });
-  const sessionId = randomUUID();
+  const scope = createRunScope(project.id, 'orchestrator');
+  const sessionId = scope.runId;
   officePresence.start(sessionId, project.id, "debate", allAgents.map((a) => a.id));
   sendOfficePresence();
   try {
@@ -1380,7 +1384,7 @@ async function startDebate(project: Project, analystIds: string[], managerId: st
         ),
         project,
       ),
-      backend: makeBackend(project, agent),
+      backend: makeBackend(project, agent, undefined, createChildScope(scope, agent.id)),
     });
     const analysts = analystAgents.map(buildParticipant);
     const manager = buildParticipant(managerAgent);

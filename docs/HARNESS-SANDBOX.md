@@ -14,3 +14,8 @@ The desktop shared backend factory now wraps each underlying model invocation be
 This does not yet wire cancellation signals, tool events, shared meeting/workflow parent-run correlation, project policy controls or the timeline UI. Provider permissions remain unchanged; no isolated driver is enabled. Each backend construction currently starts its own run scope.
 
 Validation: full build and208 tests passed; isolated Electron Codex/Cursor fixture processes each ran two turns with six ordered project-owned events and distinct turn run IDs. Existing meeting/planning session regression passed. No paid calls or authenticated live delegation claim.
+
+## Meeting and debate correlation
+Meeting/debate office session IDs now equal their shared harness run ID. Each participant keeps a distinct task ID under a shared orchestration parent. The backend factory rejects a supplied scope from another project or agent. Direct/planning calls keep independent scopes; workflow child correlation and lifecycle/tool/policy UI remain pending.
+
+Verified with208 automated tests and an actual Electron local-provider test: two concurrent meetings, separate participant tasks, shared parent IDs, and a three-agent debate; eight local calls, zero paid calls. The test uses explicit awaited polling for asynchronous IPC state so completion checks cannot pass early.
