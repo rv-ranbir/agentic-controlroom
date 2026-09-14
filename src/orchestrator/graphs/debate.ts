@@ -5,6 +5,7 @@ import type { ChatLog } from "../../chatroom/log.js";
 import type { MeetingParticipant } from "../meeting.js";
 
 export interface DebateOptions {
+  signal?: AbortSignal;
   maxRounds?: number;
   streamActivity?: boolean;
 }
@@ -97,5 +98,5 @@ export async function runDebateGraph(
     { from: "roundGate", to: "tNoConsensus", condition: () => true },
   ];
 
-  return runGraph(analystIds[0], nodes, edges, log, { maxSteps: (analystIds.length + 2) * maxRounds + 4 });
+  return runGraph(analystIds[0], nodes, edges, log, { maxSteps: (analystIds.length + 2) * maxRounds + 4,signal:opts.signal });
 }

@@ -35,8 +35,8 @@ export type AuditInput = {
  metadata?: Readonly<Record<string, unknown>>;
 };
 
-export interface AuditQuery { runId?: string; agentId?: string; afterSequence?: number; limit: number; }
-export interface AuditJournalOptions { rotationBytes?: number; }
+export interface AuditQuery { order?: 'asc'|'desc'; runId?: string; agentId?: string; afterSequence?: number; limit: number; }
+export interface AuditJournalOptions { projectId?:string; rotationBytes?: number; }
 
 function assertSafeString(value: unknown, field: string): asserts value is string {
  if (typeof value !== 'string' || !value.trim() || value.length > 200 || /[\x00-\x1f\x7f/\\]/.test(value)) {
@@ -118,6 +118,7 @@ export class AuditJournal {
  readonly diagnostics: string[] = [];
 
  constructor(directory: string, options: AuditJournalOptions = {}) {
+  if(options.projectId!==undefined){assertSafeString(options.projectId,'projectId');this.projectId=options.projectId;}
   if (typeof directory !== 'string' || !directory.trim()) throw new Error('Invalid project directory');
   if (/(^|[\\/])\.\.(?=[\\/]|$)/.test(directory)) throw new Error('Project directory traversal is not allowed');
   const projectDirectory = resolve(directory);
@@ -172,7 +173,9 @@ export class AuditJournal {
  query(query: AuditQuery): AuditEvent[] {
   if (query.afterSequence !== undefined && (!Number.isSafeInteger(query.afterSequence) || query.afterSequence < 0)) throw new Error('Invalid query sequence');
   if (!Number.isInteger(query.limit) || query.limit < 0 || query.limit > MAX_QUERY) throw new Error('Query limit must be at most 500');
-  return this.records.filter(event =>
+  if(query.order!==undefined&&query.order!=='asc'&&query.order!=='desc')throw new Error('Invalid query order');
+  const records=query.order==='desc'?[...this.records].reverse():this.records;
+  return records.filter(event =>
    (query.runId === undefined || event.scope.runId === query.runId) &&
    (query.agentId === undefined || event.scope.agentId === query.agentId) &&
    (query.afterSequence === undefined || event.sequence > query.afterSequence)

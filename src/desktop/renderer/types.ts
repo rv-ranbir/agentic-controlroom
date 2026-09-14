@@ -1,3 +1,9 @@
+import type { AuditEvent } from "../../harness/audit";
+import type { EffectivePolicy, ExecutionPolicy } from "../../harness/types";
+import type { ExecutionState } from "../../harness/projectHarness";
+
+export type { AuditEvent, EffectivePolicy, ExecutionPolicy, ExecutionState };
+
 export interface AgentRef {
   id: string;
   roleId?: string;
@@ -135,6 +141,9 @@ export interface CommitRecord {
 }
 
 export interface DesktopApi {
+  getExecutionState(projectId: string): Promise<ExecutionState>;
+  saveExecutionPolicy(projectId: string, policy: ExecutionPolicy): Promise<ExecutionState>;
+  cancelExecutionRun(projectId: string, runId: string): Promise<boolean>;
   updateAgentRuntime(id:string,agentId:string,config:{provider:string;model:string;keyEnv:string}):Promise<void>;
   listRoles(): Promise<AgentRef[]>;
   listProjects(): Promise<Project[]>;

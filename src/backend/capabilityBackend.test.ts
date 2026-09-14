@@ -80,3 +80,17 @@ test('a missing retained session falls back to complete context', async () => {
  await withCapabilities(backend,{tokenSaving:true,retainedSession:true,catalogue:()=>[],execute:async()=>({value:'evidence'})}).start(role,'original');
  assert.match(prompts[1],/original/);assert.match(prompts[1],/evidence/);
 });
+
+
+test('cancellation after a model response prevents a requested app tool and follow-up',async()=>{
+ const controller=new AbortController();let tools=0,calls=0;
+ const backend=withCapabilities({start:async()=>{calls++;controller.abort();return {sessionId:'s',reply:'{"agent_room":{"tool":"list_capabilities","arguments":{}}}'}},resume:async()=>{calls++;return {reply:''}}},
+ {signal:controller.signal,catalogue:()=>[],execute:async()=>{tools++;return []}});
+ await assert.rejects(backend.start(role,'task'),/cancel/i);assert.equal(tools,0);assert.equal(calls,1);
+});
+test('cancellation during an app tool prevents the next model call',async()=>{
+ const controller=new AbortController();let calls=0;
+ const backend=withCapabilities({start:async()=>{calls++;return {sessionId:'s',reply:'{"agent_room":{"tool":"list_capabilities","arguments":{}}}'}},resume:async()=>{calls++;return {reply:''}}},
+ {signal:controller.signal,catalogue:()=>[],execute:async()=>{controller.abort();return []}});
+ await assert.rejects(backend.start(role,'task'),/cancel/i);assert.equal(calls,1);
+});

@@ -1,28 +1,22 @@
-# Execution protection status
+# Execution protection and harness status
 
-2026-09-14: no app isolation driver is enabled. Existing native provider flags remain provider-owned and unchanged. A process allowlist or worktree is not an OS sandbox.
+Milestone 1 delivered, 2026-09-14. Open a project's Environment > Execution tab for execution policy, active runs, stop requests and the latest 200 audit events. Filters select event kind, run or agent; event details expose correlation IDs and safe metadata.
 
-Read-only host probe found Docker CLI and a docker-desktop WSL distribution. Docker server was unreachable: dockerDesktopLinuxEngine named pipe not found. No container was started, runtime installed, credential store copied, or provider authentication used. WSL presence alone proves neither a usable boundary nor native CLI compatibility.
+## Protection
+Existing projects remain provider-managed. This means the app does not verify an OS boundary; provider permissions still apply. Requested policy persists per project. Unsupported read-only, isolated-workspace, network or nonzero resource controls reject before dispatch rather than falling back to host execution. Policy changes are rejected while tracked runs or project terminals are active.
 
-The foundation policy resolver describes filesystem, network, descendants, time, calls and concurrency separately. Zero budgets mean no app-enforced bound. Requests for an unverified boundary fail before the driver launch method runs. The unavailable driver never spawns a process. These modules are infrastructure until wired into the desktop entrypoints; they do not yet change existing project behavior.
+No app isolation driver is enabled. A read-only host probe found Docker CLI and docker-desktop WSL, but the Docker server pipe was unavailable. No runtime was installed, container launched or credential store copied. Worktrees and process allowlists are not sandboxes. Real outside-write, reparse/symlink escape, network, descendant containment and native-provider compatibility tests remain deferred until a compatible driver exists; fixture tests do not establish isolation.
 
-Enabling a driver requires nonprivileged workspace mounting, allowlisted environment, a real network boundary and passing outside-write, symlink/reparse escape, network-off, descendant containment, cancellation and native-provider compatibility tests. None of those real-boundary tests has passed yet; unit capability fixtures are not proof of isolation.
+## Runs, cancellation and audit
+Direct and planning calls, meeting/debate participants, capability-loop follow-ups and nested workflow agents use shared project/run/task identities. Each underlying model invocation is recorded once. App capability and workflow tools record started/settled status without copying arguments, results or raw errors.
 
-## Desktop invocation integration
-The desktop shared backend factory now wraps each underlying model invocation below the capability loop. One journal writer is cached per physical project directory. Existing start/resume calls persist attempt-started, completed/failed and settled events, without prompt/output payloads. Commit-message generation retains the selected agent identity.
+One writer owns each canonical project directory. JSONL records under .agentic-controlroom/harness rotate at 5 MiB with five retained files. Restart verifies project ownership, sequence and record validity; truncated-tail repair produces a diagnostic. Event metadata is allowlisted and redacted. Queries and in-memory history are bounded.
 
-This does not yet wire cancellation signals, tool events, shared meeting/workflow parent-run correlation, project policy controls or the timeline UI. Provider permissions remain unchanged; no isolated driver is enabled. Each backend construction currently starts its own run scope.
+Stop requests abort future dispatch and request termination of tracked native processes. A call remains active until actual settlement; an HTTP request may finish before stopping. Cancellation remains accepted if audit writing fails, with a visible diagnostic. Policy and audit history survive restart.
 
-Validation: full build and208 tests passed; isolated Electron Codex/Cursor fixture processes each ran two turns with six ordered project-owned events and distinct turn run IDs. Existing meeting/planning session regression passed. No paid calls or authenticated live delegation claim.
+Interactive agent and shell terminals are policy-gated at launch, but their internal activity is outside this timeline and its stop controls. Native-provider internal tools/MCP calls are not uniformly observable; app-managed capability/workflow tools are logged.
 
-## Meeting and debate correlation
-Meeting/debate office session IDs now equal their shared harness run ID. Each participant keeps a distinct task ID under a shared orchestration parent. The backend factory rejects a supplied scope from another project or agent. Direct/planning calls keep independent scopes; workflow child correlation and lifecycle/tool/policy UI remain pending.
+## Verification
+Full build and 218 tests passed. Isolated Electron/Playwright checks passed for two-project policy persistence and rejection, capability/workflow tool events, HTTP and workflow cancellation, filters and restart. Separate regressions passed concurrent meeting/debate and nested workflow correlation. Local Codex/Cursor fixture processes confirmed cancellation and observed settlement. No paid model calls were used. These fixtures do not establish authenticated live-provider behavior or OS isolation.
 
-Verified with208 automated tests and an actual Electron local-provider test: two concurrent meetings, separate participant tasks, shared parent IDs, and a three-agent debate; eight local calls, zero paid calls. The test uses explicit awaited polling for asynchronous IPC state so completion checks cannot pass early.
-
-## Workflow scope correlation
-Desktop workflow runs now receive an app-owned root scope. Every executed step gets a distinct child task, including repeated uses of the same agent. Nested workflows inherit the parent step scope and produce their own child tasks. Scope metadata persists in workflow run/step snapshots and is passed to the shared provider wrapper. Existing workflow storage IDs and parentRunId links are unchanged; scope.runId is the shared harness correlation ID, not a replacement storage directory ID.
-
-The optional runtime scope preserves existing unscoped callers. Invalid scope rejects before run storage or backend dispatch. Input scopes are copied into immutable, explicitly selected fields. Sample-mode backends bypass model invocation logging while retaining workflow scopes.
-
-Validation: full build210 tests pass. Actual Electron two-project nested-workflow test passes with six local provider calls, unique repeated-agent tasks, immediate-parent links, project separation and no invented sample-mode attempts. Tool events, cancellation wiring and execution policy/timeline UI remain pending.
+Milestones 2-6 (usage, context, tools, delegation and goals) remain planned.

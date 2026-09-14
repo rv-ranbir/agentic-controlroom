@@ -19,6 +19,7 @@ export async function runMeeting(
   participants: MeetingParticipant[],
   rounds: number,
   streamActivity = false,
+  signal?: AbortSignal,
 ): Promise<void> {
-  await runMeetingGraph(topic, log, participants, rounds, { streamActivity });
+  await runMeetingGraph(topic, log, participants, rounds, { streamActivity,signal });
 }

@@ -7,8 +7,9 @@ import { EnvDatabaseTab } from "./env/EnvDatabaseTab";
 import { EnvSecretsTab } from "./env/EnvSecretsTab";
 import { EnvSkillsTab } from "./env/EnvSkillsTab";
 import { EnvMemoryTab } from "./env/EnvMemoryTab";
+import { ExecutionPolicyPanel } from "./ExecutionPolicyPanel";
 
-type Tab = "terminal" | "tunnel" | "database" | "secrets" | "skills" | "memory";
+type Tab = "terminal" | "tunnel" | "database" | "secrets" | "skills" | "memory" | "execution";
 const TABS: { id: Tab; label: string }[] = [
   { id: "terminal", label: "Terminal" },
   { id: "tunnel", label: "Tunnel" },
@@ -16,6 +17,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "secrets", label: "Secrets" },
   { id: "skills", label: "Skills" },
   { id: "memory", label: "Memory" },
+  { id: "execution", label: "Execution" },
 ];
 
 export function Environment() {
@@ -56,6 +58,7 @@ export function Environment() {
         {tab === "secrets" && <EnvSecretsTab project={project} />}
         {tab === "skills" && <EnvSkillsTab project={project} />}
         {tab === "memory" && <EnvMemoryTab project={project} />}
+        {tab === "execution" && <ExecutionPolicyPanel project={project} />}
       </div>
     </div>
   );

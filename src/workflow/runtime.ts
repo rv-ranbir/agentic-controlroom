@@ -71,6 +71,7 @@ export interface WorkflowRun {
 export type WorkflowTool = (args: { context: RunContext; input: string; signal?: AbortSignal }) => Promise<unknown>;
 
 export interface ExecuteWorkflowOptions {
+  runTool?:(scope:RunScope|undefined,name:string,execute:()=>Promise<unknown>)=>Promise<unknown>;
   scope?: RunScope;
   tokenSaving?: boolean;
   directory: string;
@@ -302,7 +303,8 @@ async function runWorkflowInternal(opts: ExecuteWorkflowOptions, limits: Resolve
           opts.log.post('orchestrator',step.ownerId ?? 'Workflow',`Running tool: ${step.tool}`);
           if (step.ownerId) opts.log.agentState(step.ownerId, 'working');
           try {
-            outputData = await opts.tools![step.tool]({ context, input: prompt, signal: opts.signal });
+            const execute=()=>opts.tools![step.tool!]({ context, input: prompt, signal: opts.signal });
+            outputData = await (opts.runTool ? opts.runTool(stepScope,step.tool,execute) : execute());
           } catch (toolErr) {
             if (step.ownerId) opts.log.agentState(step.ownerId, 'idle');
             throw toolErr;

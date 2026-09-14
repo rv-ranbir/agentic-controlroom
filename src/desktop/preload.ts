@@ -1,6 +1,9 @@
 import { contextBridge, ipcRenderer } from "electron";
 
 contextBridge.exposeInMainWorld("api", {
+  getExecutionState: (projectId: string) => ipcRenderer.invoke("harness:state", projectId),
+  saveExecutionPolicy: (projectId: string, policy: unknown) => ipcRenderer.invoke("harness:policy", projectId, policy),
+  cancelExecutionRun: (projectId: string, runId: string) => ipcRenderer.invoke("harness:cancel", projectId, runId),
   getProjectDashboard: (id:string) => ipcRenderer.invoke('projects:dashboard',id),
   openProjectDashboard: (id:string) => ipcRenderer.invoke('projects:openDashboard',id),
   getCapabilities: (projectId:string,agentId:string)=>ipcRenderer.invoke('capabilities:get',projectId,agentId),

@@ -5,6 +5,7 @@ import type { ChatLog } from "../../chatroom/log.js";
 import type { MeetingParticipant } from "../meeting.js";
 
 export interface MeetingGraphOptions {
+  signal?: AbortSignal;
   streamActivity?: boolean;
 }
 
@@ -56,5 +57,5 @@ export async function runMeetingGraph(
     { from: "roundGate", to: "tDone", condition: () => true },
   ];
 
-  return runGraph(nodeIds[0], nodes, edges, log, { maxSteps: nodeIds.length * rounds + 4 });
+  return runGraph(nodeIds[0], nodes, edges, log, { maxSteps: nodeIds.length * rounds + 4, signal:opts.signal });
 }

@@ -1,3 +1,4 @@
+import type { ProjectHarness } from '../harness/projectHarness.js';
 import type { RunScope } from '../harness/types.js';
 import { createRunScope } from '../harness/runScope.js';
 import { randomUUID } from 'node:crypto';
@@ -16,7 +17,7 @@ import { readProjectDashboard } from '../projectDashboard.js';
 import { createDashboardWindowManager } from './projectDashboardWindow.js';
 export interface RuntimeAgent {id:string;name:string;roleId?:string;systemPrompt?:string;provider?:"codex"|"cursor"|"claude"|"openrouter"|"openai"|"anthropic"|"gemini"|"ollama";model?:string;keyEnv?:string}
 export interface RuntimeProject {id:string;name:string;path:string;agents?:RuntimeAgent[]}
-interface Options {tokenSaving?():boolean;environment?(p:RuntimeProject):Record<string,string|undefined>;projects():RuntimeProject[];role(p:RuntimeProject,a:RuntimeAgent):RoleConfig;backend(p:RuntimeProject,a:RuntimeAgent,scope?:RunScope):AgentBackend;running:Set<string>;log(p:RuntimeProject):ChatLog;event(id:string,event:Record<string,unknown>):void}
+interface Options {harness?(p:RuntimeProject):ProjectHarness;tokenSaving?():boolean;environment?(p:RuntimeProject):Record<string,string|undefined>;projects():RuntimeProject[];role(p:RuntimeProject,a:RuntimeAgent):RoleConfig;backend(p:RuntimeProject,a:RuntimeAgent,scope?:RunScope,signal?:AbortSignal):AgentBackend;running:Set<string>;log(p:RuntimeProject):ChatLog;event(id:string,event:Record<string,unknown>):void}
 export function createWorkflowHost(o:Options){
  const controllers=new Map<string,AbortController>();
  const windows=createDashboardWindowManager(options=>new BrowserWindow(options));
@@ -35,18 +36,18 @@ export function createWorkflowHost(o:Options){
   if([...o.running].some(k=>k===p.id||k.startsWith(p.id+':')))throw new Error('This project has agents already working.');
   const definition=get(p)??{id:'team',name:'Project team',steps:p.agents.map((a,i)=>({id:`step-${i+1}`,agentId:a.id}))};validate(p,definition,0,!!readProjectIntegration(p.path));
   const roles=p.agents.map(a=>o.role(p,a)); new ArtifactStore(p.path);
-  const controller=new AbortController();controllers.set(p.id,controller);o.running.add(p.id);o.event(p.id,{kind:'running',running:true});
+  const scope=createRunScope(p.id,'orchestrator'),harness=o.harness?.(p),controller=new AbortController(),handle=harness?.begin(scope,controller.signal);const signal=handle?.signal??controller.signal;controllers.set(p.id,controller);o.running.add(p.id);o.event(p.id,{kind:'running',running:true});
   const log=o.log(p);log.post('user','user',`${fixture?'[FIXTURE] ':''}${input}`);
-  void (async()=>{const integration=await loadProjectIntegration(p.path,{fixture,environment:Object.fromEntries(Object.entries(o.environment?.(p)??process.env).filter((entry):entry is [string,string]=>typeof entry[1]==='string'))});return {integration,run:await executeWorkflow({scope:createRunScope(p.id,'orchestrator'),tokenSaving:o.tokenSaving?.()===true,publishPresentation:artifact=>new ArtifactStore(p.path).add({...artifact,kind:'dashboard'}).id,tools:integration?.tools,prepareAgent:integration?.prepareAgent,afterAgent:integration?.afterAgent,directory:directory(p),definition,agents:roles,log,input:fixture?`SYNTHETIC FIXTURE: ${input}`:input,signal:controller.signal,backendFor:(role,scope)=>fixture?(integration?.fixtureBackendFor?.(role)??{
+  void (async()=>{const integration=await loadProjectIntegration(p.path,{fixture,environment:Object.fromEntries(Object.entries(o.environment?.(p)??process.env).filter((entry):entry is [string,string]=>typeof entry[1]==='string'))});return {integration,run:await executeWorkflow({scope,runTool:harness?(scope,name,execute)=>{if(!scope)throw new Error('Missing workflow tool scope');return harness.tool(scope,name,execute,signal);}:undefined,tokenSaving:o.tokenSaving?.()===true,publishPresentation:artifact=>new ArtifactStore(p.path).add({...artifact,kind:'dashboard'}).id,tools:integration?.tools,prepareAgent:integration?.prepareAgent,afterAgent:integration?.afterAgent,directory:directory(p),definition,agents:roles,log,input:fixture?`SYNTHETIC FIXTURE: ${input}`:input,signal,backendFor:(role,scope)=>fixture?(integration?.fixtureBackendFor?.(role)??{
    start:async()=>({sessionId:'',reply:`SYNTHETIC FIXTURE — ${role.name} completed its assigned step. No external model or tool was called.`}),resume:async()=>({reply:'SYNTHETIC FIXTURE'})
-  }):o.backend(p,p.agents!.find(a=>a.id===role.id)!,scope)} )};})().then(({run,integration})=>{
+  }):o.backend(p,p.agents!.find(a=>a.id===role.id)!,scope,signal)} )};})().then(({run,integration})=>{
    const context=new RunContext(join(directory(p),run.id,'context'));const output=join('.agentic-controlroom','runs',run.id,'report.html');
    const report=JSON.stringify({fixture,run,artifacts:context.list()},null,2).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
    writeFileSync(join(p.path,output),'<meta charset="utf-8"><title>Workflow report</title><style>body{font:15px system-ui;margin:32px}pre{white-space:pre-wrap;overflow-wrap:anywhere}</style><h1>Workflow report</h1><pre>'+report+'</pre>');
    new ArtifactStore(p.path).add({title:`${fixture?'Fixture: ':''}${run.name}`,kind:'report',path:output,runId:run.id});
    for(const artifact of integration?.artifacts?.(context)??[])new ArtifactStore(p.path).add({...artifact,runId:run.id});
    log.post('orchestrator','Workflow',`${run.name}: ${run.status}${run.error?` — ${run.error}`:''}. Report available in Artifacts.`);o.event(p.id,{kind:'done',result:run.status});
-  }).catch(error=>{log.post('orchestrator','Workflow',`Error: ${String(error)}`);o.event(p.id,{kind:'done',result:'error'});}).finally(()=>{log.status('');controllers.delete(p.id);o.running.delete(p.id);o.event(p.id,{kind:'running',running:false});});
+  }).catch(error=>{log.post('orchestrator','Workflow',`Error: ${String(error)}`);o.event(p.id,{kind:'done',result:'error'});}).finally(()=>{handle?.finish();log.status('');controllers.delete(p.id);o.running.delete(p.id);o.event(p.id,{kind:'running',running:false});});
  }
  function register(){
   for(const p of o.projects()){try{if(existsSync(directory(p)))recoverInterruptedRuns(directory(p));}catch(error){console.error('Run recovery failed for project',p.id,String(error));}}

@@ -1,7 +1,6 @@
-import { AuditJournal } from '../harness/audit.js';
+import { ProjectHarness, type RunHandle } from '../harness/projectHarness.js';
 import { createRunScope, createChildScope } from '../harness/runScope.js';
 import type { RunScope } from '../harness/types.js';
-import { withInvocation } from '../harness/invocation.js';
 import { CodexCliBackend, resolveCodexBinary } from '../backend/codexCliBackend.js';
 import { createErrorLog, appErrorLogPath, type ErrorContext } from './errorLog.js';
 import { SubagentRegistry } from "./subagentPresence.js";
@@ -1162,28 +1161,32 @@ function capabilityService(project:Project,agent?:AgentRef,surface?:'planning') 
   onPublish:v=>{const name=agent?.name??v.agentId;wiredLog(project).post(v.agentId,name,v.summary,{artifactId:v.artifactId,viewId:v.viewId,revision:v.revision,previousArtifactId:v.previousArtifactId,rawReply:JSON.stringify({viewId:v.viewId,revision:v.revision})});if(surface==='planning')postPlanningMessage(project,{authorId:v.agentId,authorName:name,text:v.summary,artifactId:v.artifactId,viewId:v.viewId,revision:v.revision});}
  });
 }
-// One writer per physical project directory; never create competing per-call journals.
-const harnessJournals = new Map<string, { projectId: string; journal: AuditJournal }>();
-function harnessJournal(project: Project): AuditJournal {
- const path = realpathSync(project.path);
- const key = process.platform === 'win32' ? path.toLowerCase() : path;
- const existing = harnessJournals.get(key);
+// One owner per physical project directory, shared by every execution entrypoint.
+const projectHarnesses = new Map<string, ProjectHarness>();
+function projectHarness(project: Project): ProjectHarness {
+ const path = realpathSync(project.path), key = process.platform === 'win32' ? path.toLowerCase() : path;
+ const existing = projectHarnesses.get(key);
  if (existing) {
   if (existing.projectId !== project.id) throw new Error('Harness directory is already owned by another project');
-  return existing.journal;
+  return existing;
  }
- const journal = new AuditJournal(project.path);
- harnessJournals.set(key, { projectId: project.id, journal });
- return journal;
+ const harness = new ProjectHarness(project.id,project.path,killProcessTree);
+ projectHarnesses.set(key,harness);return harness;
 }
-function makeBackend(project:Project,agent:AgentRef,surface?:'planning',scope?:RunScope):AgentBackend {
+function makeBackend(project:Project,agent:AgentRef,surface?:'planning',scope?:RunScope,signal?:AbortSignal):AgentBackend {
  if (scope && (scope.projectId !== project.id || scope.agentId !== agent.id)) throw new Error('Harness scope does not match project agent');
- const service=capabilityService(project,agent,surface);
- const provider=effectiveProvider(project,agent);
- const backend=withInvocation(createProviderBackend(project,agent),{
-  scope:scope??createRunScope(project.id,agent.id),provider,model:agent.model||project.model||'',journal:harnessJournal(project)
- });
- return withCapabilities(backend,{catalogue:service.catalogue,execute:service.execute,tokenSaving:loadAdminConfig().tokenSaving,retainedSession:['claude','cursor','codex'].includes(provider)});
+ const service=capabilityService(project,agent,surface),provider=effectiveProvider(project,agent);
+ async function execute<T>(call:(backend:AgentBackend)=>Promise<T>):Promise<T> {
+  const execution=scope??createRunScope(project.id,agent.id),harness=projectHarness(project),handle=harness.begin(execution,signal);
+  try {
+   const backend=harness.backend(createProviderBackend(project,agent),execution,provider,agent.model||project.model||'',handle.signal);
+   return await call(withCapabilities(backend,{signal:handle.signal,catalogue:service.catalogue,
+    execute:(role,tool,args)=>harness.tool(execution,tool,()=>service.execute(role,tool,args),handle.signal),
+    tokenSaving:loadAdminConfig().tokenSaving,retainedSession:['claude','cursor','codex'].includes(provider)}));
+  } finally {handle.finish();}
+ }
+ return {start:(role,prompt,onLine,onProcess)=>execute(backend=>backend.start(role,prompt,onLine,onProcess)),
+  resume:(id,prompt,role,onLine,onProcess)=>execute(backend=>backend.resume(id,prompt,role,onLine,onProcess))};
 }
 
 // M4 Launcher stats: main.ts is the one place that sees every project's
@@ -1255,7 +1258,8 @@ const workflowHost = createWorkflowHost({
   environment: p => ({...process.env,...resolveSecretsEnv(p.id)}),
   running,
   role: roleFor,
-  backend(project:Project,agent:AgentRef,scope?:RunScope) { return makeBackend(project,agent,undefined,scope); },
+  backend(project:Project,agent:AgentRef,scope?:RunScope,signal?:AbortSignal) { return makeBackend(project,agent,undefined,scope,signal); },
+  harness: projectHarness,
   tokenSaving: () => loadAdminConfig().tokenSaving,
   log: wiredLog,
   event: (projectId, event) => send("room:event", { projectId, ...event }),
@@ -1330,7 +1334,10 @@ async function startMeeting(project: Project, agentIds: string[], topic: string,
   const sessionId = scope.runId;
   officePresence.start(sessionId, project.id, "meeting", agents.map((a) => a.id));
   sendOfficePresence();
+  let handle:RunHandle|undefined;
   try {
+    handle=projectHarness(project).begin(scope);
+    const signal=handle.signal;
     const participants = agents.map((agent) => ({
       agent: prependMemory(
         appendSkills(
@@ -1341,12 +1348,13 @@ async function startMeeting(project: Project, agentIds: string[], topic: string,
         ),
         project,
       ),
-      backend: makeBackend(project, agent, undefined, createChildScope(scope, agent.id)),
+      backend: makeBackend(project, agent, undefined, createChildScope(scope, agent.id),signal),
     }));
-    await runMeeting(topic, log, participants, rounds, true);
+    await runMeeting(topic, log, participants, rounds, true,signal);
   } catch (err) {
     postError(project, err);
   } finally {
+    handle?.finish();
     keys.forEach((k) => running.delete(k));
     agents.forEach((a) => log.agentState(a.id, "idle"));
     log.status("");
@@ -1373,7 +1381,10 @@ async function startDebate(project: Project, analystIds: string[], managerId: st
   const sessionId = scope.runId;
   officePresence.start(sessionId, project.id, "debate", allAgents.map((a) => a.id));
   sendOfficePresence();
+  let handle:RunHandle|undefined;
   try {
+    handle=projectHarness(project).begin(scope);
+    const signal=handle.signal;
     const buildParticipant = (agent: AgentRef) => ({
       agent: prependMemory(
         appendSkills(
@@ -1384,14 +1395,15 @@ async function startDebate(project: Project, analystIds: string[], managerId: st
         ),
         project,
       ),
-      backend: makeBackend(project, agent, undefined, createChildScope(scope, agent.id)),
+      backend: makeBackend(project, agent, undefined, createChildScope(scope, agent.id),signal),
     });
     const analysts = analystAgents.map(buildParticipant);
     const manager = buildParticipant(managerAgent);
-    await runDebateGraph(topic, log, analysts, manager, { maxRounds, streamActivity: true });
+    await runDebateGraph(topic, log, analysts, manager, { maxRounds, streamActivity: true,signal });
   } catch (err) {
     postError(project, err);
   } finally {
+    handle?.finish();
     keys.forEach((k) => running.delete(k));
     allAgents.forEach((a) => log.agentState(a.id, "idle"));
     log.status("");
@@ -1419,6 +1431,7 @@ function ptyKey(projectId: string, agentId: string): string {
 }
 
 function startPty(project: Project, agentId: string): { alreadyRunning: boolean } {
+  projectHarness(project).assertAllowed();
   const provider = effectiveProvider(project, project.agents?.find(a => a.id === agentId));
   if (!["claude", "cursor", "codex"].includes(provider)) throw new Error("This provider has no interactive CLI.");
   const key = ptyKey(project.id, agentId);
@@ -1451,6 +1464,7 @@ function startPty(project: Project, agentId: string): { alreadyRunning: boolean 
 const SHELL_AGENT_KEY = "__shell__";
 
 function startShellPty(project: Project): { alreadyRunning: boolean } {
+  projectHarness(project).assertAllowed();
   const key = ptyKey(project.id, SHELL_AGENT_KEY);
   if (ptySessions.has(key)) return { alreadyRunning: true };
   const shell = process.platform === "win32" ? "powershell.exe" : (process.env.SHELL ?? "/bin/bash");
@@ -1602,10 +1616,11 @@ app.whenReady().then(() => {
   );
 
   registerHandler("agent:pause", (_e, { projectId, agentId }: { projectId: string; agentId: string }) => {
-    const child = runningProcs.get(`${projectId}:${agentId}`);
-    if (!child) return false;
-    killProcessTree(child);
-    return true;
+    const project=loadProjects().find(p=>p.id===projectId);if(!project)throw new Error('Unknown project');
+    const requested=projectHarness(project).cancelAgent(agentId);
+    if(requested)return true;
+    const child=runningProcs.get(`${projectId}:${agentId}`);if(!child)return false;
+    killProcessTree(child);return true;
   });
 
   registerHandler("agents:remove", (_e, { projectId, agentId }: { projectId: string; agentId: string }) => {
@@ -2027,6 +2042,13 @@ app.whenReady().then(() => {
     return agent;
   });
 
+  const executionProject=(id:string)=>{const p=loadProjects().find(p=>p.id===id);if(!p)throw new Error('Unknown project');return p;};
+  registerHandler('harness:state',(_e,id:string)=>projectHarness(executionProject(id)).state());
+  registerHandler('harness:policy',(_e,id:string,policy:import('../harness/types.js').ExecutionPolicy)=>{
+   const p=executionProject(id);if([...running].some(k=>k===id||k.startsWith(id+':'))||[...ptySessions.keys()].some(k=>k.startsWith(id+':')))throw new Error('Wait for running executions to settle before changing policy');
+   return projectHarness(p).savePolicy(policy);
+  });
+  registerHandler('harness:cancel',(_e,id:string,runId:string)=>projectHarness(executionProject(id)).cancel(runId));
   registerHandler('capabilities:get',(_e,projectId:string,agentId:string)=>{const project=loadProjects().find(p=>p.id===projectId);const agent=project?.agents?.find(a=>a.id===agentId);if(!project||!agent)throw new Error('Unknown project agent');return capabilityService(project,agent).catalogue({id:agent.id,name:agent.name,systemPrompt:''});});
   registerHandler("skills:list", () => listSkills());
   registerHandler("skills:importFromGithub", (_e, url: string) => importSkillFromGithub(url));

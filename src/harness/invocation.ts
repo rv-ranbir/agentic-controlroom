@@ -4,6 +4,7 @@ import type { AuditInput } from './audit.js';
 import type { RunScope } from './types.js';
 import { assertRunScope, createAttempt } from './runScope.js';
 interface Options {
+ beforeInvoke?:()=>void;
  scope: RunScope;
  provider: string;
  model: string;
@@ -17,6 +18,7 @@ export function withInvocation(backend: AgentBackend, options: Options): AgentBa
  async function invoke<T>(role: RoleConfig, execute: () => Promise<T>): Promise<T> {
   if (role.id !== scope.agentId) throw new Error('Agent identity mismatch');
   if (options.signal?.aborted) throw new Error('Execution cancelled before dispatch');
+  options.beforeInvoke?.();
   const attempt = createAttempt(scope, options.provider, options.model);
   const start = Date.now();
   const emit = (kind: string, status: string) => options.journal.append({eventId:randomUUID(),scope,
