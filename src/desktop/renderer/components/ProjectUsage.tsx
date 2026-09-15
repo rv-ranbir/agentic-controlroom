@@ -170,7 +170,7 @@ export function ProjectUsage({ project }: { project: Project }) {
             <thead><tr><th scope="col">Attempt</th><th scope="col">Provider / model</th><th scope="col">Tokens</th><th scope="col">Latency</th><th scope="col">Status</th></tr></thead>
             <tbody>{report.rows.slice(0, 200).map((row) => <tr key={row.attemptId}>
               <td><span className="mono">{row.runId.slice(0, 8)}</span><small>{new Date(row.timestamp).toLocaleString()}</small></td>
-              <td><strong>{row.provider || "Unknown provider"}</strong><small>{row.model || "Unknown model"}</small><span className="projectUsageTags"><span>{rowSource(row)}</span><span>{label(row.billing)}</span></span></td>
+              <td><strong>{row.provider || "Unknown provider"}</strong><small>{row.model || "Unknown model"}</small><span className="projectUsageTags"><span>{rowSource(row)}</span><span>{label(row.billing)}</span>{row.purpose === "compaction" && <span>context summary</span>}</span></td>
               <td><span className="mono">{row.input === null ? "—" : formatCount(row.input)} in · {row.output === null ? "—" : formatCount(row.output)} out</span><small>{row.cacheRead === null ? "cache —" : `cache read ${formatCount(row.cacheRead)}`} · {row.reasoning === null ? "reasoning —" : `reasoning ${formatCount(row.reasoning)}`}</small></td>
               <td className="mono">{row.durationMs === null ? "unavailable" : formatDuration(row.durationMs)}</td>
               <td><span className={`projectUsageStatus ${row.status === "completed" ? "complete" : row.status === "failed" ? "failed" : "pending"}`}>{label(row.status)}</span>{row.reportedCost !== null && <small>reported {row.reportedCost} {row.currency ?? "currency unknown"}</small>}</td>

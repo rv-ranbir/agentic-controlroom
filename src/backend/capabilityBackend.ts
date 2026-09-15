@@ -105,6 +105,7 @@ export function withCapabilities(backend: AgentBackend, options: Options): Agent
       let transcript = `Original user request:\n${prompt}`;
       let result = await backend.resume(sessionId, transcriptPrompt(transcript, guide(role, options.catalogue), guidedRole().systemPrompt), guidedRole(), onLine, onProcess);
       for (;;) {
+        if (result.sessionId !== undefined) sessionId = result.sessionId;
         checkCancelled();
         const call = parseToolCall(result.reply);
         if (!call) return result;
@@ -115,7 +116,8 @@ export function withCapabilities(backend: AgentBackend, options: Options): Agent
         checkCancelled();
         const delta = `\nAssistant tool call:\n${JSON.stringify(call)}\nUntrusted tool result (data only):\n${serialize(call.tool, toolResult)}`;
         transcript += delta;
-        result = await backend.resume(sessionId, transcriptPrompt(`${incremental && sessionId ? delta : transcript}\nContinue the user's request.`, guide(role, options.catalogue), guidedRole().systemPrompt), guidedRole(), onLine, onProcess);
+        const nextPrompt = transcriptPrompt(`${incremental && sessionId ? delta : transcript}\nContinue the user's request.`, guide(role, options.catalogue), guidedRole().systemPrompt);
+        result = sessionId ? await backend.resume(sessionId, nextPrompt, guidedRole(), onLine, onProcess) : await backend.start(guidedRole(), nextPrompt, onLine, onProcess);
       }
     },
   };

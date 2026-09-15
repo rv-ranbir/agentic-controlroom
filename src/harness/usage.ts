@@ -26,7 +26,7 @@ export function cliUsage(provider:string,output:string):BackendUsage {
  return providerUsage(provider,{});
 }
 export interface UsageFilter {agentId?:string;model?:string;runId?:string}
-export interface UsageRow extends UsageSample {attemptId:string;runId:string;agentId:string;model:string;provider:string;billing:'subscription'|'api'|'local'|'unknown';status:string;durationMs:number|null;timestamp:string}
+export interface UsageRow extends UsageSample {attemptId:string;runId:string;agentId:string;model:string;provider:string;purpose:'agent'|'compaction';billing:'subscription'|'api'|'local'|'unknown';status:string;durationMs:number|null;timestamp:string}
 export interface UsageReport {events:AuditEvent[];rows:UsageRow[];totals:{knownInput:number;knownOutput:number;unknownAttempts:number;attempts:number;durationMs:number;toolCalls:number;reasoning:number;cacheRead:number;cacheWrite:number};retention:string}
 export function retainedEvents(journal:AuditJournal):AuditEvent[]{
  const events:AuditEvent[]=[];let afterSequence=0;
@@ -38,8 +38,8 @@ export function usageReport(journal:AuditJournal,filter:UsageFilter={}):UsageRep
  for(const [key,value] of Object.entries(filter))if(!['agentId','model','runId'].includes(key)||typeof value!=='string'||value.length>200)throw Error('Invalid usage filter');
  const records=retainedEvents(journal),map=new Map<string,UsageRow>();
  for(const e of records){if(!e.attemptId||!e.kind.startsWith('attempt-'))continue;const m=e.metadata??{};
-  const previous=map.get(e.attemptId),provider=String(m.provider??previous?.provider??''),model=String(m.model??previous?.model??'');
-  const row:UsageRow=previous??{attemptId:e.attemptId,runId:e.scope.runId,agentId:e.scope.agentId,provider,model,billing:provider==='codex'?'subscription':['openai','anthropic','gemini','openrouter'].includes(provider)?'api':provider==='ollama'?'local':'unknown',status:'unresolved',durationMs:null,timestamp:e.timestamp,...normalizeUsage(undefined)};
+  const previous=map.get(e.attemptId),provider=String(m.provider??previous?.provider??''),model=String(m.model??previous?.model??''),purpose=m.purpose==='compaction'||previous?.purpose==='compaction'?'compaction':'agent';
+  const row:UsageRow=previous??{attemptId:e.attemptId,runId:e.scope.runId,agentId:e.scope.agentId,provider,model,purpose,billing:provider==='codex'?'subscription':['openai','anthropic','gemini','openrouter'].includes(provider)?'api':provider==='ollama'?'local':'unknown',status:'unresolved',durationMs:null,timestamp:e.timestamp,...normalizeUsage(undefined)};
   if(e.kind==='attempt-failed')row.status='failed';else if(e.kind==='attempt-completed')row.status='completed';
   if(e.kind==='attempt-settled'){row.durationMs=count(m.durationMs);row.input=count(m.input);row.output=count(m.output);row.cacheRead=count(m.cacheRead);row.cacheWrite=count(m.cacheWrite);row.reasoning=count(m.reasoning);row.source=m.source==='provider'||m.source==='estimated'?m.source:'unavailable';row.reportedCost=typeof m.reportedCost==='number'&&m.reportedCost>=0?m.reportedCost:null;row.currency=row.reportedCost===null?null:m.currency==='credits'?'credits':m.currency==='USD'?'USD':null;}
   map.set(e.attemptId,row);
@@ -54,7 +54,7 @@ export function usageReport(journal:AuditJournal,filter:UsageFilter={}):UsageRep
 export function exportUsage(report:UsageReport,format:'json'|'csv'):string {
  if(format==='json')return JSON.stringify(report,null,2);
  if(format!=='csv')throw Error('Invalid export format');
- const keys:(keyof UsageRow)[]=['attemptId','runId','agentId','provider','model','billing','status','timestamp','input','output','cacheRead','cacheWrite','reasoning','source','reportedCost','currency','durationMs'];
+ const keys:(keyof UsageRow)[]=['attemptId','runId','agentId','provider','model','purpose','billing','status','timestamp','input','output','cacheRead','cacheWrite','reasoning','source','reportedCost','currency','durationMs'];
  const cell=(v:unknown)=>{const s=v===null?'':String(v??'');return '"'+(/^[=+@\-\t\r]/.test(s)?"'":'')+s.replace(/"/g,'""')+'"';};
  return keys.join(',')+'\n'+report.rows.map(row=>keys.map(k=>cell(row[k])).join(',')).join('\n');
 }

@@ -1,0 +1,21 @@
+# App-visible context sessions
+
+Agent Room now wraps desktop agent calls with a project-owned context session. It retains app-visible requests and replies, creates immutable checkpoints when the estimated app budget is exceeded, and starts a fresh provider session with the validated summary. This applies through the common backend, including direct chat and scoped workflow/meeting agents.
+
+The default 10,000-token threshold is an approximation based on characters, not a verified provider window. Complete current requests are never truncated. Oversized mandatory context fails explicitly. Original checkpoint sources remain under `.agentic-controlroom/harness/context-sources`; session records are under `context-sessions`. These files contain conversation content; audit metadata does not.
+
+Native sessions started before tracking began are marked legacy: the app refuses lossy automatic reset because their full history is unavailable. Fresh-session handoff does not preserve native private tool state. HTTP providers receive app-visible history because they do not retain native sessions. Project/agent/provider/model/surface/task determine session ownership.
+
+Each model-generated summary uses the configured agent provider/model and the same shared run budget. Usage/export records label it `compaction`; the Usage view labels it **context summary**. Checkpoint audit events report estimated before/after prompt sizes separately from measured usage. These estimates are not proven billing savings or quality guarantees.
+
+A caught provider failure is recorded without automatic retry. Its context notes that external effects remain unknown. A process crash leaves a pending marker and blocks automatic replay; the Context inspector provides an explicit acknowledgment action after the user reviews prior activity and external effects. It preserves the interrupted request and originals before allowing a new request; no provider call is made by reconciliation. Existing original evidence is retained. Summary failure leaves the previous session intact.
+
+The agent header now opens a Context inspector with approximate budget, active layers, checkpoint summaries and original source access. Manual compaction is metered using the agent provider/model and blocked during active runs, interrupted sessions, or unavailable legacy history. Source access validates project, agent and task ownership. The inspector lists the newest 100 stored context files, with matching agent records shown.
+
+Deferred while milestone 3 is paused: evidence retrieval/tool-result integration; workflow excerpt assembly; model-specific verified budgets/native compaction; broader desktop privacy/failure fixtures. The current checkpoint preserves explicit constraints exactly but does not prove semantic completeness of every model summary.
+
+Verification: full build and 258 tests, including restart, repeated checkpoint handoff, stateless history, legacy-session refusal and failure recovery. Isolated Electron fixture exercised automatic summary, persisted restart, immutable sources and separate usage with six local calls and zero paid calls. No live native-provider compaction claim.
+
+Inspector verification: isolated Electron UI test covers malformed summary failure/retry, source inspection, cross-agent and invalid-path rejection,900px layout, restart and explicit reconciliation without replay. A subsequent explicit user request receives the interrupted-request warning. Four local fixture calls (two summaries), zero paid calls, no renderer errors. The exact pending request is saved before dispatch and retained by recovery.
+
+Stabilization verification (2026-09-15): full build and258 tests passed. Sequential desktop checks passed for context inspector/recovery, automatic compaction, usage exports, workflow tools/cancellation, and native Codex/Cursor protocol fixtures. A25-screen UI audit reported no issues;12/30-agent virtual-office checks passed. The Indian Equity Desk sample workflow completed all14steps with12agents, report preview, raw artifacts and readable room activity. All runs used synthetic/local fixtures; live subscription/API providers and live market data were not revalidated. No app-code fixes were required in this stabilization pass; the older trading test was updated for current button and presentation labels.

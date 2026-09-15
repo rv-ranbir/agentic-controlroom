@@ -13,6 +13,7 @@ interface Options {
  model: string;
  journal: { append(event: AuditInput): unknown };
  signal?: AbortSignal;
+ purpose?: 'agent'|'compaction';
 }
 /** Wrap BELOW capability orchestration so each model invocation is counted once. */
 export function withInvocation(backend: AgentBackend, options: Options): AgentBackend {
@@ -27,7 +28,7 @@ export function withInvocation(backend: AgentBackend, options: Options): AgentBa
   let usage = normalizeUsage(undefined);
   const emit = (kind: string, status: string) => options.journal.append({eventId:randomUUID(),scope,
    callId:attempt.callId,attemptId:attempt.attemptId,kind,
-   metadata:{provider:attempt.provider,model:attempt.model,status,durationMs:Math.max(0,Date.now()-start),...(kind==='attempt-settled'?usage:{})}});
+   metadata:{provider:attempt.provider,model:attempt.model,purpose:options.purpose??'agent',status,durationMs:Math.max(0,Date.now()-start),...(kind==='attempt-settled'?usage:{})}});
   const reservation=options.budget?.reserve(scope.taskId,{attemptId:attempt.attemptId,calls:1});
   try{emit('attempt-started','started');}catch(error){if(reservation)options.budget?.discardBeforeDispatch(reservation);throw error;}
   // A request is distinct from termination: providers may only settle naturally.

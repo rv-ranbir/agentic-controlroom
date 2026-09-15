@@ -20,6 +20,16 @@ test('capability follow-ups are individually tracked beneath the loop', async ()
  assert.equal(events.filter(e=>e.kind==='attempt-settled').length,2);
  assert.equal(new Set(events.filter(e=>e.kind==='attempt-started').map(e=>e.callId)).size,2);
  assert.equal(new Set(events.map(e=>e.scope.runId)).size,1);
+ assert.ok(events.every(e=>e.metadata?.purpose==='agent'));
+});
+
+test('compaction purpose is propagated to every invocation audit event', async () => {
+ const events: AuditInput[] = [];
+ const wrapped = withInvocation({start:async()=>({sessionId:'s',reply:'done'}),resume:async()=>({reply:'done'})},{
+  scope:createRunScope('p','a'),provider:'fixture',model:'m',purpose:'compaction',journal:{append:event=>events.push(event)}
+ });
+ await wrapped.start(role,'compact');
+ assert.deepEqual(new Set(events.map(event=>event.metadata?.purpose)),new Set(['compaction']));
 });
 test('failure is settled without copying private provider text', async () => {
  const secret = 'private prompt and credential';

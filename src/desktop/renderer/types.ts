@@ -141,6 +141,10 @@ export interface CommitRecord {
 }
 
 export interface DesktopApi {
+  getAgentContexts(projectId:string,agentId:string):Promise<import('../../harness/contextSession').ContextInspection[]>;
+  getContextSource(projectId:string,agentId:string,id:string,checkpointId:string):Promise<import('../../harness/context').ContextManifest>;
+  compactAgentContext(projectId:string,agentId:string,id:string):Promise<void>;
+  reconcileAgentContext(projectId:string,agentId:string,id:string):Promise<void>;
   saveProjectUsage(projectId:string,format:'json'|'csv',filter?:import('../../harness/usage').UsageFilter):Promise<boolean>;
   getProjectUsage(projectId:string,filter?:import('../../harness/usage').UsageFilter):Promise<import('../../harness/usage').UsageReport>;
   exportProjectUsage(projectId:string,format:'json'|'csv',filter?:import('../../harness/usage').UsageFilter):Promise<string>;

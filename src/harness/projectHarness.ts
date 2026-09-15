@@ -104,10 +104,10 @@ export class ProjectHarness {
   emit('tool-started','started');let status='failed';
   try{const result=await execute();const id=(result as {artifactId?:unknown})?.artifactId;if(typeof id==='string'&&/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(id))artifactId=id;status='completed';return result;}finally{emit('tool-settled',status);}
  }
- backend(backend:AgentBackend,scope:RunScope,provider:string,model:string,signal:AbortSignal):AgentBackend {
+ backend(backend:AgentBackend,scope:RunScope,provider:string,model:string,signal:AbortSignal,purpose:'agent'|'compaction'='agent'):AgentBackend {
   const run=this.runs.get(scope.runId);
   if(!run)throw new Error('Begin a tracked run before creating a backend');
-  const wrapped=withInvocation(backend,{scope,provider,model,signal:run.controller.signal,journal:this.journal,budget:run.budget,beforeInvoke:()=>{this.assertAllowed(scope);if(this.runs.get(scope.runId)!==run)throw new Error('Run already settled');if(signal.aborted)throw new Error('Execution cancelled before dispatch');}});
+  const wrapped=withInvocation(backend,{scope,provider,model,purpose,signal:run.controller.signal,journal:this.journal,budget:run.budget,beforeInvoke:()=>{this.assertAllowed(scope);if(this.runs.get(scope.runId)!==run)throw new Error('Run already settled');if(signal.aborted)throw new Error('Execution cancelled before dispatch');}});
   const execute=async<T>(call:(capture:OnProcess)=>Promise<T>,onProcess?:OnProcess):Promise<T>=>{
    const processes:ChildProcess[]=[];
    try{return await call(child=>{processes.push(child);this.runs.get(scope.runId)?.processes.add(child);onProcess?.(child);});}

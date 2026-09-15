@@ -51,3 +51,25 @@ test('estimated tokens never inflate measured totals',()=>{
  const report=usageReport(journal);assert.equal(report.totals.knownInput,0);assert.equal(report.totals.knownOutput,0);assert.equal(report.totals.unknownAttempts,1);assert.equal(report.rows[0].input,900);
  }finally{rmSync(directory,{recursive:true,force:true});}
 });
+
+test('agent and compaction attempts remain separate while measured totals count each attempt once',async()=>{
+ const directory=mkdtempSync(join(tmpdir(),'usage-purpose-'));try{
+  const journal=new AuditJournal(directory,{projectId:'p'}),scope=createRunScope('p','a');
+  const provider={start:async()=>({sessionId:'',reply:'ok',usage:{inputTokens:10,outputTokens:5,costUsd:null}}),resume:async()=>({reply:'ok'})};
+  await withInvocation(provider,{scope,provider:'codex',model:'m',journal}).start({id:'a',name:'a',systemPrompt:''},'agent');
+  await withInvocation(provider,{scope,provider:'codex',model:'m',purpose:'compaction',journal}).start({id:'a',name:'a',systemPrompt:''},'compact');
+  const report=usageReport(new AuditJournal(directory,{projectId:'p'}));
+  assert.equal(report.totals.attempts,2);assert.equal(report.totals.knownInput,20);assert.equal(report.totals.knownOutput,10);
+  assert.deepEqual(report.rows.map(row=>row.purpose).sort(),['agent','compaction']);
+  const csv=exportUsage(report,'csv');assert.match(csv,/purpose/);assert.match(csv,/compaction/);
+  const json=JSON.parse(exportUsage(report,'json'));assert.deepEqual(json.rows.map((row:any)=>row.purpose).sort(),['agent','compaction']);
+ }finally{rmSync(directory,{recursive:true,force:true});}
+});
+
+test('legacy usage events default to agent purpose',()=>{
+ const directory=mkdtempSync(join(tmpdir(),'usage-legacy-purpose-'));try{
+  const journal=new AuditJournal(directory,{projectId:'p'}),scope=createRunScope('p','a');
+  journal.append({eventId:'legacy',scope,attemptId:'legacy-attempt',kind:'attempt-settled',metadata:{provider:'codex',model:'m',input:3,output:2,source:'provider'}});
+  assert.equal(usageReport(journal).rows[0].purpose,'agent');
+ }finally{rmSync(directory,{recursive:true,force:true});}
+});

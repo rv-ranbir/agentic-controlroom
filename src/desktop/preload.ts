@@ -1,6 +1,10 @@
 import { contextBridge, ipcRenderer } from "electron";
 
 contextBridge.exposeInMainWorld("api", {
+  getAgentContexts:(projectId:string,agentId:string)=>ipcRenderer.invoke('context:list',projectId,agentId),
+  getContextSource:(projectId:string,agentId:string,id:string,checkpointId:string)=>ipcRenderer.invoke('context:source',projectId,agentId,id,checkpointId),
+  compactAgentContext:(projectId:string,agentId:string,id:string)=>ipcRenderer.invoke('context:compact',projectId,agentId,id),
+  reconcileAgentContext:(projectId:string,agentId:string,id:string)=>ipcRenderer.invoke('context:reconcile',projectId,agentId,id),
   saveProjectUsage: (projectId:string,format:'json'|'csv',filter?:unknown) => ipcRenderer.invoke('harness:saveExport',projectId,format,filter),
   getProjectUsage: (projectId: string, filter?: unknown) => ipcRenderer.invoke('harness:usage',projectId,filter),
   exportProjectUsage: (projectId:string,format:'json'|'csv',filter?:unknown) => ipcRenderer.invoke('harness:export',projectId,format,filter),
