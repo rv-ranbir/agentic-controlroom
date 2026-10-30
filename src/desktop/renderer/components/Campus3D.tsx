@@ -1,3 +1,4 @@
+import {campusTrafficClear} from '../../campus3dTraffic';
 import {campusDelegates} from '../../campus3dDelegation';
 import type {SubagentRecord} from '../../subagentPresence';
 import {campusRoute,campusSegmentClear,type Obstacle,type Point} from '../../campus3dNavigation';
@@ -5,7 +6,7 @@ import {useEffect,useRef,useState} from 'react';
 import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import type {CampusSceneProps} from './CampusScene';
-import {CAMPUS_ROOMS,createCampusPerson,createCampusWorld} from '../lib/campus3dWorld';
+import {CAMPUS_ROOMS,createCampusPerson,createCampusWorld,setCampusSeated} from '../lib/campus3dWorld';
 import './Campus3D.css';
 
 function label(text:string,background='#202923',color='#f5eddd') {
@@ -23,7 +24,8 @@ function disposeTree(root:THREE.Object3D){
 }
 type GalleryArtifact={id:string;title:string;kind:string;createdAt:string};
 type GalleryApi={listArtifacts:(projectId:string)=>Promise<GalleryArtifact[]>;openArtifact:(projectId:string,id:string,mode:"app"|"browser")=>Promise<void>};
-type Runtime={gallery:THREE.Group;scene:THREE.Scene;camera:THREE.PerspectiveCamera;controls:OrbitControls;people:THREE.Group;renderer:THREE.WebGLRenderer;reset:()=>void;render:()=>void;obstacles:Obstacle[];clearWalks:()=>void;walk:(person:THREE.Group,path:Point[])=>void;snapWalks:()=>void};
+type Seat={x:number;z:number;rotation:number;room:string};
+type Runtime={seats:Seat[];settle:(person:THREE.Group)=>void;gallery:THREE.Group;scene:THREE.Scene;camera:THREE.PerspectiveCamera;controls:OrbitControls;people:THREE.Group;renderer:THREE.WebGLRenderer;reset:()=>void;render:()=>void;obstacles:Obstacle[];clearWalks:()=>void;walk:(person:THREE.Group,path:Point[])=>void;snapWalks:()=>void};
 const statusText=(state:string)=>({working:'Working',done:'Completed',needs:'Needs input',idle:'Idle'}[state]??state);
 
 export function Campus3D(props:CampusSceneProps & {onFallback:()=>void;subagents:SubagentRecord[];selectedSubagent:string|null;onSelectSubagent:(record:SubagentRecord)=>void}){
@@ -41,6 +43,7 @@ export function Campus3D(props:CampusSceneProps & {onFallback:()=>void;subagents
   async function openGalleryArtifact(id:string){const scope=project.id;try{await (api as unknown as GalleryApi).openArtifact(scope,id,'app');}catch{if(artifactScope.current===scope)setGalleryMessage('Could not open that result. It may have been removed.');}}
   const galleryAction=useRef(openGalleryArtifact);galleryAction.current=openGalleryArtifact;
   const [delegatePage,setDelegatePage]=useState(0),[delegatesOpen,setDelegatesOpen]=useState(false);
+  const [trafficWaiting,setTrafficWaiting]=useState(0);
   const [moving,setMoving]=useState(0),[unreachable,setUnreachable]=useState<string[]>([]);
   const [failure,setFailure]=useState(''),[ready,setReady]=useState(false),[wing,setWing]=useState(0),[roster,setRoster]=useState(false);
   const pages=Math.max(1,Math.ceil(project.agents.length/12)),page=Math.min(wing,pages-1);
@@ -62,33 +65,41 @@ export function Campus3D(props:CampusSceneProps & {onFallback:()=>void;subagents
     const ambient=new THREE.HemisphereLight('#fff2d6','#62726a',2.2);scene.add(ambient);
     const sun=new THREE.DirectionalLight('#fff0d5',3.2);sun.position.set(-12,25,10);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.camera.left=-25;sun.shadow.camera.right=25;sun.shadow.camera.top=25;sun.shadow.camera.bottom=-25;sun.shadow.normalBias=.035;scene.add(sun);
     const world=createCampusWorld();scene.add(world);world.updateMatrixWorld(true);
+    const seats:Seat[]=[];
+    world.traverse(node=>{if(node.name==='sage chair'){let parent=node.parent;while(parent&&!parent.userData.room)parent=parent.parent;if(parent){const p=node.getWorldPosition(new THREE.Vector3());seats.push({x:p.x,z:p.z,rotation:node.rotation.y,room:parent.userData.room});}}});
     const obstacles:Obstacle[]=[];
     world.traverse(node=>{const mesh=node as THREE.Mesh;if(!mesh.isMesh)return;const box=new THREE.Box3().setFromObject(mesh);if(box.max.y>.4&&box.min.y<1.7)obstacles.push({minX:box.min.x,maxX:box.max.x,minZ:box.min.z,maxZ:box.max.z});});
     for(const room of CAMPUS_ROOMS){const title=label(room.label);title.position.set(room.x,3.7,room.z-2.8);title.userData.room=room.kind;scene.add(title);}
     const people=new THREE.Group();scene.add(people);const gallery=new THREE.Group();scene.add(gallery);
-    const render=()=>{if(!document.hidden)renderer.render(scene,camera);};
-    const walking=new Map<THREE.Group,{path:Point[];step:number;phase:number}>();
+    const render=()=>{renderer.domElement.dataset.seated=String(people.children.filter(person=>person.userData.seated).length);if(!document.hidden)renderer.render(scene,camera);};
+    const walking=new Map<THREE.Group,{path:Point[];step:number;phase:number;wait:number}>();
     const reduced=window.matchMedia('(prefers-reduced-motion: reduce)');let frame=0,lastTime=0,disposed=false;
+    const settle=(person:THREE.Group)=>{const seat=person.userData.seat as Seat|undefined;if(seat){person.position.set(seat.x,-.14,seat.z);person.rotation.y=seat.rotation;setCampusSeated(person,true);person.userData.seated=true;}};
     const resetPose=(person:THREE.Group)=>{for(const name of ['leg-left','leg-right','arm-left','arm-right']){const limb=person.getObjectByName(name);if(limb)limb.rotation.x=0;}};
-    const clearWalks=()=>{cancelAnimationFrame(frame);frame=0;lastTime=0;walking.forEach((_,person)=>resetPose(person));walking.clear();};
-    const snapWalks=()=>{walking.forEach((motion,person)=>{const end=motion.path.at(-1)!;person.position.set(end.x,.27,end.z);});clearWalks();if(!disposed)setMoving(0);render();};
+    const clearWalks=()=>{setTrafficWaiting(0);cancelAnimationFrame(frame);frame=0;lastTime=0;walking.forEach((_,person)=>resetPose(person));walking.clear();};
+    const snapWalks=()=>{walking.forEach((motion,person)=>{const end=motion.path.at(-1)!;person.position.set(end.x,.27,end.z);});const arrivals=[...walking.keys()];clearWalks();arrivals.forEach(settle);if(!disposed)setMoving(0);render();};
     const tick=(time:number)=>{
       frame=0;if(disposed)return;if(document.hidden||reduced.matches){snapWalks();return;}
       const dt=lastTime?Math.min((time-lastTime)/1000,.06):0;lastTime=time;
+      let waiting=0;
       walking.forEach((motion,person)=>{
+        let blocked=false;const others=people.children.filter(other=>other!==person).map(other=>({x:other.position.x,z:other.position.z}));
         let distance=dt*3.4;
         while(distance>0&&motion.step<motion.path.length){const target=motion.path[motion.step],dx=target.x-person.position.x,dz=target.z-person.position.z,length=Math.hypot(dx,dz);person.rotation.y=Math.atan2(dx,dz);
+          const step=Math.min(length,distance),candidate={x:person.position.x+(length?dx/length*step:0),z:person.position.z+(length?dz/length*step:0)};
+          if(!campusTrafficClear({x:person.position.x,z:person.position.z},candidate,others)){blocked=true;break;}
           if(length<=distance){person.position.set(target.x,.27,target.z);distance-=length;motion.step++;}else{person.position.x+=dx/length*distance;person.position.z+=dz/length*distance;distance=0;}}
-        motion.phase+=dt*10;const gait=Math.sin(motion.phase)*.38;
+        if(blocked){waiting++;resetPose(person);motion.wait+=dt;if(motion.wait>=1){motion.wait=0;const occupied=others.map(p=>({minX:p.x-.4,maxX:p.x+.4,minZ:p.z-.4,maxZ:p.z+.4}));const route=campusRoute({x:person.position.x,z:person.position.z},motion.path.at(-1)!,[...obstacles,...occupied]);if(route){motion.path=route;motion.step=1;}}return;}
+        motion.wait=0;motion.phase+=dt*10;const gait=Math.sin(motion.phase)*.38;
         for(const [name,angle] of [['leg-left',gait],['leg-right',-gait],['arm-left',-gait*.65],['arm-right',gait*.65]] as const){const limb=person.getObjectByName(name);if(limb)limb.rotation.x=angle;}
-        if(motion.step>=motion.path.length){resetPose(person);walking.delete(person);setMoving(walking.size);}
-      });render();if(walking.size)frame=requestAnimationFrame(tick);else lastTime=0;
+        if(motion.step>=motion.path.length){resetPose(person);settle(person);walking.delete(person);setMoving(walking.size);}
+      });setTrafficWaiting(waiting);render();if(walking.size)frame=requestAnimationFrame(tick);else lastTime=0;
     };
-    const walk=(person:THREE.Group,path:Point[])=>{if(path.length<2)return;walking.set(person,{path,step:1,phase:0});setMoving(walking.size);if(document.hidden||reduced.matches){snapWalks();return;}if(!frame)frame=requestAnimationFrame(tick);};
+    const walk=(person:THREE.Group,path:Point[])=>{if(path.length<2)return;walking.set(person,{path,step:1,phase:0,wait:0});setMoving(walking.size);if(document.hidden||reduced.matches){snapWalks();return;}if(!frame)frame=requestAnimationFrame(tick);};
     const onVisibility=()=>{if(document.hidden)snapWalks();else render();};
     const onMotion=()=>{if(reduced.matches)snapWalks();};reduced.addEventListener('change',onMotion);
     const reset=()=>{camera.position.set(18.5,21.5,25);controls.target.set(0,0,0);controls.update();render();};
-    runtime.current={gallery,scene,camera,controls,people,renderer,reset,render,obstacles,clearWalks,walk,snapWalks};
+    runtime.current={seats,settle,gallery,scene,camera,controls,people,renderer,reset,render,obstacles,clearWalks,walk,snapWalks};
     const resize=()=>{const w=container.clientWidth,h=container.clientHeight;if(!w||!h)return;camera.aspect=w/h;camera.updateProjectionMatrix();renderer.setSize(w,h);render();};
     const observer=new ResizeObserver(resize);observer.observe(container);controls.addEventListener('change',render);
     const ray=new THREE.Raycaster(),pointer=new THREE.Vector2();let down={x:0,y:0};
@@ -104,12 +115,12 @@ export function Campus3D(props:CampusSceneProps & {onFallback:()=>void;subagents
   },[project.id]);
   useEffect(()=>{
     const r=runtime.current;if(!r)return;
-    const previous=new Map(r.people.children.map(person=>[person.userData.actorKey??person.userData.agentId,{x:person.position.x,z:person.position.z}]));
-    r.clearWalks();setMoving(0);disposeTree(r.people);r.people.clear();const failed:string[]=[];const obstacles=r.obstacles;
+    const previous=new Map(r.people.children.map(person=>[person.userData.actorKey??person.userData.agentId,person.userData.seated?person.userData.approach:{x:person.position.x,z:person.position.z}]));
+    r.clearWalks();setMoving(0);disposeTree(r.people);r.people.clear();const failed:string[]=[];const obstacles=r.obstacles;const reserved:Point[]=[];const claimed=new Set<Seat>();
     function freeAnchor(x:number,z:number):Point {
-      const desired={x,z};if(campusSegmentClear(desired,desired,obstacles))return desired;
+      const desired={x,z};if(campusSegmentClear(desired,desired,obstacles)&&reserved.every(p=>Math.hypot(p.x-x,p.z-z)>.8))return desired;
       // Choose a nearby free standing anchor, never animate through an occupied seat.
-      for(let radius=.35;radius<=1.75;radius+=.35)for(let i=0;i<16;i++){const p={x:x+Math.cos(i*Math.PI/8)*radius,z:z+Math.sin(i*Math.PI/8)*radius};if(campusSegmentClear(p,p,obstacles))return p;}
+      for(let radius=.35;radius<=1.75;radius+=.35)for(let i=0;i<16;i++){const p={x:x+Math.cos(i*Math.PI/8)*radius,z:z+Math.sin(i*Math.PI/8)*radius};if(campusSegmentClear(p,p,obstacles)&&reserved.every(q=>Math.hypot(q.x-p.x,q.z-p.z)>.8))return p;}
       return desired;
     }
     const visible=project.agents.slice(page*12,(page+1)*12);
@@ -120,10 +131,17 @@ export function Campus3D(props:CampusSceneProps & {onFallback:()=>void;subagents
       const person=createCampusPerson(page*12+index);person.userData.agentId=agent.id;
       const session=active.get(agent.id),state=session==='planning'?'Planning':statusText(agentStates[agent.id]??'idle');
       let [x,z]=home[index];if(session){const key=session;const slot=used.get(key)??0;used.set(key,slot+1);const room=CAMPUS_ROOMS.find(room=>room.kind===session)!;x=room.x-2.4+(slot%4)*1.6;z=room.z+2.6+Math.floor(slot/4)*.85;}
-      const destination=freeAnchor(x,z),origin=previous.get(agent.id);destinations.set(agent.id,destination);
+      let seat:Seat|undefined,approach:Point|undefined;
+      if(session)for(const candidate of r.seats.filter(s=>s.room===session&&!claimed.has(s))){
+        for(let i=0;i<16;i++){const angle=candidate.rotation+i*Math.PI/8;const p={x:candidate.x+Math.sin(angle)*1.1,z:candidate.z+Math.cos(angle)*1.1};
+          if(campusSegmentClear(p,p,obstacles)&&reserved.every(q=>Math.hypot(q.x-p.x,q.z-p.z)>.8)){seat=candidate;approach=p;break;}}
+        if(seat)break;
+      }
+      if(seat){claimed.add(seat);person.userData.seat=seat;person.userData.approach=approach;}
+      const destination=approach??freeAnchor(x,z),origin=previous.get(agent.id);reserved.push(destination);destinations.set(agent.id,destination);
       const route=origin?campusRoute(origin,destination,r.obstacles):null;
       person.position.set(destination.x,.27,destination.z);person.rotation.y=-.25;
-      if(origin&&Math.hypot(origin.x-destination.x,origin.z-destination.z)>.02){if(route){person.position.set(origin.x,.27,origin.z);r.walk(person,route);}else failed.push(agent.name);}
+      if(origin&&Math.hypot(origin.x-destination.x,origin.z-destination.z)>.02){if(route){person.position.set(origin.x,.27,origin.z);r.walk(person,route);}else failed.push(agent.name);}else r.settle(person);
       const name=label(`${agent.name} · ${state}`,selectedAgent===agent.id?'#685438':'#202923');name.position.set(0,2.35,0);name.scale.set(3.2,.6,1);person.add(name);
       const ring=new THREE.Mesh(new THREE.RingGeometry(.38,.46,32),new THREE.MeshBasicMaterial({color:selectedAgent===agent.id?'#ffcf7d':state==='Working'?'#9cbf8d':'#a9a99b',side:THREE.DoubleSide}));ring.rotation.x=-Math.PI/2;ring.position.y=.025;person.add(ring);r.people.add(person);
     });
@@ -133,6 +151,7 @@ export function Campus3D(props:CampusSceneProps & {onFallback:()=>void;subagents
       const slot=childSlots.get(record.parentAgentId)??0;childSlots.set(record.parentAgentId,slot+1);
       const angle=slot*Math.PI/3,radius=1.2+Math.floor(slot/6)*.8;
       const destination=freeAnchor(parent.x+Math.cos(angle)*radius,parent.z+Math.sin(angle)*radius);
+      reserved.push(destination);
       const key='child:'+record.id,origin=previous.get(key),person=createCampusPerson(index+20);person.scale.setScalar(.78);
       person.userData.actorKey=key;person.userData.subagentId=record.id;person.userData.agentId=record.parentAgentId;
       person.position.set(destination.x,.27,destination.z);
@@ -176,7 +195,7 @@ export function Campus3D(props:CampusSceneProps & {onFallback:()=>void;subagents
     <header className="campus3dToolbar"><div><strong>{project.name}</strong><span>3D campus · {project.agents.length} agents</span></div><div><button onClick={()=>setRoster(v=>!v)} aria-expanded={roster}>People</button><button onClick={()=>setDelegatesOpen(v=>!v)} aria-expanded={delegatesOpen}>Delegated work ({delegated.total})</button><button onClick={()=>setGalleryOpen(v=>!v)} aria-expanded={galleryOpen}>Gallery ({artifacts.length})</button><button onClick={()=>runtime.current?.reset()}>Reset camera</button><button aria-label="Zoom out 3D" onClick={()=>zoom(1.15)}>−</button><button aria-label="Zoom in 3D" onClick={()=>zoom(.85)}>+</button></div></header>
     <div className="campus3dStage" ref={host} />
     {failure&&<div className="campus3dFallback" role="alert"><p>{failure}</p><button onClick={onFallback}>Open original office</button></div>}
-    {!failure&&<div className="campus3dMotion" role="status">{moving?`${moving} walking to their workspace`:unreachable.length?`Placed directly: route unavailable for ${unreachable.join(', ')}`:'Everyone is in place'}</div>}
+    {!failure&&<div className="campus3dMotion" role="status">{trafficWaiting?`${trafficWaiting} waiting for a clear path · ${moving} travelling`:moving?`${moving} walking to their workspace`:unreachable.length?`Placed directly: route unavailable for ${unreachable.join(', ')}`:'Everyone is in place'}</div>}
     {!failure&&<div className="campus3dHint">Drag to orbit · Right-drag to pan · Scroll to zoom</div>}
     {pages>1&&<nav className="campus3dWings" aria-label="3D wings"><button disabled={page===0} onClick={()=>setWing(page-1)}>Previous wing</button><span>Wing {page+1} / {pages}</span><button disabled={page+1===pages} onClick={()=>setWing(page+1)}>Next wing</button></nav>}
     <nav className="campus3dRooms" aria-label="Campus rooms">{CAMPUS_ROOMS.map(room=><button key={room.id} onClick={()=>onRoom(room.kind)}>{room.label}</button>)}</nav>

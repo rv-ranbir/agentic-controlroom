@@ -307,13 +307,18 @@ export function createCampusPerson(index: number): THREE.Group {
   const hair = M.hair[Math.abs(index * 3 + 1) % M.hair.length];
   const cloth = M.cloth[Math.abs(index + 2) % M.cloth.length];
 
-  // Feet sit at y=0; articulated named limbs can be animated by the renderer.
+  // Feet sit at y=0; knee pivots let the lower legs fold into a seated pose.
   for (const [side, x] of [['left', -0.14], ['right', 0.14]] as const) {
     const leg = new THREE.Group();
     leg.name = `leg-${side}`;
     leg.position.set(x, 0.78, 0);
-    block(leg, M.oakDark, 'trouser leg', 0, -0.28, 0, 0.17, 0.58, 0.2);
-    block(leg, M.shoe, 'rounded leather shoe', 0, -0.66, 0.07, 0.22, 0.14, 0.34);
+    block(leg, M.oakDark, 'upper trouser leg', 0, -0.15, 0, 0.17, 0.30, 0.2);
+    const knee = new THREE.Group();
+    knee.name = `knee-${side}`;
+    knee.position.set(0, -0.32, 0);
+    block(knee, M.oakDark, 'lower trouser leg', 0, -0.16, 0, 0.17, 0.32, 0.2);
+    block(knee, M.shoe, 'rounded leather shoe', 0, -0.34, 0.07, 0.22, 0.14, 0.34);
+    leg.add(knee);
     person.add(leg);
   }
 
@@ -343,6 +348,17 @@ export function createCampusPerson(index: number): THREE.Group {
   round(person, eyeMat, 'left eye', -0.075, 1.81, 0.204, 0.018, 0.022, 0.012, detailGeo);
   round(person, eyeMat, 'right eye', 0.075, 1.81, 0.204, 0.018, 0.022, 0.012, detailGeo);
   return ownResources(person);
+}
+
+export function setCampusSeated(person: THREE.Group, seated: boolean): void {
+  for (const side of ['left', 'right'] as const) {
+    const leg = person.getObjectByName(`leg-${side}`);
+    const knee = person.getObjectByName(`knee-${side}`);
+    const arm = person.getObjectByName(`arm-${side}`);
+    if (leg) leg.rotation.x = seated ? -Math.PI / 2 : 0;
+    if (knee) knee.rotation.x = seated ? Math.PI / 2 : 0;
+    if (arm) arm.rotation.x = seated ? -0.22 : 0;
+  }
 }
 
 
