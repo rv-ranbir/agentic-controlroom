@@ -1,3 +1,10 @@
+## Latest checkpoint — image gallery, 2026-10-30
+
+Local PNG, JPEG and WebP artifacts now render as actual image textures on the three gallery wall panels. Title cards remain for other kinds or unreadable images. Click opens an isolated image preview; browser mode opens the validated local file. Thumbnails fit512px; input limit8MiB and decoded dimensions8192px. Larger app previews fit1600px and use bounded JPEG encoding to stay within Electron URL limits. Async completion is guarded against project changes, refreshes and unmount. Existing artifact validation owns project boundaries. SVG, animated imagery and live HTML/chart thumbnails remain future work.
+
+Validation: full build and270tests pass; real Electron image textures, corrupt-image fallback, foreign-project rejection, image preview, and existing report gallery regression pass. Economical gpt-6-luna reviewed the supplied diff with no concrete findings. Zero paid-provider calls in tests. Portable regression: after npm run build, run node scripts/campus-image-smoke.mjs (Electron-capable desktop/display required; use a virtual display on headless Linux). Temporary fixture profile and screenshot are written under OS temp; CAMPUS_TEST_OUTPUT overrides output directory. Screenshot: docs/images/campus-gallery-images.png.
+
+Previous campus work is committed in308aa2e and pushed to origin/feat/shared-harness. Older mentions of uncommitted work below describe historical checkpoints. This image slice is the next checkpoint. Next priorities: visual/model fidelity, seated work poses, and richer dashboard thumbnails. Avoid new orchestration architecture.
 # Separate 3D campus — 2026-10-29
 
 User explicitly chose true 3D with camera rotation and depth. The generated living-campus image is the visual target; the current 2D office remains available. The image-backed campus exploration is not the final 3D implementation.

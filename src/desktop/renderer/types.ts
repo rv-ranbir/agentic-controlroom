@@ -246,6 +246,7 @@ export interface DesktopApi {
   onOfficePresence(cb: (sessions: OfficeSession[]) => void): () => void;
   gitBranch(path: string): Promise<string>;
   getDiff(path: string): Promise<DiffResult>;
+  getArtifactThumbnail(projectId:string,artifactId:string):Promise<{dataUrl:string;width:number;height:number}>;
   getArtifactPreview(projectId: string, artifactId: string): Promise<{ title: string; html: string }>;
   onEvent(cb: (e: RoomEvent) => void): void;
 }

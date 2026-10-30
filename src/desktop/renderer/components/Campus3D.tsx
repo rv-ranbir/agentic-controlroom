@@ -30,6 +30,7 @@ export function Campus3D(props:CampusSceneProps & {onFallback:()=>void;subagents
   const {project,sessions,agentStates,selectedAgent,onSelectAgent,onRoom,onFallback,subagents,selectedSubagent,onSelectSubagent}=props;
   const host=useRef<HTMLDivElement>(null),runtime=useRef<Runtime|null>(null),latest=useRef(props);latest.current=props;
   const [artifacts,setArtifacts]=useState<GalleryArtifact[]>([]),[galleryMessage,setGalleryMessage]=useState('Loading results…'),[galleryOpen,setGalleryOpen]=useState(false),[galleryRevision,setGalleryRevision]=useState(0);
+  const [galleryImages,setGalleryImages]=useState(0);
   const artifactScope=useRef(project.id);artifactScope.current=project.id;
   useEffect(()=>{
     let active=true,busy=false;setArtifacts([]);setGalleryMessage('Loading results…');
@@ -142,7 +143,7 @@ export function Campus3D(props:CampusSceneProps & {onFallback:()=>void;subagents
     });setUnreachable(failed);r.render();
   },[ready,project.agents,project.id,page,sessions,agentStates,selectedAgent,subagents,selectedSubagent,delegated.page]);
   useEffect(()=>{
-    const r=runtime.current;if(!r)return;disposeTree(r.gallery);r.gallery.clear();
+    const r=runtime.current;if(!r)return;let active=true;setGalleryImages(0);disposeTree(r.gallery);r.gallery.clear();
     const recent=artifacts.slice(0,3);
     for(let index=0;index<3;index++){
       const artifact=recent[index],canvas=document.createElement('canvas');canvas.width=512;canvas.height=512;
@@ -157,10 +158,21 @@ export function Campus3D(props:CampusSceneProps & {onFallback:()=>void;subagents
       const map=new THREE.CanvasTexture(canvas);map.colorSpace=THREE.SRGBColorSpace;
       const panel=new THREE.Mesh(new THREE.PlaneGeometry(1.21,1.21),new THREE.MeshBasicMaterial({map}));const room=CAMPUS_ROOMS.find(room=>room.kind==='results')!;panel.position.set(room.x-2.6+index*2.6,1.55,room.z-2.80);
       if(artifact)panel.userData.artifactId=artifact.id;else panel.userData.room='results';r.gallery.add(panel);
-    }r.render();
-  },[ready,artifacts,galleryMessage]);
+      if(artifact?.kind==='image')void api.getArtifactThumbnail(project.id,artifact.id).then(async thumbnail=>{
+        if(!active||runtime.current!==r)return;
+        const image=new Image();image.src=thumbnail.dataUrl;await image.decode();
+        if(!active||runtime.current!==r)return;
+        ctx.fillStyle='#202d29';ctx.fillRect(0,0,512,512);
+        const scale=Math.min(464/image.naturalWidth,366/image.naturalHeight),width=image.naturalWidth*scale,height=image.naturalHeight*scale;
+        ctx.drawImage(image,(512-width)/2,24+(366-height)/2,width,height);
+        ctx.fillStyle='#f0e7d7';ctx.font='500 26px system-ui';ctx.fillText(artifact.title,24,430,464);
+        ctx.fillStyle='#a7bb99';ctx.font='20px system-ui';ctx.fillText('Open image ↗',24,474,464);
+        map.needsUpdate=true;setGalleryImages(count=>count+1);r.render();
+      }).catch(()=>{/* Keep the title card when this image cannot be decoded. */});
+    }r.render();return()=>{active=false;};
+  },[ready,artifacts,galleryMessage,project.id]);
   function zoom(factor:number){const r=runtime.current;if(!r)return;const offset=r.camera.position.clone().sub(r.controls.target);offset.setLength(THREE.MathUtils.clamp(offset.length()*factor,10,85));r.camera.position.copy(r.controls.target).add(offset);r.controls.update();r.render();}
-  return <section className="campus3d" aria-label="3D campus" data-ready={ready&&!failure} data-subagents={delegated.items.length} data-gallery-results={Math.min(3,artifacts.length)}>
+  return <section className="campus3d" aria-label="3D campus" data-ready={ready&&!failure} data-subagents={delegated.items.length} data-gallery-results={Math.min(3,artifacts.length)} data-gallery-images={galleryImages}>
     <header className="campus3dToolbar"><div><strong>{project.name}</strong><span>3D campus · {project.agents.length} agents</span></div><div><button onClick={()=>setRoster(v=>!v)} aria-expanded={roster}>People</button><button onClick={()=>setDelegatesOpen(v=>!v)} aria-expanded={delegatesOpen}>Delegated work ({delegated.total})</button><button onClick={()=>setGalleryOpen(v=>!v)} aria-expanded={galleryOpen}>Gallery ({artifacts.length})</button><button onClick={()=>runtime.current?.reset()}>Reset camera</button><button aria-label="Zoom out 3D" onClick={()=>zoom(1.15)}>−</button><button aria-label="Zoom in 3D" onClick={()=>zoom(.85)}>+</button></div></header>
     <div className="campus3dStage" ref={host} />
     {failure&&<div className="campus3dFallback" role="alert"><p>{failure}</p><button onClick={onFallback}>Open original office</button></div>}

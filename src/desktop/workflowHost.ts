@@ -3,7 +3,7 @@ import type { RunScope } from '../harness/types.js';
 import { createRunScope } from '../harness/runScope.js';
 import { randomUUID } from 'node:crypto';
 import { wrapPresentation, inlinePresentation } from '../workflow/presentation.js';
-import { BrowserWindow,ipcMain,shell } from 'electron';
+import { BrowserWindow,ipcMain,shell,nativeImage } from 'electron';
 import { existsSync,mkdirSync,readFileSync,writeFileSync,renameSync,statSync,realpathSync } from 'node:fs';
 import { join,resolve,relative,isAbsolute,dirname } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -24,6 +24,22 @@ export function createWorkflowHost(o:Options){
  const directory=(p:RuntimeProject)=>{new ArtifactStore(p.path);const path=join(p.path,'.agentic-controlroom','runs');if(existsSync(path)){const rel=relative(realpathSync(p.path),realpathSync(path));if(isAbsolute(rel)||rel==='..'||rel.startsWith('../')||rel.startsWith('..\\'))throw new Error('Run storage outside project');}return path;};
  const project=(id:string)=>{const p=o.projects().find(p=>p.id===id);if(!p)throw new Error('Unknown project');return p;};
  const file=(p:RuntimeProject)=>join(p.path,'.agentic-controlroom','workflow.json');
+ function imagePreview(p:RuntimeProject,artifactId:string,size=512){
+  const artifact=new ArtifactStore(p.path).resolve(artifactId);
+  if(!artifact?.path||artifact.kind!=='image'||! /\.(png|jpe?g|webp)$/i.test(artifact.path))throw new Error('Preview requires a local PNG, JPEG or WebP image');
+  const path=resolve(p.path,artifact.path);if(statSync(path).size>8*1024*1024)throw new Error('Image exceeds 8 MiB');
+  const bytes=readFileSync(path);if(bytes.length>8*1024*1024)throw new Error('Image exceeds 8 MiB');
+  const image=nativeImage.createFromBuffer(bytes),dimensions=image.getSize();
+  if(image.isEmpty()||dimensions.width>8192||dimensions.height>8192)throw new Error('Image is invalid or exceeds 8192 pixels');
+  const scale=Math.min(1,size/Math.max(dimensions.width,dimensions.height));
+  let thumbnail=image.resize({width:Math.max(1,Math.round(dimensions.width*scale)),height:Math.max(1,Math.round(dimensions.height*scale))});
+  if(size>512){
+   let bytes=thumbnail.toJPEG(85);
+   while(bytes.length>512*1024){const d=thumbnail.getSize();thumbnail=thumbnail.resize({width:Math.max(1,Math.floor(d.width*.75)),height:Math.max(1,Math.floor(d.height*.75))});bytes=thumbnail.toJPEG(85);}
+   return {dataUrl:'data:image/jpeg;base64,'+bytes.toString('base64'),...thumbnail.getSize()};
+  }
+  return {dataUrl:thumbnail.toDataURL(),...thumbnail.getSize()};
+ }
  function validate(p:RuntimeProject,d:WorkflowDefinition,depth=0,allowTools=false){
   if(!d||typeof d.id!=='string'||!d.id.trim()||typeof d.name!=='string'||!d.name.trim()||!Array.isArray(d.steps)||!d.steps.length||d.steps.length>100||depth>3)throw new Error('Choose a workflow name and at least one agent step.');
   const ids=new Set<string>();for(const s of d.steps){if(!s||typeof s.id!=='string'||!s.id.trim()||ids.has(s.id))throw new Error('Step IDs must be unique');ids.add(s.id);if([s.agentId,s.workflow,s.tool].filter(a=>a!==undefined).length!==1 || (s.tool!==undefined&&!allowTools))throw new Error('Choose an agent or a child workflow');if(s.workflow)validate(p,s.workflow,depth+1,allowTools);else if(s.tool===undefined&&!p.agents?.some(a=>a.id===s.agentId))throw new Error('Workflow references a missing agent');}
@@ -57,10 +73,18 @@ export function createWorkflowHost(o:Options){
   ipcMain.handle('workflow:cancel',(_e,id:string)=>{project(id);controllers.get(id)?.abort();});
   ipcMain.handle('workflow:runs',(_e,id:string)=>listRuns(directory(project(id))));
   ipcMain.handle('artifacts:list',(_e,id:string)=>{const p=project(id),store=new ArtifactStore(p.path);const items=store.list();const dashboard=readProjectDashboard(p.path);if(dashboard&&!items.some(a=>a.url===dashboard.url)){store.add({title:dashboard.label,kind:'dashboard',url:dashboard.url,runId:'project'});return store.list();}return items;});
+  ipcMain.handle('artifacts:thumbnail',(_e,id:string,artifactId:string)=>imagePreview(project(id),artifactId));
   ipcMain.handle('artifacts:preview',(_e,id:string,artifactId:string)=>{const p=project(id),a=new ArtifactStore(p.path).resolve(artifactId);if(!a?.path||a.kind!=='dashboard'||! /\.html?$/i.test(a.path))throw new Error('Inline preview is available for local visual artifacts');const path=resolve(p.path,a.path);if(statSync(path).size>1024*1024)throw new Error('Inline preview exceeds 1 MiB');const raw=readFileSync(path,'utf8');if(Buffer.byteLength(raw)>1024*1024)throw new Error('Inline preview exceeds 1 MiB');return {title:a.title,html:inlinePresentation(raw,a.title)};});
   ipcMain.handle('artifacts:open',async(_e,id:string,artifactId:string,mode:string)=>{
    const p=project(id),a=new ArtifactStore(p.path).resolve(artifactId);if(!a)throw new Error('Artifact no longer exists');if(mode!=='app'&&mode!=='browser')throw new Error('Unknown preview mode');
    if(a.url){if(mode==='browser')await shell.openExternal(a.url);else await windows.open(a.id,{label:a.title,url:a.url});return;}
+   if(a.kind==='image'){
+    const image=imagePreview(p,artifactId,1600);
+    if(mode==='browser'){await shell.openExternal(pathToFileURL(resolve(p.path,a.path!)).href);return;}
+    const preview=new BrowserWindow({title:a.title,width:1100,height:800,webPreferences:{sandbox:true,contextIsolation:true,nodeIntegration:false}});
+    preview.webContents.setWindowOpenHandler(()=>({action:'deny'}));preview.webContents.on('will-navigate',e=>e.preventDefault());
+    await preview.loadURL('data:text/html;charset=utf-8,'+encodeURIComponent(`<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'"><style>body{margin:0;background:#202925;display:grid;place-items:center;height:100vh}img{max-width:100%;max-height:100vh;object-fit:contain}</style><img alt="Published project image" src="${image.dataUrl}">`));return;
+   }
    const path=resolve(p.path,a.path!);if(!/\.(json|txt|md|csv|html?)$/i.test(path))throw new Error('This artifact type does not yet support preview');
    if(mode==='browser'){
     if(a.kind==='dashboard'&&/\.html?$/i.test(path)){

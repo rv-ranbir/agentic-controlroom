@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld("api", {
   getProjectDashboard: (id:string) => ipcRenderer.invoke('projects:dashboard',id),
   openProjectDashboard: (id:string) => ipcRenderer.invoke('projects:openDashboard',id),
   getCapabilities: (projectId:string,agentId:string)=>ipcRenderer.invoke('capabilities:get',projectId,agentId),
+  getArtifactThumbnail: (projectId:string,id:string)=>ipcRenderer.invoke('artifacts:thumbnail',projectId,id),
   getArtifactPreview: (projectId:string,id:string)=>ipcRenderer.invoke('artifacts:preview',projectId,id),
   listRoles: () => ipcRenderer.invoke("roles:list"),
   listProjects: () => ipcRenderer.invoke("projects:list"),
