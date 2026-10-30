@@ -662,3 +662,28 @@
 .osExploreHint{position:sticky;top:8px;left:12px;display:block;width:max-content;max-width:calc(100% - 24px);z-index:8;background:var(--deck);color:var(--ink);border:1px solid var(--rule);border-radius:6px;padding:6px 10px;font-size:12px;pointer-events:none;margin:8px 12px;}
 
 .osExploreHint{position:absolute;top:26px;left:26px;margin:0;}
+
+/* Selected agent: current work first, configuration second. */
+.osAgentOverview { display:flex; align-items:center; gap:18px; padding:6px 0 18px; border-bottom:1px solid var(--rule); }
+.osAgentPortrait { width:64px; height:86px; flex:none; border-radius:16px; background:var(--paper); display:grid; place-items:center; }
+.osAgentPortrait .officeCharacter { width:56px; height:78px; }
+.osAgentState { display:block; font-size:23px; font-weight:600; line-height:1.3; margin:6px 0; }
+.osAgentLocation { font-size:12px; color:var(--ink-70); }
+.osActivityPreview h3 { font-size:13px; margin:4px 0 10px; }
+.osActivityPreview p { font-size:13px; line-height:1.65; color:var(--ink-70); white-space:pre-wrap; overflow-wrap:anywhere; margin:0; }
+.osAgentConfiguration { display:grid; gap:12px; margin:4px 0; padding:16px 0; border-block:1px solid var(--rule); }
+.osAgentConfiguration div { display:grid; grid-template-columns:64px minmax(0,1fr); gap:12px; font-size:12px; }
+.osAgentConfiguration dt { color:var(--ink-50); }
+.osAgentConfiguration dd { margin:0; overflow-wrap:anywhere; }
+.osInspectorActions { flex:none; padding:14px; border-top:1px solid var(--rule); background:var(--deck); }
+.osInspectorContent { gap:20px; padding:18px; }
+.osInspectorContent .osSubagents { margin-bottom:0; padding-bottom:0; border-bottom:0; }
+@media (max-width:1200px) {
+  .osInspector { max-height:45vh; }
+}
+@media (max-width:768px) {
+  .osInspector { display:flex; overflow:hidden; }
+  .osInspectorContent { min-height:0; }
+}
+
+.officeView [hidden] { display:none !important; }

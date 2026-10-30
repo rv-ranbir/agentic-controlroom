@@ -1,3 +1,5 @@
+import { lazy, Suspense } from "react";
+const Campus3D = lazy(() => import("./Campus3D").then(m=>({default:m.Campus3D})));
 import {officeNavigation,furnitureRoute} from '../../officeNavigation';
 import { TopBar } from "./TopBar";
 import { OfficeSubagentFloor, SUBAGENT_PAGE_SIZE } from './OfficeSubagentFloor';
@@ -141,6 +143,7 @@ export function OfficeFloor() {
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const { showView, selectAgent } = useStore.getState();
 
+  const [campusMode, setCampusMode] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [preferences, setPreferences] = useState(() => readOfficePreferences(selectedProjectId ?? ""));
   const [resultsOpen, setResultsOpen] = useState(false);
@@ -403,7 +406,7 @@ export function OfficeFloor() {
   const selectedAgentState = selectedAgentData ? (anchorFor(selectedAgentData.id).zone === "planning" ? "Planning" : statusLabel(agentStates[selectedAgentData.id] ?? "idle")) : null;
   const selectedAnchor = selectedAgentData ? anchorFor(selectedAgentData.id) : null;
   const selectedZone = selectedAnchor?.zone ?? "home";
-  const selectedLocationLabel = selectedZone === "home" ? "At desk" : preferences[selectedZone];
+  const selectedLocationLabel = selectedZone === "home" ? (campusMode ? "Campus workspace" : "At desk") : (campusMode && selectedZone === "meeting" ? "Research library" : preferences[selectedZone]);
 
   const handleAgentClick = (agentId: string) => { setSelectedSubagent(null); setSelectedAgent(agentId); };
 
@@ -417,6 +420,7 @@ export function OfficeFloor() {
       <header className="rvHeader">
         <button className="pillBtn ghostBtn mono" onClick={() => showView("room")}>&larr; back</button>
         <span className="rvName">{project.name}</span>
+        <button className="pillBtn ghostBtn" aria-pressed={campusMode} onClick={()=>{setCampusMode(v=>!v);setSelectedAgent(null);}}>3D campus</button>
         <span className="dim mono" style={{ fontSize: 10.5 }}>Office</span>
         <span className="dim mono rvHeaderStats">{agents.length} agent{agents.length === 1 ? "" : "s"} · {sessions.length} active session{sessions.length === 1 ? "" : "s"}</span>
       </header>
@@ -424,7 +428,7 @@ export function OfficeFloor() {
       <div className="officeStudio" data-labels={preferences.labels} data-motion-paused={motionPaused}>
         <div className="osWorkspace">
           <div className="osGrid">
-            <div className="osGridTop">
+            <div className="osGridTop" hidden={campusMode}>
               <input
                 type="text"
                 className="osSearch"
@@ -459,20 +463,21 @@ export function OfficeFloor() {
                 <button type="button" className="pillBtn ghostBtn mono osZoomBtn" onClick={() => changeZoom(effectiveZoom+ZOOM_STEP)} aria-label="Zoom in">+</button>
               </div>
             </div>
-            {effectiveZoom < 0.55 && <div className="osOverview" aria-label="Office overview">
+            {!campusMode && effectiveZoom < 0.55 && <div className="osOverview" aria-label="Office overview">
               <span><strong>{agents.filter(a=>agentStates[a.id]==='working').length}</strong> working</span>
               <span><strong>{agents.filter(a=>agentStates[a.id]==='needs').length}</strong> need input</span>
               <span><strong>{floorSubagents.length}</strong> delegated tasks</span>
               {rooms.map(r=><button key={r.sessionId??r.kind} onClick={()=>handleNavigateToRoom(r.kind)}>{preferences[r.kind]}{r.sessionId?` ${r.slot+1}`:''} · {r.agentIds.length}</button>)}
               <small>Select a person to zoom in</small>
             </div>}
-            {deskRows > 3 && <nav className="osOverview" aria-label="Office wings"><strong>Work studios</strong>{Array.from({length:Math.ceil(deskRows/3)},(_,wing)=><button key={wing} onClick={()=>{setFitMode(false);setZoom(Math.max(READABLE_ZOOM,Math.min(1,(wrapSize.width-32)/canvasWidth)));requestAnimationFrame(()=>requestAnimationFrame(()=>canvasWrapRef.current?.scrollTo({top:wing*1024*Math.max(READABLE_ZOOM,Math.min(1,(wrapSize.width-32)/canvasWidth)),left:0,behavior:motionReduced?'auto':'smooth'})));}}>Wing {wing+1} · {agents.filter(a=>Math.floor((slots.get(a.id)??0)/12)===wing).length} agents</button>)}</nav>}
-            {peopleOpen && <section className="osPeople" aria-label="Office people">
+            {!campusMode && deskRows > 3 && <nav className="osOverview" aria-label="Office wings"><strong>Work studios</strong>{Array.from({length:Math.ceil(deskRows/3)},(_,wing)=><button key={wing} onClick={()=>{setFitMode(false);setZoom(Math.max(READABLE_ZOOM,Math.min(1,(wrapSize.width-32)/canvasWidth)));requestAnimationFrame(()=>requestAnimationFrame(()=>canvasWrapRef.current?.scrollTo({top:wing*1024*Math.max(READABLE_ZOOM,Math.min(1,(wrapSize.width-32)/canvasWidth)),left:0,behavior:motionReduced?'auto':'smooth'})));}}>Wing {wing+1} · {agents.filter(a=>Math.floor((slots.get(a.id)??0)/12)===wing).length} agents</button>)}</nav>}
+            {!campusMode && peopleOpen && <section className="osPeople" aria-label="Office people">
               {matchedAgents.map(a=><button key={a.id} aria-pressed={selectedAgent===a.id} onClick={()=>handleAgentClick(a.id)}><strong>{a.name}</strong><span>{statusLabel(agentStates[a.id]??'idle')} · {anchorFor(a.id).zone==='home'?'At desk':preferences[anchorFor(a.id).zone as RoomKind]}</span></button>)}
               {!matchedAgents.length&&<p>No people match your search.</p>}
               {subagentRecords.filter(r=>rosterIds.has(r.parentAgentId)&&(!term||`${r.description} ${parentNames.get(r.parentAgentId)}`.toLowerCase().includes(term))).map(r=><button key={r.id} onClick={()=>{setSelectedAgent(r.parentAgentId);setSelectedSubagent(r.id);}}><strong>{r.description}</strong><span>{parentNames.get(r.parentAgentId)} · {r.status==='unobserved'?'Status unavailable':r.status}</span></button>)}
             </section>}
-            <div className="osGridArea">
+            {campusMode && <Suspense fallback={<p role="status">Loading 3D campus…</p>}><Campus3D subagents={subagentRecords} selectedSubagent={selectedSubagent} onSelectSubagent={record=>{setSelectedAgent(record.parentAgentId);setSelectedSubagent(record.id);}} onFallback={()=>setCampusMode(false)} key={project.id} project={project} sessions={sessions} agentStates={agentStates} selectedAgent={selectedAgent} onSelectAgent={handleAgentClick} onRoom={kind=>kind==='results'?setResultsOpen(true):handleNavigateToRoom(kind)} /></Suspense>}
+            <div className="osGridArea" hidden={campusMode}>
               <span className="osExploreHint">Scroll to explore · Ctrl + wheel to zoom · Drag empty space to pan</span>
               {agents.length === 0 ? (
                 <div className="osEmpty">No agents in this project.</div>
@@ -551,7 +556,7 @@ export function OfficeFloor() {
               )}
             </div>
             {resultsOpen && <OfficeResultsWall key={project.id} projectId={project.id} onClose={()=>setResultsOpen(false)} />}
-            <div className="osGridNav">
+            <div className="osGridNav" hidden={campusMode}>
               <button className="pillBtn ghostBtn mono" onClick={() => handleNavigateToRoom("meeting")} title="Open meeting room">Meeting</button>
               <button className="pillBtn ghostBtn mono" onClick={() => handleNavigateToRoom("planning")} title="Open planning">Strategy</button>
               <button className="pillBtn ghostBtn mono" onClick={() => handleNavigateToRoom("debate")} title="Open debate">Boardroom</button>
@@ -574,59 +579,35 @@ export function OfficeFloor() {
                 </button>
               </div>
               <div className="osInspectorContent">
-                <section className="osSubagents" aria-label="Delegated agents"><h3>Delegated agents</h3>
-                  {subagentRecords.filter(r=>r.parentAgentId===selectedAgentData.id).length===0?<p>No native subagent events observed. Supported streams: Claude, Codex and Cursor.</p>:subagentRecords.filter(r=>r.parentAgentId===selectedAgentData.id).map(r=><details key={`${r.id}:${selectedSubagent === r.id}`} open={selectedSubagent === r.id ? true : undefined} data-subagent-status={r.status}><summary>{r.description} · {r.status==='unobserved'?'Status unavailable':r.status}</summary><p>{r.summary||'No summary reported yet.'}</p>{r.lastTool&&<p>Last tool: {r.lastTool}</p>}<small>{r.provider??'claude'} · Task {r.taskId}</small></details>)}
+                <section className="osAgentOverview" aria-label="Agent overview">
+                  <div className="osAgentPortrait"><OfficeCharacter agentId={selectedAgentData.id} working={false} /></div>
+                  <div>
+                    <span className="osInspectorLabel">Current state</span>
+                    <strong className="osAgentState">{selectedAgentState || "Unknown"}</strong>
+                    <span className="osAgentLocation">{selectedLocationLabel}</span>
+                  </div>
                 </section>
-                <div className="osInspectorField">
-                  <div className="osInspectorLabel">Status</div>
-                  <div className="osInspectorValue">{selectedAgentState || "—"}</div>
-                </div>
-                <div className="osInspectorField">
-                  <div className="osInspectorLabel">Location</div>
-                  <div className="osInspectorValue">{selectedLocationLabel}</div>
-                </div>
+                <section className="osActivityPreview" aria-label="Latest activity">
+                  <h3>Latest activity</h3>
+                  <p>{recentMessage ? recentMessage.message.substring(0, 600) + (recentMessage.message.length > 600 ? "…" : "") : "No activity recorded yet. Open the conversation to give this agent a task."}</p>
+                </section>
                 {sessions.filter(session=>session.agentIds.includes(selectedAgentData.id)).length>0&&<section className="osSubagents" aria-label="Active sessions"><h3>Active sessions</h3>{sessions.filter(session=>session.agentIds.includes(selectedAgentData.id)).map(session=><button className="pillBtn ghostBtn" key={session.id} onClick={()=>handleNavigateToRoom(session.kind)} title={session.id}>{preferences[session.kind]} · {session.agentIds.length} participants</button>)}</section>}
-                {selectedZone !== "home" && (
-                  <div className="osInspectorField">
-                    <div className="osInspectorLabel">Session</div>
-                    <div className="osInspectorValue mono" style={{ fontSize: 11 }}>{selectedZone}</div>
-                  </div>
-                )}
-                {selectedAgentData.name && (
-                  <div className="osInspectorField">
-                    <div className="osInspectorLabel">Name</div>
-                    <div className="osInspectorValue">{selectedAgentData.name}</div>
-                  </div>
-                )}
-                {(selectedAgentData.provider || project.backend) && (
-                  <div className="osInspectorField">
-                    <div className="osInspectorLabel">Provider</div>
-                    <div className="osInspectorValue mono" style={{ fontSize: 11 }}>
-                      {selectedAgentData.provider || project.backend}
-                    </div>
-                  </div>
-                )}
-                {true && (
-                  <div className="osInspectorField">
-                    <div className="osInspectorLabel">Model</div>
-                    <div className="osInspectorValue mono" style={{ fontSize: 11 }}>
-                      {selectedAgentData.model || project.model || "Provider default"}
-                    </div>
-                  </div>
-                )}
-                {recentMessage && (
-                  <div className="osInspectorField">
-                    <div className="osInspectorLabel">Latest</div>
-                    <div className="osInspectorMessage">{recentMessage.message.substring(0, 120)}{recentMessage.message.length > 120 ? "…" : ""}</div>
-                  </div>
-                )}
+                <dl className="osAgentConfiguration">
+                  <div><dt>Provider</dt><dd>{selectedAgentData.provider || project.backend || "Not configured"}</dd></div>
+                  <div><dt>Model</dt><dd>{selectedAgentData.model || project.model || "Provider default"}</dd></div>
+                </dl>
+                <section className="osSubagents" aria-label="Delegated agents"><h3>Delegated agents</h3>
+                  {subagentRecords.filter(r=>r.parentAgentId===selectedAgentData.id).length===0?<p>No delegated work reported yet.</p>:subagentRecords.filter(r=>r.parentAgentId===selectedAgentData.id).map(r=><details key={`${r.id}:${selectedSubagent === r.id}`} open={selectedSubagent === r.id ? true : undefined} data-subagent-status={r.status}><summary>{r.description} · {r.status==='unobserved'?'Status unavailable':r.status}</summary><p>{r.summary||'No summary reported yet.'}</p>{r.lastTool&&<p>Last tool: {r.lastTool}</p>}<small>{r.provider??'claude'} · Task {r.taskId}</small></details>)}
+                </section>
+              </div>
+              <div className="osInspectorActions">
                 <button
                   className="pillBtn fillBtn"
                   onClick={() => {
                     selectAgent(selectedAgentData.id);
                     showView("room");
                   }}
-                  style={{ width: "100%", marginTop: 12 }}
+                  style={{ width: "100%" }}
                 >
                   Open conversation
                 </button>

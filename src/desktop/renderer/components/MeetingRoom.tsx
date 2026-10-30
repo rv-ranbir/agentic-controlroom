@@ -11,7 +11,7 @@ export function MeetingRoom() {
   const project = useStore((s) => s.projects.find((p) => p.id === selectedProjectId));
   const messages = useStore((s) => s.messages);
   const running = useStore((s) => !!s.runningKeys[selectedProjectId ?? ""]);
-  const { showView, showToast } = useStore.getState();
+  const { showView, showToast, setActiveRoomRoster } = useStore.getState();
 
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [topic, setTopic] = useState("");

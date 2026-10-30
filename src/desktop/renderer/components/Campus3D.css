@@ -1,0 +1,18 @@
+.campus3d{position:relative;display:flex;flex-direction:column;flex:1;min-height:300px;min-width:0;background:#202925;color:#f1eadc;font:13px/1.5 system-ui,sans-serif;overflow:hidden}
+.campus3dToolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 18px;border-bottom:1px solid #465046;background:#252e29;z-index:2}
+.campus3dToolbar>div{display:flex;align-items:center;gap:10px}.campus3dToolbar strong{font:20px Georgia,serif}.campus3dToolbar span{font-size:11px;color:#b8c3b6}
+.campus3d button{font:inherit;border:1px solid #626e60;background:#303b33;color:#f1eadc;padding:7px 11px;border-radius:5px;cursor:pointer}.campus3d button:hover:not(:disabled),.campus3d button[aria-pressed=true]{background:#52604a}.campus3d button:focus-visible{outline:2px solid #ffcf7d;outline-offset:3px}.campus3d button:disabled{opacity:.4;cursor:default}
+.campus3dStage{position:relative;flex:1;min-height:0;width:100%;overflow:hidden}.campus3dStage canvas{display:block;width:100%;height:100%;touch-action:none}
+.campus3dHint{position:absolute;left:18px;top:75px;padding:6px 10px;background:#202925d9;color:#cdd7ca;font-size:11px;pointer-events:none;border-radius:4px}
+.campus3dRooms{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;padding:10px;background:#252e29;border-top:1px solid #465046}
+.campus3dWings{position:absolute;right:18px;bottom:65px;display:flex;align-items:center;gap:10px;padding:6px;background:#202925df;border-radius:5px}
+.campus3dPeople{position:absolute;right:16px;top:70px;bottom:65px;width:min(310px,85%);background:#252e29f5;padding:16px;border:1px solid #677161;overflow:auto;border-radius:8px;z-index:4}.campus3dPeople header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}.campus3dPeople>button{width:100%;display:flex;justify-content:space-between;margin:5px 0;gap:12px}.campus3dPeople span{color:#c7cebd}
+.campus3dFallback{position:absolute;inset:65px 0 55px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:30px;background:#202925;z-index:5}.campus3dFallback p{max-width:420px}
+@media(max-width:800px){.campus3dToolbar{flex-wrap:wrap;padding:10px}.campus3dToolbar strong{font-size:17px}.campus3dToolbar>div{flex-wrap:wrap}.campus3dToolbar span{display:none}.campus3dHint{display:none}.campus3dRooms{justify-content:flex-start;gap:5px}.campus3dRooms button{font-size:11px;padding:6px}.campus3dWings{bottom:90px;font-size:11px}.campus3dPeople{top:100px}.campus3d{min-height:350px}}
+.campus3d{min-height:0}.campus3dStage{min-height:160px}@media(max-width:1200px){.officeStudio:has(.campus3d) .osInspector{max-height:35vh;flex-shrink:0}}
+
+.campus3dMotion{position:absolute;left:18px;bottom:65px;max-width:65%;padding:6px 10px;background:#202925ed;color:#d7e2cb;font-size:11px;border-radius:4px;pointer-events:none}@media(max-width:800px){.campus3dMotion{bottom:92px;max-width:45%}}
+
+.campus3dDelegates>button{flex-direction:column;text-align:left;overflow-wrap:anywhere}.campus3dDelegates header{flex-wrap:wrap;gap:8px}.campus3dDelegates nav{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.campus3dToolbar{flex-wrap:wrap}
+
+.campus3dGallery>button{flex-direction:column;text-align:left;overflow-wrap:anywhere}.campus3dGallery header{flex-wrap:wrap;gap:8px}

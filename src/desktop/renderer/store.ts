@@ -28,6 +28,8 @@ interface State {
   localForceActive: Record<string, true>;
   localPaused: Record<string, true>;
   runningKeys: Record<string, true>;
+  /** Which agents are in the current meeting/debate, if any — lets the office floor place them in the right room while busy (M11). */
+  activeRoomRoster: { kind: "meeting" | "debate"; agentIds: string[] } | null;
   activityLog: Record<string, { ts: string; agentId: string; kind: "tool"; text: string; raw?: string }[]>;
   diff: DiffResult | null;
   diffLoading: boolean;
@@ -40,6 +42,7 @@ interface State {
   fetchDiff(): Promise<void>;
   fetchProjectStats(): Promise<void>;
   showView(v: View): void;
+  setActiveRoomRoster(roster: { kind: "meeting" | "debate"; agentIds: string[] } | null): void;
   toggleTheme(): void;
   setAppThemePreset(preset: ThemePreset): void;
   setProjectThemePreset(projectId: string, preset: ThemePreset | undefined): void;
@@ -116,6 +119,7 @@ export const useStore = create<State>((set, get) => ({
   localForceActive: {},
   localPaused: {},
   runningKeys: {},
+  activeRoomRoster: null,
   activityLog: {},
   diff: null,
   diffLoading: false,
@@ -162,6 +166,7 @@ export const useStore = create<State>((set, get) => ({
     applyPresetForView(v, state.appThemePreset, state.selectedProjectId, state.projectThemePresets);
   },
 
+  setActiveRoomRoster(roster) { set({ activeRoomRoster: roster }); },
 
   toggleTheme() {
     const next = get().theme === "dark" ? "light" : "dark";
@@ -405,7 +410,11 @@ api.onEvent((e: RoomEvent) => {
     const runningKeys = { ...s.runningKeys };
     if (e.running) runningKeys[e.projectId] = true; else delete runningKeys[e.projectId];
     useStore.setState({ runningKeys });
-    if (!e.running) trySendQueued(e.projectId, null);
+    if (!e.running) {
+      trySendQueued(e.projectId, null);
+      // a meeting/debate roster only means anything while its run is in flight
+      useStore.setState({ activeRoomRoster: null });
+    }
     void s.refreshProjects();
     return;
   }

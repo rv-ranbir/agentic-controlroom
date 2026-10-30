@@ -1,0 +1,42 @@
+# Separate 3D campus — 2026-10-29
+
+User explicitly chose true 3D with camera rotation and depth. The generated living-campus image is the visual target; the current 2D office remains available. The image-backed campus exploration is not the final 3D implementation.
+
+Implementation: isolated Three.js scene inside existing React/Electron app. Modeled rooms, furniture and characters; real project roster and session destinations; orbit/pan/zoom and keyboard-accessible roster/room actions; existing agent inspector and results view reused. No separate orchestration engine or fake progress. Initial layout uses five connected room zones, warm oak/ivory/sage materials and cutaway walls. Large rosters use bounded wings. WebGL failure must show a clear fallback to original office. Lifecycle cleanup must dispose GPU resources and listeners; hidden views pause rendering; reduced motion disables animated repositioning.
+
+Verification: build, actual Electron WebGL render, rotate/zoom/reset, agent picking and roster selection, project switch, 12/30-agent coverage, room navigation/results and unsupported-WebGL fallback. Compare real screenshot with visual target; do not claim photorealistic parity or full furniture-aware 3D routing without evidence.
+
+## Implemented checkpoint
+
+Separate lazy-loaded `Campus3D.tsx` + CSS, backed by `lib/campus3dWorld.ts` and Three.js. Open Floor > 3D campus; toggle again for original office. Existing inspector/results reused. Scene has true mesh rooms, furniture, modeled characters, real orbit/pan/zoom, per-project roster, 12-agent wings, selectable roster, room actions, and explicit graphics-context-loss fallback. No model calls for scene rendering. Render-on-change avoids a permanent animation loop. Per-scene resources are isolated and disposed on unmount.
+
+Electron verification: WebGL initialized normally, camera orbit changed rendered pixels, rosters12/30, wing pagination, existing inspector, results action, reopen after disposal and simulated graphics-context-loss fallback passed; zero page errors and zero paid calls. Script delegation/campus3d-desktop-test.mjs; screenshots delegation/campus3d-0.png and campus3d-1.png. Original office regression also passed. Model geometry implemented by an economical gpt-6-luna worker, main integrated and corrected room mappings/resource ownership.
+
+Current limits: stylized procedural furniture/characters are not an exact match to the photorealistic concept. Concurrent sessions of the same kind share the same visible room. Gallery panels show actual artifact titles/kinds and open previews; chart/design thumbnails or animated artifact contents are not yet textured onto the walls. Camera/wing preferences are not persisted. No claim of graphics performance on other devices.
+
+Next: improve detailed models/materials and camera framing against reference; adapt existing subagent presence; render real artifacts on gallery screens. Keep work in the new renderer; do not replace tested 2D routing with pretend motion.
+
+## Delegation checkpoint — 2026-10-30
+
+Observed running and unobserved delegated agents now appear as distinct smaller 3D characters near visible roster parents. Scene click or the Delegated work drawer opens the exact task in the existing parent inspector. Completed/failed/stopped tasks leave the scene and remain in historical inspector details. Project and visible-parent filters prevent foreign/orphan records. Twelve tasks per page bound scene population; helper uses one-based pages, explicitly converted at UI boundary. Children route independently to nearby free anchors when their parent destination changes; no agent-agent avoidance is claimed. Missing terminal events remain Status unavailable.
+
+Added campus3dDelegation.ts and five tests via economical gpt-6-luna worker. Main integrated/reviewed and fixed page-index contract mismatch. Twelve focused delegation/navigation tests pass, desktop build passes. Actual Electron protocol fixtures cover Codex/Cursor child creation, selection, completion/failure removal, project isolation; 30-task variant checks three pages and six children on last page. Existing 3D 12/30-roster and motion/reduced-motion regressions pass. Zero paid provider calls. Evidence: delegation/campus3d-subagents-test.mjs, campus3d-many-test.mjs, campus3d-codex-subagent.png. Changes remain uncommitted; preserve earlier unrelated edits.
+
+Next priority: visual fidelity and live artifact surfaces. Delegation is now integrated; do not redo it based on older handoffs.
+
+## Live gallery checkpoint — 2026-10-30
+
+Three actual gallery wall planes now display newest artifact metadata using generated canvas text textures (no untrusted HTML execution). Surface picking opens the existing isolated app preview. Accessible Gallery drawer lists latest20, provides refresh, and links to all project results. Refresh every10seconds while visible, with visibility refresh, project/unmount guards and GPU texture disposal. Empty/loading/error states are explicit; stale panels clear after failed refresh. Scope guards prevent a late open error from updating another project's UI.
+
+Desktop build passes. Real Electron tests create real ArtifactStore records, click the actual 3D surface and accessible list, verify preview content, publish/refresh, corrupt/restore metadata for failure recovery, and switch projects to verify isolation. Motion/reduced-motion and30delegated-task regression tests remain green; zero paid calls. Evidence: delegation/campus3d-gallery-test.mjs, screenshot delegation/campus3d-gallery.png. Changes remain uncommitted. This is live metadata + preview navigation, not embedded live chart imagery. Next strongest gap is visual fidelity and actual artifact thumbnail rendering.
+
+## Walking checkpoint
+
+Session changes now walk existing agents from their actual current position, including retargeting when a session finishes mid-walk. Bounded four-neighbor routing uses expanded XZ footprints derived from actual world meshes, with conservative line-segment checks and exact endpoints. Named arms/legs animate only during walking. First placement, reduced motion and hidden views place immediately. No path means direct placement with a visible route-unavailable explanation, never an invented obstacle-crossing path. Agent-agent avoidance, dynamic furniture and seated working poses are not implemented.
+
+Source: src/desktop/campus3dNavigation.ts + tests; Campus3D integration. Economical gpt-6-luna worker implemented pure navigation and seven meaningful tests (all pass); main integrated renderer animation. Desktop build passes. Real Electron local-provider fixture verifies changed rendered pixels during walking, completion mid-walk returning home, reduced motion, no page errors, two local mock calls/zero paid. Script delegation/campus3d-motion-test.mjs; screenshot delegation/campus3d-walking.png. Existing 3D camera/roster/results/reopen/graphics-loss tests still pass. No commit or push.
+
+Preserve unrelated user edits in MeetingRoom.tsx/store.ts and untracked original office assets. No commit/push performed. Image-backed CampusScene prototype files/assets remain unused by the new 3D entry point, retained as visual exploration.
+## Compact campus checkpoint — 2026-10-30
+Rooms now sit closer together (x -9/0/9, z -5/+5); corridor width reduced from4.45 to2.4, foundation inset reduced, central gap contains a planted bench courtyard. Default/reset camera moved closer. Session anchors and gallery planes derive actual room coordinates; navigation uses new furniture geometry. Gallery plane sits0.02 ahead of frame backing to prevent depth overlap and intercepted clicks (found by real Electron regression).
+Validation: desktop build/typecheck, walking/retargeting/reduced-motion, camera/12-and30-roster/inspector/wings/fallback, and gallery surface click/preview/refresh/error recovery/project isolation all pass. Zero paid calls. Screenshot: delegation/campus3d-gallery.png. Layout is more compact but remains stylized; real chart thumbnails, detailed model fidelity and seated poses remain future work. No commit/push; preserve unrelated changes.
