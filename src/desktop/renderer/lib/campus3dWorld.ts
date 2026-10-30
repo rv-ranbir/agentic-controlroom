@@ -14,7 +14,10 @@ const mat = (color: number, roughness = 0.82, metalness = 0): THREE.MeshStandard
   new THREE.MeshStandardMaterial({ color, roughness, metalness });
 
 const M = {
-  ground: mat(0xd7d1bd),
+  ground: mat(0x655e50),
+  stone: mat(0xa49479),
+  stoneJoint: mat(0x726a59),
+  garden: mat(0x64735a),
   ivory: mat(0xf1eadb),
   wall: mat(0xe7ddca),
   wallSide: mat(0xd7cbb4),
@@ -217,9 +220,10 @@ function dressRoom(room: typeof CAMPUS_ROOMS[number], group: THREE.Group): void 
 
 function addCorridor(root: THREE.Group): void {
   const corridor = furnitureGroup(root, 'central corridor', 0, 0);
-  block(corridor, M.ivory, 'continuous corridor runner', 0, 0.055, 0, 27.6, 0.1, 2.4);
+  block(corridor, M.stone, 'continuous sandstone corridor runner', 0, 0.055, 0, 27.6, 0.1, 2.4);
   block(corridor, M.oakLight, 'corridor inlay north', 0, 0.11, -1.1, 27.3, 0.035, 0.06);
   block(corridor, M.oakLight, 'corridor inlay south', 0, 0.11, 1.1, 27.3, 0.035, 0.06);
+  for(let x=-12.6;x<=12.6;x+=1.4)block(corridor,M.stoneJoint,'corridor paving joint',x,.112,0,.022,.008,2.1);
   // Sparse recessed floor markers keep the long route legible without blocking room entries.
   for (const x of [-13.5, -7.5, -1.5, 4.5, 10.5, 13.5]) {
     const marker = mesh(cylinder, M.brass, 'small brass corridor floor marker');
@@ -272,11 +276,19 @@ export function createCampusWorld(): THREE.Group {
   ground.receiveShadow = true;
   root.add(ground);
 
-  const foundation = mesh(box, M.ivory, 'continuous cream architectural foundation');
+  const foundation = mesh(box, M.stone, 'continuous sandstone paving');
   foundation.position.set(0, 0.015, 0);
   foundation.scale.set(27.7, 0.13, 17.5);
   root.add(foundation);
 
+  // Flush paving joints add scale without creating walking obstacles.
+  for(let x=-13;x<=13;x+=1.3)block(root,M.stoneJoint,'paving vertical joint',x,.084,0,.018,.006,17.4);
+  for(let z=-8;z<=8;z+=1.3)block(root,M.stoneJoint,'paving horizontal joint',0,.084,z,27.6,.006,.018);
+  for(const z of [-9.7,9.7]){
+    block(root,M.garden,'recessed perimeter garden',0,.01,z,29,.04,1.55);
+    block(root,M.oakDark,'garden stone edging',0,.055,z+(z<0?.8:-.8),29,.08,.10);
+  }
+  for(const x of [-14.6,14.6])block(root,M.garden,'side garden strip',x,.01,0,.8,.04,18);
   addCorridor(root);
   for (const room of CAMPUS_ROOMS) {
     const shell = addRoomShell(room, root);
